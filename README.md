@@ -1,20 +1,30 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# ספרי משרד — מערכת ניהול משרד עו"ד
 
-# Run and deploy your AI Studio app
+מערכת ניהול חשבונות, גבייה, וייעוץ עסקי-AI למשרד עורכי דין בישראל המתמחה בנדל"ן.
 
-This contains everything you need to run your app locally.
+## מה זה כולל
 
-View your app in AI Studio: https://ai.studio/apps/eb3625a3-5804-43dd-b22e-9b84911834df
+- 💼 ניהול לקוחות, תיקים (11 סוגי תיקי נדל"ן), שעתון
+- 💰 הכנסות, הוצאות, חשבוניות עם חישוב מע"מ אוטומטי (18%)
+- 📧 חיבור ל-Gmail — סינון אוטומטי של התראות בנק, ביט, חשבוניות
+- 🤖 יועץ AI שמכיר את כל הנתונים שלך
+- 📊 קוקפיט יומי, תחזיות מס, ניהול גבייה לפי גיל
+- 👥 מערכת הרשאות מלאה (אדמין/עו"ד/פראלגל/מתמחה/חשב)
+- 🔒 RLS — כל משתמש רואה רק מה שהוא אמור לראות
 
-## Run Locally
+## טכנולוגיות
 
-**Prerequisites:**  Node.js
+- **Next.js 14** + React + Tailwind CSS (RTL)
+- **Supabase** (Postgres + Auth + Storage)
+- **Vercel** (hosting + cron daily 6am)
+- **Gmail API** (קריאת מיילים אוטומטית)
+- **Anthropic Claude** (יועץ AI + סיווג מיילים + OCR)
+- **Resend** (שליחת מיילים)
 
+## פריסה
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+ראה את [SETUP.md](./SETUP.md) למדריך פריסה מפורט.
+
+## עלות חודשית צפויה
+
+30-100 ₪/חודש לכל המשרד (תלוי בכמות שימוש ב-Claude API).

@@ -1,0 +1,53 @@
+import { exchangeCodeForTokens, getGmailClient } from '@/lib/gmail';
+import { createClient } from '@/lib/supabase/server';
+import { google } from 'googleapis';
+
+export async function GET(request) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    return Response.redirect(new URL(`/dashboard?gmail_error=${error}`, request.url));
+  }
+
+  if (!code) {
+    return Response.redirect(new URL('/dashboard?gmail_error=no_code', request.url));
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return new Response('Unauthorized', { status: 401 });
+
+    const tokens = await exchangeCodeForTokens(code);
+
+    // Get the email address
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials(tokens);
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const userInfo = await oauth2.userinfo.get();
+    const gmailEmail = userInfo.data.email;
+
+    // Save to org
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+
+    await supabase
+      .from('organizations')
+      .update({
+        gmail_connected: true,
+        gmail_refresh_token: tokens.refresh_token,
+        gmail_email: gmailEmail,
+      })
+      .eq('id', profile.organization_id);
+
+    return Response.redirect(new URL('/dashboard?tab=gmail&connected=1', request.url));
+  } catch (e) {
+    console.error('OAuth callback error:', e);
+    return Response.redirect(new URL(`/dashboard?gmail_error=${encodeURIComponent(e.message)}`, request.url));
+  }
+}
