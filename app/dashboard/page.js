@@ -7,7 +7,12 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  // Auth check temporarily disabled during setup
+  // if (!user) redirect('/login');
+
+  if (!user) {
+    return <NeedsSetup user={null} />;
+  }
 
   // Load profile
   const { data: profile } = await supabase
@@ -70,7 +75,7 @@ function NeedsSetup({ user }) {
         <p className="text-xs text-stone-500 mb-4">
           הקובץ <code>SETUP.md</code> מסביר איך לבצע הגדרה ראשונית במסד הנתונים.
         </p>
-        <p className="text-xs text-stone-400">המייל שלך: {user.email}</p>
+        <p className="text-xs text-stone-400">{user ? `המייל שלך: ${user.email}` : 'יש להתחבר תחילה'}</p>
       </div>
     </div>
   );
