@@ -1,32 +1,32 @@
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import DashboardClient from '@/components/DashboardClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  // Auth check temporarily disabled during setup
-  // if (!user) redirect('/login');
+  // Demo mode — auth bypassed. Uses service client to load first organization.
+  const supabase = createServiceClient();
 
-  if (!user) {
-    return <NeedsSetup user={null} />;
-  }
-
-  // Load profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*, organizations(*)')
-    .eq('id', user.id)
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('*')
+    .order('created_at', { ascending: true })
+    .limit(1)
     .single();
 
-  if (!profile) {
-    // First-time user — needs to create org & profile
-    return <NeedsSetup user={user} />;
+  if (!org) {
+    return <NoOrg />;
   }
 
-  // Parallel data loading
+  const fakeProfile = {
+    id: 'demo-user',
+    full_name: 'משתמש הדגמה',
+    role: 'admin',
+    organization_id: org.id,
+    organizations: org,
+    is_active: true,
+  };
+
   const [
     { data: clients },
     { data: matters },
@@ -38,21 +38,21 @@ export default async function DashboardPage() {
     { data: alerts },
     { data: gmailPending },
   ] = await Promise.all([
-    supabase.from('clients').select('*').order('name'),
-    supabase.from('matters').select('*').order('created_at', { ascending: false }),
-    supabase.from('income').select('*').order('date', { ascending: false }).limit(500),
-    supabase.from('expense').select('*').order('date', { ascending: false }).limit(500),
-    supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
-    supabase.from('timesheet').select('*').order('date', { ascending: false }).limit(500),
-    supabase.from('profiles').select('*').eq('is_active', true).order('full_name'),
-    supabase.from('alerts').select('*').eq('is_read', false).order('created_at', { ascending: false }).limit(20),
-    supabase.from('gmail_processed').select('*').eq('status', 'pending-review').order('processed_at', { ascending: false }).limit(50),
+    supabase.from('clients').select('*').eq('organization_id', org.id).order('name'),
+    supabase.from('matters').select('*').eq('organization_id', org.id).order('created_at', { ascending: false }),
+    supabase.from('income').select('*').eq('organization_id', org.id).order('date', { ascending: false }).limit(500),
+    supabase.from('expense').select('*').eq('organization_id', org.id).order('date', { ascending: false }).limit(500),
+    supabase.from('invoices').select('*').eq('organization_id', org.id).order('issue_date', { ascending: false }),
+    supabase.from('timesheet').select('*').eq('organization_id', org.id).order('date', { ascending: false }).limit(500),
+    supabase.from('profiles').select('*').eq('organization_id', org.id).eq('is_active', true).order('full_name'),
+    supabase.from('alerts').select('*').eq('organization_id', org.id).eq('is_read', false).order('created_at', { ascending: false }).limit(20),
+    supabase.from('gmail_processed').select('*').eq('organization_id', org.id).eq('status', 'pending-review').order('processed_at', { ascending: false }).limit(50),
   ]);
 
   return (
     <DashboardClient
-      profile={profile}
-      organization={profile.organizations}
+      profile={fakeProfile}
+      organization={org}
       clients={clients || []}
       matters={matters || []}
       income={income || []}
@@ -66,16 +66,12 @@ export default async function DashboardPage() {
   );
 }
 
-function NeedsSetup({ user }) {
+function NoOrg() {
   return (
     <div dir="rtl" className="min-h-screen flex items-center justify-center px-4">
       <div className="bg-white border border-stone-200 rounded-xl p-8 max-w-md text-center">
-        <h1 className="text-2xl font-bold mb-2">ברוך הבא!</h1>
-        <p className="text-stone-600 mb-4">החשבון שלך נוצר. צריך להגדיר את המשרד.</p>
-        <p className="text-xs text-stone-500 mb-4">
-          הקובץ <code>SETUP.md</code> מסביר איך לבצע הגדרה ראשונית במסד הנתונים.
-        </p>
-        <p className="text-xs text-stone-400">{user ? `המייל שלך: ${user.email}` : 'יש להתחבר תחילה'}</p>
+        <h1 className="text-2xl font-bold mb-2">לא נמצא משרד</h1>
+        <p className="text-stone-600">יש ליצור רשומת ארגון ב-Supabase תחילה.</p>
       </div>
     </div>
   );
