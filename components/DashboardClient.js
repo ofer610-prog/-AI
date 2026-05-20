@@ -63,27 +63,27 @@ export default function DashboardClient({
   ].filter(Boolean);
 
   return (
-    <div dir="rtl" className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white sticky top-0 z-30">
+    <div dir="rtl" className="min-h-screen bg-cream-50">
+      <header className="border-b border-sky-100 bg-white sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-baseline gap-3">
             <h1 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-2xl font-bold">
               {organization.name || 'ספרי משרד'}
             </h1>
-            <span className="text-xs text-stone-400 tracking-widest uppercase">Law Firm</span>
+            <span className="text-xs text-slate-400 tracking-widest uppercase">Law Firm</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-stone-600 hidden md:inline">{profile.full_name} • {ROLE_LABELS[profile.role]}</span>
-            <button onClick={() => setChatOpen(true)} className="px-3 py-1.5 bg-stone-900 text-white text-sm rounded-md flex items-center gap-1.5">
+            <span className="text-sm text-slate-600 hidden md:inline">{profile.full_name} • {ROLE_LABELS[profile.role]}</span>
+            <button onClick={() => setChatOpen(true)} className="px-3 py-1.5 bg-slate-800 text-white text-sm rounded-md flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" /> יועץ AI
             </button>
-            <button onClick={handleLogout} className="text-sm text-stone-500 hover:text-stone-900">יציאה</button>
+            <button onClick={handleLogout} className="text-sm text-slate-500 hover:text-slate-900">יציאה</button>
           </div>
         </div>
         <nav className="max-w-7xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t.id ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>
+              className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t.id ? 'border-sky-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
               {t.label}
             </button>
           ))}
@@ -122,20 +122,20 @@ function Cockpit({ ctx, setTab }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-stone-900 to-stone-800 text-white rounded-xl p-6 md:p-8">
+      <div className="bg-gradient-to-br from-sky-700 via-sky-800 to-slate-800 text-white rounded-xl p-6 md:p-8">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <div className="text-xs text-stone-400 tracking-widest uppercase mb-1">קוקפיט יומי</div>
+            <div className="text-xs text-slate-400 tracking-widest uppercase mb-1">קוקפיט יומי</div>
             <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">
               {getGreeting()} {profile.full_name?.split(' ')[0]}
             </h2>
-            <p className="text-stone-400 text-sm mt-1">{new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+            <p className="text-slate-400 text-sm mt-1">{new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           </div>
           {next && (
             <div className="text-left">
-              <div className="text-xs text-stone-400 mb-1">דדליין הבא</div>
+              <div className="text-xs text-slate-400 mb-1">דדליין הבא</div>
               <div className="text-xl font-bold">{daysBetween(today(), next.date)} ימים</div>
-              <div className="text-xs text-stone-400">{next.label}</div>
+              <div className="text-xs text-slate-400">{next.label}</div>
             </div>
           )}
         </div>
@@ -145,9 +145,9 @@ function Cockpit({ ctx, setTab }) {
             <Mail className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <div className="font-semibold text-sm">{gmailPending.length} פריטים חדשים מהמייל ממתינים לאישור</div>
-              <div className="text-xs text-stone-300 mt-0.5">המערכת זיהתה חשבוניות, תקבולים והתראות בנק. עבור על הרשימה.</div>
+              <div className="text-xs text-sky-100 mt-0.5">המערכת זיהתה חשבוניות, תקבולים והתראות בנק. עבור על הרשימה.</div>
             </div>
-            <ChevronRight className="w-4 h-4 text-stone-400 mt-1" />
+            <ChevronRight className="w-4 h-4 text-slate-400 mt-1" />
           </button>
         )}
 
@@ -161,10 +161,10 @@ function Cockpit({ ctx, setTab }) {
               <div key={a.id} className={`p-3 rounded-lg border ${
                 a.level === 'high' ? 'bg-rose-900/30 border-rose-800'
                 : a.level === 'medium' ? 'bg-amber-900/30 border-amber-800'
-                : 'bg-stone-800 border-stone-700'
+                : 'bg-slate-700 border-slate-600'
               }`}>
                 <div className="font-semibold text-sm">{a.title}</div>
-                {a.description && <div className="text-xs text-stone-300 mt-0.5">{a.description}</div>}
+                {a.description && <div className="text-xs text-sky-100 mt-0.5">{a.description}</div>}
               </div>
             ))}
           </div>
@@ -174,33 +174,33 @@ function Cockpit({ ctx, setTab }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPI label="הכנסות חודשי" value={forecast.monthlyIncome} icon={TrendingUp} accent="emerald" />
         <KPI label="הוצאות חודשי" value={forecast.monthlyExpense} icon={TrendingDown} accent="rose" />
-        <KPI label="רווח נקי" value={forecast.monthlyNet} icon={Wallet} accent={forecast.monthlyNet >= 0 ? 'stone' : 'red'} />
+        <KPI label="רווח נקי" value={forecast.monthlyNet} icon={Wallet} accent={forecast.monthlyNet >= 0 ? 'sky' : 'red'} />
         <KPI label="חשבוניות פתוחות" value={totalOpen} icon={FileText} accent="indigo" subtext={`${openInv.length} חשבוניות`} />
       </div>
 
-      <div className="bg-white border border-stone-200 rounded-lg p-6">
-        <h3 className="text-sm font-semibold text-stone-700 uppercase tracking-wider mb-4">לחץ מס צפוי — 3 חודשים קדימה</h3>
+      <div className="bg-white border border-sky-100 rounded-lg p-6">
+        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">לחץ מס צפוי — 3 חודשים קדימה</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div><div className="text-xs text-stone-500 mb-1">מע״מ הבא</div><div className="text-2xl font-bold text-rose-700">{fmtMoney(forecast.nextVatPayment)}</div></div>
-          <div><div className="text-xs text-stone-500 mb-1">מקדמת מ״ה (חודשי)</div><div className="text-2xl font-bold text-orange-700">{fmtMoney(forecast.monthlyIncomeTax)}</div></div>
-          <div><div className="text-xs text-stone-500 mb-1">בל״ל (חודשי)</div><div className="text-2xl font-bold text-amber-700">{fmtMoney(forecast.monthlyBituach)}</div></div>
-          <div><div className="text-xs text-stone-500 mb-1">סה״כ ל-3 חודשים</div><div className="text-2xl font-bold">{fmtMoney(forecast.next3Months)}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">מע״מ הבא</div><div className="text-2xl font-bold text-rose-700">{fmtMoney(forecast.nextVatPayment)}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">מקדמת מ״ה (חודשי)</div><div className="text-2xl font-bold text-orange-700">{fmtMoney(forecast.monthlyIncomeTax)}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">בל״ל (חודשי)</div><div className="text-2xl font-bold text-amber-700">{fmtMoney(forecast.monthlyBituach)}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">סה״כ ל-3 חודשים</div><div className="text-2xl font-bold">{fmtMoney(forecast.next3Months)}</div></div>
         </div>
       </div>
     </div>
   );
 }
 
-function KPI({ label, value, icon: Icon, accent = 'stone', subtext }) {
-  const colors = { emerald: 'text-emerald-700', rose: 'text-rose-700', stone: 'text-stone-900', red: 'text-red-700', indigo: 'text-indigo-700' };
+function KPI({ label, value, icon: Icon, accent = 'sky', subtext }) {
+  const colors = { emerald: 'text-emerald-700', rose: 'text-rose-700', sky: 'text-sky-700', red: 'text-red-700', indigo: 'text-indigo-700' };
   return (
-    <div className="bg-white border border-stone-200 rounded-lg p-4">
+    <div className="bg-white border border-sky-100 rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-wider text-stone-500">{label}</span>
-        <Icon className="w-3.5 h-3.5 text-stone-400" />
+        <span className="text-[10px] uppercase tracking-wider text-slate-500">{label}</span>
+        <Icon className="w-3.5 h-3.5 text-slate-400" />
       </div>
       <div className={`text-xl font-bold ${colors[accent]}`}>{fmtMoney(value)}</div>
-      {subtext && <div className="text-xs text-stone-400 mt-1">{subtext}</div>}
+      {subtext && <div className="text-xs text-slate-400 mt-1">{subtext}</div>}
     </div>
   );
 }
@@ -268,7 +268,7 @@ function GmailPanel({ ctx, onRefresh }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">חיבור למייל</h2>
-          <p className="text-sm text-stone-500 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             {organization.gmail_connected
               ? `מחובר ל-${organization.gmail_email} • סנכרון אחרון: ${organization.last_gmail_sync ? fmt(organization.last_gmail_sync) : 'אף פעם'}`
               : 'לא מחובר עדיין'}
@@ -276,7 +276,7 @@ function GmailPanel({ ctx, onRefresh }) {
         </div>
         <div className="flex gap-2">
           {organization.gmail_connected ? (
-            <button onClick={triggerSync} disabled={syncing} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md flex items-center gap-2 disabled:opacity-50">
+            <button onClick={triggerSync} disabled={syncing} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md flex items-center gap-2 disabled:opacity-50">
               {syncing ? <><Loader2 className="w-4 h-4 animate-spin" /> מסנכרן...</> : <><MailCheck className="w-4 h-4" /> סנכרון עכשיו</>}
             </button>
           ) : (
@@ -301,33 +301,33 @@ function GmailPanel({ ctx, onRefresh }) {
       )}
 
       {gmailPending.length === 0 ? (
-        <div className="bg-white border border-stone-200 rounded-lg p-8 text-center text-stone-400">
+        <div className="bg-white border border-sky-100 rounded-lg p-8 text-center text-slate-400">
           {organization.gmail_connected ? 'אין פריטים שדורשים אישור' : 'חבר את Gmail כדי להתחיל'}
         </div>
       ) : (
         <div className="space-y-2">
           {gmailPending.map(item => (
-            <div key={item.id} className="bg-white border border-stone-200 rounded-lg p-4">
+            <div key={item.id} className="bg-white border border-sky-100 rounded-lg p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs px-2 py-0.5 bg-stone-100 rounded">{item.classification}</span>
-                    <span className="text-xs text-stone-500">דיוק: {item.ai_confidence}</span>
-                    <span className="text-xs text-stone-400">{fmt(item.date)}</span>
+                    <span className="text-xs px-2 py-0.5 bg-sky-50 rounded">{item.classification}</span>
+                    <span className="text-xs text-slate-500">דיוק: {item.ai_confidence}</span>
+                    <span className="text-xs text-slate-400">{fmt(item.date)}</span>
                   </div>
                   <div className="text-sm font-medium">{item.subject}</div>
-                  <div className="text-xs text-stone-500 mt-1">מאת: {item.from_email}</div>
+                  <div className="text-xs text-slate-500 mt-1">מאת: {item.from_email}</div>
                   {item.extracted_amount && (
                     <div className="mt-2 text-sm">
                       <span className="font-semibold">{fmtMoney(item.extracted_amount)}</span>
-                      {item.extracted_description && <span className="text-stone-600"> • {item.extracted_description}</span>}
+                      {item.extracted_description && <span className="text-slate-600"> • {item.extracted_description}</span>}
                     </div>
                   )}
-                  {item.ai_notes && <div className="text-xs text-stone-400 italic mt-1">{item.ai_notes}</div>}
+                  {item.ai_notes && <div className="text-xs text-slate-400 italic mt-1">{item.ai_notes}</div>}
                 </div>
                 <div className="flex flex-col gap-1">
                   <button onClick={() => approveItem(item)} className="px-3 py-1 bg-emerald-700 text-white text-xs rounded">אשר וייבא</button>
-                  <button onClick={() => ignoreItem(item)} className="px-3 py-1 bg-stone-100 text-stone-700 text-xs rounded">דלג</button>
+                  <button onClick={() => ignoreItem(item)} className="px-3 py-1 bg-sky-50 text-slate-700 text-xs rounded">דלג</button>
                 </div>
               </div>
             </div>
@@ -368,13 +368,13 @@ function ClientsPanel({ clients, matters, invoices, onRefresh, canEdit }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">לקוחות</h2>
-          <p className="text-sm text-stone-500 mt-1">{clients.length} לקוחות</p>
+          <p className="text-sm text-slate-500 mt-1">{clients.length} לקוחות</p>
         </div>
-        {canEdit && <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md">{showForm ? 'סגור' : '+ לקוח'}</button>}
+        {canEdit && <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md">{showForm ? 'סגור' : '+ לקוח'}</button>}
       </div>
 
       {showForm && (
-        <div className="bg-white border border-stone-200 rounded-lg p-5 space-y-3">
+        <div className="bg-white border border-sky-100 rounded-lg p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="שם" value={form.name} onChange={v => setForm({ ...form, name: v })} />
             <SelectField label="סוג" value={form.type} onChange={v => setForm({ ...form, type: v })} options={[{value:'individual',label:'אדם'},{value:'company',label:'חברה'}]} />
@@ -387,22 +387,22 @@ function ClientsPanel({ clients, matters, invoices, onRefresh, canEdit }) {
         </div>
       )}
 
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        {clients.length === 0 ? <div className="p-12 text-center text-stone-400">אין לקוחות</div> : (
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
+        {clients.length === 0 ? <div className="p-12 text-center text-slate-400">אין לקוחות</div> : (
           <table className="w-full">
-            <thead className="bg-stone-50 border-b border-stone-200">
+            <thead className="bg-cream-50 border-b border-sky-100">
               <tr><Th>שם</Th><Th>סוג</Th><Th>תיקים</Th><Th align="left">חויב</Th><Th align="left">פתוח</Th></tr>
             </thead>
             <tbody>
               {clients.map(c => {
                 const s = getStats(c.id);
                 return (
-                  <tr key={c.id} className="border-b border-stone-100">
+                  <tr key={c.id} className="border-b border-sky-50">
                     <Td className="font-medium">{c.name}</Td>
                     <Td>{c.type === 'company' ? 'חברה' : 'אדם'}</Td>
                     <Td>{s.mattersCount}</Td>
                     <Td align="left">{fmtMoney(s.billed)}</Td>
-                    <Td align="left" className={s.open > 0 ? 'text-rose-700 font-semibold' : 'text-stone-400'}>{fmtMoney(s.open)}</Td>
+                    <Td align="left" className={s.open > 0 ? 'text-rose-700 font-semibold' : 'text-slate-400'}>{fmtMoney(s.open)}</Td>
                   </tr>
                 );
               })}
@@ -436,13 +436,13 @@ function MattersPanel({ matters, clients, team, onRefresh, canEdit }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">תיקים</h2>
-          <p className="text-sm text-stone-500 mt-1">{matters.filter(m => m.status === 'active').length} פעילים מתוך {matters.length}</p>
+          <p className="text-sm text-slate-500 mt-1">{matters.filter(m => m.status === 'active').length} פעילים מתוך {matters.length}</p>
         </div>
-        {canEdit && <button onClick={() => setShowForm(!showForm)} disabled={clients.length === 0} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md disabled:opacity-50">{showForm ? 'סגור' : '+ תיק'}</button>}
+        {canEdit && <button onClick={() => setShowForm(!showForm)} disabled={clients.length === 0} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md disabled:opacity-50">{showForm ? 'סגור' : '+ תיק'}</button>}
       </div>
 
       {showForm && (
-        <div className="bg-white border border-stone-200 rounded-lg p-5 space-y-3">
+        <div className="bg-white border border-sky-100 rounded-lg p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="שם התיק" value={form.title} onChange={v => setForm({ ...form, title: v })} />
             <SelectField label="לקוח" value={form.client_id} onChange={v => setForm({ ...form, client_id: v })} options={[{value:'',label:'— בחר —'}, ...clients.map(c => ({value:c.id, label:c.name}))]} />
@@ -456,10 +456,10 @@ function MattersPanel({ matters, clients, team, onRefresh, canEdit }) {
         </div>
       )}
 
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        {matters.length === 0 ? <div className="p-12 text-center text-stone-400">אין תיקים</div> : (
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
+        {matters.length === 0 ? <div className="p-12 text-center text-slate-400">אין תיקים</div> : (
           <table className="w-full">
-            <thead className="bg-stone-50 border-b border-stone-200">
+            <thead className="bg-cream-50 border-b border-sky-100">
               <tr><Th>תיק</Th><Th>לקוח</Th><Th>סוג</Th><Th>אחראי</Th><Th>סטטוס</Th><Th align="left">שכ״ט</Th></tr>
             </thead>
             <tbody>
@@ -469,7 +469,7 @@ function MattersPanel({ matters, clients, team, onRefresh, canEdit }) {
                 const type = MATTER_TYPES.find(t => t.id === m.type);
                 const status = MATTER_STATUS.find(s => s.id === m.status);
                 return (
-                  <tr key={m.id} className="border-b border-stone-100">
+                  <tr key={m.id} className="border-b border-sky-50">
                     <Td className="font-medium">{m.title}</Td>
                     <Td>{client?.name || '—'}</Td>
                     <Td>{type?.label}</Td>
@@ -510,13 +510,13 @@ function TimesheetPanel({ timesheet, matters, team, clients, profile, onRefresh 
       <div className="flex items-center justify-between">
         <div>
           <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">שעתון</h2>
-          <p className="text-sm text-stone-500 mt-1">{filtered.reduce((a,b)=>a+Number(b.hours||0),0).toFixed(1)} שעות</p>
+          <p className="text-sm text-slate-500 mt-1">{filtered.reduce((a,b)=>a+Number(b.hours||0),0).toFixed(1)} שעות</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} disabled={matters.length === 0} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md disabled:opacity-50">{showForm ? 'סגור' : '+ רישום'}</button>
+        <button onClick={() => setShowForm(!showForm)} disabled={matters.length === 0} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md disabled:opacity-50">{showForm ? 'סגור' : '+ רישום'}</button>
       </div>
 
       {showForm && (
-        <div className="bg-white border border-stone-200 rounded-lg p-5 space-y-3">
+        <div className="bg-white border border-sky-100 rounded-lg p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Field label="תאריך" type="date" value={form.date} onChange={v => setForm({ ...form, date: v })} />
             <SelectField label="תיק" value={form.matter_id} onChange={v => setForm({ ...form, matter_id: v })} options={[{value:'',label:'— בחר —'}, ...matters.filter(m=>m.status==='active').map(m => ({value:m.id,label:m.title}))]} />
@@ -531,20 +531,20 @@ function TimesheetPanel({ timesheet, matters, team, clients, profile, onRefresh 
         </div>
       )}
 
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        {filtered.length === 0 ? <div className="p-12 text-center text-stone-400">אין רישומים</div> : (
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
+        {filtered.length === 0 ? <div className="p-12 text-center text-slate-400">אין רישומים</div> : (
           <table className="w-full">
-            <thead className="bg-stone-50 border-b border-stone-200"><tr><Th>תאריך</Th><Th>עו״ד</Th><Th>תיק</Th><Th>פירוט</Th><Th align="left">שעות</Th></tr></thead>
+            <thead className="bg-cream-50 border-b border-sky-100"><tr><Th>תאריך</Th><Th>עו״ד</Th><Th>תיק</Th><Th>פירוט</Th><Th align="left">שעות</Th></tr></thead>
             <tbody>
               {filtered.map(t => {
                 const lawyer = team.find(x => x.id === t.lawyer_id);
                 const matter = matters.find(m => m.id === t.matter_id);
                 return (
-                  <tr key={t.id} className="border-b border-stone-100">
+                  <tr key={t.id} className="border-b border-sky-50">
                     <Td>{fmt(t.date)}</Td>
                     <Td>{lawyer?.full_name || '—'}</Td>
                     <Td>{matter?.title || '—'}</Td>
-                    <Td className="text-stone-500 text-xs">{t.description} {!t.billable && '(לא לחיוב)'}</Td>
+                    <Td className="text-slate-500 text-xs">{t.description} {!t.billable && '(לא לחיוב)'}</Td>
                     <Td align="left" className="font-semibold">{Number(t.hours).toFixed(1)}</Td>
                   </tr>
                 );
@@ -590,13 +590,13 @@ function IncomeExpensePanel({ type, data, clients, matters, vatRate, onRefresh }
       <div className="flex items-center justify-between">
         <div>
           <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">{type === 'income' ? 'הכנסות' : 'הוצאות'}</h2>
-          <p className="text-sm text-stone-500 mt-1">סה״כ {fmtMoney(total)}</p>
+          <p className="text-sm text-slate-500 mt-1">סה״כ {fmtMoney(total)}</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md">{showForm ? 'סגור' : '+ חדש'}</button>
+        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md">{showForm ? 'סגור' : '+ חדש'}</button>
       </div>
 
       {showForm && (
-        <div className="bg-white border border-stone-200 rounded-lg p-5 space-y-3">
+        <div className="bg-white border border-sky-100 rounded-lg p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Field label="תאריך" type="date" value={form.date} onChange={v => setForm({ ...form, date: v })} />
             <Field label="תיאור" value={form.description} onChange={v => setForm({ ...form, description: v })} />
@@ -610,19 +610,19 @@ function IncomeExpensePanel({ type, data, clients, matters, vatRate, onRefresh }
         </div>
       )}
 
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        {data.length === 0 ? <div className="p-12 text-center text-stone-400">אין רשומות</div> : (
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
+        {data.length === 0 ? <div className="p-12 text-center text-slate-400">אין רשומות</div> : (
           <table className="w-full">
-            <thead className="bg-stone-50 border-b border-stone-200"><tr><Th>תאריך</Th><Th>תיאור</Th><Th>לקוח</Th><Th>מקור</Th><Th align="left">סכום</Th></tr></thead>
+            <thead className="bg-cream-50 border-b border-sky-100"><tr><Th>תאריך</Th><Th>תיאור</Th><Th>לקוח</Th><Th>מקור</Th><Th align="left">סכום</Th></tr></thead>
             <tbody>
               {data.map(item => {
                 const client = clients.find(c => c.id === item.client_id);
                 return (
-                  <tr key={item.id} className="border-b border-stone-100">
+                  <tr key={item.id} className="border-b border-sky-50">
                     <Td>{fmt(item.date)}</Td>
                     <Td className="font-medium">{item.description}</Td>
                     <Td>{client?.name || '—'}</Td>
-                    <Td className="text-xs text-stone-400">{item.source === 'gmail' ? '📧' : item.source === 'document-upload' ? '📷' : '✍️'}</Td>
+                    <Td className="text-xs text-slate-400">{item.source === 'gmail' ? '📧' : item.source === 'document-upload' ? '📷' : '✍️'}</Td>
                     <Td align="left" className="font-semibold">{fmtMoney(item.amount)}</Td>
                   </tr>
                 );
@@ -669,13 +669,13 @@ function InvoicesPanel({ invoices, clients, matters, onRefresh }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">חשבוניות</h2>
-          <p className="text-sm text-stone-500 mt-1">{invoices.filter(i=>i.status!=='paid').length} פתוחות מתוך {invoices.length}</p>
+          <p className="text-sm text-slate-500 mt-1">{invoices.filter(i=>i.status!=='paid').length} פתוחות מתוך {invoices.length}</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md">{showForm ? 'סגור' : '+ חשבונית'}</button>
+        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md">{showForm ? 'סגור' : '+ חשבונית'}</button>
       </div>
 
       {showForm && (
-        <div className="bg-white border border-stone-200 rounded-lg p-5 space-y-3">
+        <div className="bg-white border border-sky-100 rounded-lg p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Field label="מספר" value={form.number} onChange={v => setForm({ ...form, number: v })} />
             <SelectField label="לקוח" value={form.client_id} onChange={v => setForm({ ...form, client_id: v })} options={[{value:'',label:'—'}, ...clients.map(c => ({value:c.id,label:c.name}))]} />
@@ -686,21 +686,21 @@ function InvoicesPanel({ invoices, clients, matters, onRefresh }) {
         </div>
       )}
 
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        {invoices.length === 0 ? <div className="p-12 text-center text-stone-400">אין חשבוניות</div> : (
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
+        {invoices.length === 0 ? <div className="p-12 text-center text-slate-400">אין חשבוניות</div> : (
           <table className="w-full">
-            <thead className="bg-stone-50 border-b border-stone-200"><tr><Th>#</Th><Th>לקוח</Th><Th>פירעון</Th><Th>סטטוס</Th><Th align="left">סכום</Th><Th></Th></tr></thead>
+            <thead className="bg-cream-50 border-b border-sky-100"><tr><Th>#</Th><Th>לקוח</Th><Th>פירעון</Th><Th>סטטוס</Th><Th align="left">סכום</Th><Th></Th></tr></thead>
             <tbody>
               {invoices.map(inv => {
                 const b = agingBucket(inv);
                 return (
-                  <tr key={inv.id} className="border-b border-stone-100">
+                  <tr key={inv.id} className="border-b border-sky-50">
                     <Td>{inv.number}</Td>
                     <Td className="font-medium">{inv.client_name}</Td>
                     <Td>{fmt(inv.due_date)}</Td>
                     <Td>{inv.status === 'paid' ? <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-800 rounded">שולם</span> : b && <span className={`text-xs px-2 py-1 bg-${b.color}-100 text-${b.color}-800 rounded`}>{b.label}</span>}</Td>
                     <Td align="left" className="font-semibold">{fmtMoney(inv.amount)}</Td>
-                    <Td align="left"><button onClick={() => togglePaid(inv.id, inv.status)} className="text-xs text-stone-600 hover:text-stone-900">{inv.status === 'paid' ? 'בטל' : 'שולם'}</button></Td>
+                    <Td align="left"><button onClick={() => togglePaid(inv.id, inv.status)} className="text-xs text-slate-600 hover:text-slate-900">{inv.status === 'paid' ? 'בטל' : 'שולם'}</button></Td>
                   </tr>
                 );
               })}
@@ -726,14 +726,14 @@ function CollectionPanel({ invoices, clients, onRefresh }) {
     <div className="space-y-6">
       <div>
         <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">גבייה</h2>
-        <p className="text-sm text-stone-500 mt-1">חשבוניות פתוחות לפי גיל</p>
+        <p className="text-sm text-slate-500 mt-1">חשבוניות פתוחות לפי גיל</p>
       </div>
       {Object.keys(grouped).length === 0 ? (
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-8 text-center text-emerald-800">
           <Check className="w-8 h-8 mx-auto mb-2" /> אין חשבוניות פתוחות
         </div>
       ) : Object.entries(grouped).map(([label, { items, color }]) => (
-        <div key={label} className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+        <div key={label} className="bg-white border border-sky-100 rounded-lg overflow-hidden">
           <div className={`px-5 py-3 bg-${color}-50 border-b border-${color}-100 font-semibold text-${color}-800`}>
             {label} ימים • {items.length} חשבוניות • {fmtMoney(items.reduce((a,b) => a+Number(b.amount), 0))}
           </div>
@@ -742,13 +742,13 @@ function CollectionPanel({ invoices, clients, onRefresh }) {
               {items.map(inv => {
                 const client = clients.find(c => c.id === inv.client_id);
                 return (
-                  <tr key={inv.id} className="border-b border-stone-100">
+                  <tr key={inv.id} className="border-b border-sky-50">
                     <Td>{inv.client_name}</Td>
-                    <Td className="text-xs text-stone-500">#{inv.number} • פירעון {fmt(inv.due_date)}</Td>
+                    <Td className="text-xs text-slate-500">#{inv.number} • פירעון {fmt(inv.due_date)}</Td>
                     <Td align="left" className="font-semibold">{fmtMoney(inv.amount)}</Td>
                     <Td align="left">
                       {client?.email && (
-                        <a href={`mailto:${client.email}?subject=${encodeURIComponent(`תזכורת — חשבונית ${inv.number}`)}&body=${encodeURIComponent(`שלום,\n\nתזכורת שטרם שולמה חשבונית מס׳ ${inv.number} בסך ${fmtMoney(inv.amount)}.\nתאריך פירעון: ${fmt(inv.due_date)}.\n\nתודה`)}`} className="text-xs px-2 py-1 bg-stone-100 hover:bg-stone-200 rounded">תזכורת</a>
+                        <a href={`mailto:${client.email}?subject=${encodeURIComponent(`תזכורת — חשבונית ${inv.number}`)}&body=${encodeURIComponent(`שלום,\n\nתזכורת שטרם שולמה חשבונית מס׳ ${inv.number} בסך ${fmtMoney(inv.amount)}.\nתאריך פירעון: ${fmt(inv.due_date)}.\n\nתודה`)}`} className="text-xs px-2 py-1 bg-sky-50 hover:bg-sky-100 rounded">תזכורת</a>
                       )}
                     </Td>
                   </tr>
@@ -770,15 +770,15 @@ function ForecastPanel({ forecast, totals, settings }) {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-rose-50 border-2 border-rose-200 rounded-lg p-5">
-          <div className="text-xs uppercase tracking-wider text-stone-600 mb-1">מע״מ הבא</div>
+          <div className="text-xs uppercase tracking-wider text-slate-600 mb-1">מע״מ הבא</div>
           <div className="text-3xl font-bold text-rose-700">{fmtMoney(forecast.nextVatPayment)}</div>
         </div>
         <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-5">
-          <div className="text-xs uppercase tracking-wider text-stone-600 mb-1">מקדמת מ״ה</div>
+          <div className="text-xs uppercase tracking-wider text-slate-600 mb-1">מקדמת מ״ה</div>
           <div className="text-3xl font-bold text-orange-700">{fmtMoney(forecast.monthlyIncomeTax)}</div>
         </div>
         <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-5">
-          <div className="text-xs uppercase tracking-wider text-stone-600 mb-1">בל״ל</div>
+          <div className="text-xs uppercase tracking-wider text-slate-600 mb-1">בל״ל</div>
           <div className="text-3xl font-bold text-amber-700">{fmtMoney(forecast.monthlyBituach)}</div>
         </div>
       </div>
@@ -790,16 +790,16 @@ function TeamPanel({ team, onRefresh }) {
   return (
     <div className="space-y-6">
       <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">צוות</h2>
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        {team.length === 0 ? <div className="p-12 text-center text-stone-400">אין צוות</div> : (
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
+        {team.length === 0 ? <div className="p-12 text-center text-slate-400">אין צוות</div> : (
           <table className="w-full">
-            <thead className="bg-stone-50 border-b border-stone-200"><tr><Th>שם</Th><Th>תפקיד</Th><Th>אימייל</Th><Th align="left">שכר</Th><Th align="left">תעריף</Th></tr></thead>
+            <thead className="bg-cream-50 border-b border-sky-100"><tr><Th>שם</Th><Th>תפקיד</Th><Th>אימייל</Th><Th align="left">שכר</Th><Th align="left">תעריף</Th></tr></thead>
             <tbody>
               {team.map(t => (
-                <tr key={t.id} className="border-b border-stone-100">
+                <tr key={t.id} className="border-b border-sky-50">
                   <Td className="font-medium">{t.full_name}</Td>
                   <Td>{ROLE_LABELS[t.role]}</Td>
-                  <Td className="text-stone-500 text-xs">{t.email}</Td>
+                  <Td className="text-slate-500 text-xs">{t.email}</Td>
                   <Td align="left">{fmtMoney(t.monthly_salary)}</Td>
                   <Td align="left">{fmtMoney(t.hourly_rate)}/ש'</Td>
                 </tr>
@@ -819,14 +819,14 @@ function DeadlinesPanel({ deadlines }) {
   return (
     <div className="space-y-6">
       <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">דדליינים</h2>
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-sky-100 rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead className="bg-stone-50 border-b border-stone-200"><tr><Th>סוג</Th><Th>פירוט</Th><Th>תאריך</Th><Th align="left">ימים</Th></tr></thead>
+          <thead className="bg-cream-50 border-b border-sky-100"><tr><Th>סוג</Th><Th>פירוט</Th><Th>תאריך</Th><Th align="left">ימים</Th></tr></thead>
           <tbody>
             {deadlines.map((d, i) => {
               const days = daysBetween(today(), d.date);
               return (
-                <tr key={i} className="border-b border-stone-100">
+                <tr key={i} className="border-b border-sky-50">
                   <Td><span className={`text-xs px-2 py-1 bg-${d.color}-100 text-${d.color}-800 rounded`}>{d.type}</span></Td>
                   <Td className="font-medium">{d.label}</Td>
                   <Td>{fmt(d.date)}</Td>
@@ -852,11 +852,11 @@ function SettingsPanel({ organization, onRefresh }) {
   return (
     <div className="space-y-6">
       <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">הגדרות</h2>
-      <div className="bg-white border border-stone-200 rounded-lg p-6 space-y-4 max-w-2xl">
+      <div className="bg-white border border-sky-100 rounded-lg p-6 space-y-4 max-w-2xl">
         <Field label="שם המשרד" value={form.name} onChange={v => setForm({ ...form, name: v })} />
         <Field label="שיעור מע״מ" type="number" value={form.vat_rate} onChange={v => setForm({ ...form, vat_rate: parseFloat(v) || 0 })} />
         <SelectField label="תדירות דיווח" value={form.filing_freq} onChange={v => setForm({ ...form, filing_freq: v })} options={[{value:'bimonthly',label:'דו-חודשי'},{value:'monthly',label:'חודשי'}]} />
-        <button onClick={save} className="px-4 py-2 bg-stone-900 text-white text-sm rounded-md">שמור</button>
+        <button onClick={save} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md">שמור</button>
       </div>
     </div>
   );
@@ -913,24 +913,24 @@ function AIAdvisor({ ctx, onClose, profile }) {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:left-6 md:bottom-6 md:right-auto md:w-[420px] h-[600px] max-h-[80vh] bg-white border border-stone-300 rounded-t-xl md:rounded-xl shadow-2xl z-40 flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b border-stone-200 bg-stone-900 text-white rounded-t-xl">
+    <div className="fixed bottom-0 left-0 right-0 md:left-6 md:bottom-6 md:right-auto md:w-[420px] h-[600px] max-h-[80vh] bg-white border border-sky-200 rounded-t-xl md:rounded-xl shadow-2xl z-40 flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-sky-100 bg-slate-800 text-white rounded-t-xl">
         <div className="flex items-center gap-2"><Sparkles className="w-4 h-4" /><span className="font-semibold text-sm">יועץ AI</span></div>
-        <button onClick={onClose} className="text-stone-400 hover:text-white"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] px-4 py-2.5 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-stone-900 text-white' : 'bg-stone-100'}`}>{m.content}</div>
+            <div className={`max-w-[85%] px-4 py-2.5 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-slate-800 text-white' : 'bg-sky-50'}`}>{m.content}</div>
           </div>
         ))}
-        {sending && <div className="flex justify-end"><div className="bg-stone-100 text-stone-500 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> חושב...</div></div>}
+        {sending && <div className="flex justify-end"><div className="bg-sky-50 text-slate-500 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> חושב...</div></div>}
         <div ref={endRef} />
       </div>
-      <div className="border-t border-stone-200 p-3">
+      <div className="border-t border-sky-100 p-3">
         <div className="flex gap-2">
-          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="שאל אותי..." rows={2} className="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm resize-none focus:outline-none focus:border-stone-900" />
-          <button onClick={send} disabled={sending || !input.trim()} className="px-3 bg-stone-900 text-white rounded-md disabled:opacity-50"><Send className="w-4 h-4" /></button>
+          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="שאל אותי..." rows={2} className="flex-1 px-3 py-2 border border-sky-200 rounded-md text-sm resize-none focus:outline-none focus:border-sky-600" />
+          <button onClick={send} disabled={sending || !input.trim()} className="px-3 bg-slate-800 text-white rounded-md disabled:opacity-50"><Send className="w-4 h-4" /></button>
         </div>
       </div>
     </div>
@@ -943,8 +943,8 @@ function AIAdvisor({ ctx, onClose, profile }) {
 function Field({ label, value, onChange, type = 'text', placeholder }) {
   return (
     <label className="block">
-      <span className="text-xs text-stone-500 mb-1 block">{label}</span>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:border-stone-900" />
+      <span className="text-xs text-slate-500 mb-1 block">{label}</span>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600" />
     </label>
   );
 }
@@ -952,13 +952,13 @@ function Field({ label, value, onChange, type = 'text', placeholder }) {
 function SelectField({ label, value, onChange, options }) {
   return (
     <label className="block">
-      <span className="text-xs text-stone-500 mb-1 block">{label}</span>
-      <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:border-stone-900">
+      <span className="text-xs text-slate-500 mb-1 block">{label}</span>
+      <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600">
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
   );
 }
 
-const Th = ({ children, align = 'right' }) => <th className={`px-4 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider text-${align}`}>{children}</th>;
-const Td = ({ children, align = 'right', className = '' }) => <td className={`px-4 py-3 text-sm text-stone-800 text-${align} ${className}`}>{children}</td>;
+const Th = ({ children, align = 'right' }) => <th className={`px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-${align}`}>{children}</th>;
+const Td = ({ children, align = 'right', className = '' }) => <td className={`px-4 py-3 text-sm text-slate-800 text-${align} ${className}`}>{children}</td>;

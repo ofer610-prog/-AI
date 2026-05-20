@@ -36,32 +36,32 @@ export default function LoginPage() {
 
   return (
     <div dir="rtl" className="min-h-screen flex items-center justify-center px-4">
-      <div className="bg-white border border-stone-200 rounded-xl p-8 w-full max-w-md">
-        <h1 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold text-stone-900 mb-1">
+      <div className="bg-white border border-sky-100 rounded-xl p-8 w-full max-w-md">
+        <h1 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold text-slate-900 mb-1">
           ספרי משרד
         </h1>
-        <p className="text-sm text-stone-500 mb-6">מערכת ניהול משרד עו״ד</p>
+        <p className="text-sm text-slate-500 mb-6">מערכת ניהול משרד עו״ד</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">אימייל</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">אימייל</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:border-stone-900"
+              className="w-full px-3 py-2 border border-sky-200 rounded-md focus:outline-none focus:border-sky-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">סיסמה</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">סיסמה</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:border-stone-900"
+              className="w-full px-3 py-2 border border-sky-200 rounded-md focus:outline-none focus:border-sky-500"
             />
           </div>
 
@@ -70,7 +70,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 bg-stone-900 text-white rounded-md hover:bg-stone-800 disabled:opacity-50"
+            className="w-full py-2 bg-slate-800 text-white rounded-md hover:bg-slate-700 disabled:opacity-50"
           >
             {loading ? 'טוען...' : mode === 'signup' ? 'הרשמה' : 'כניסה'}
           </button>
@@ -78,7 +78,7 @@ export default function LoginPage() {
 
         <button
           onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
-          className="w-full mt-4 text-sm text-stone-600 hover:text-stone-900"
+          className="w-full mt-4 text-sm text-slate-600 hover:text-slate-900"
         >
           {mode === 'login' ? 'אין לך חשבון? הרשם' : 'יש לך חשבון? היכנס'}
         </button>

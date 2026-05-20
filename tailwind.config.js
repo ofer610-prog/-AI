@@ -7,8 +7,16 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Heebo', 'system-ui', 'sans-serif'],
+        sans: ['Assistant', 'Heebo', 'system-ui', 'sans-serif'],
         serif: ['Frank Ruhl Libre', 'Georgia', 'serif'],
+      },
+      colors: {
+        cream: {
+          50: '#fefcf7',
+          100: '#fdf8eb',
+          200: '#f9eed1',
+          300: '#f3e0b0',
+        },
       },
     },
   },

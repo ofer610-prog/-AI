@@ -69,9 +69,9 @@ export default async function DashboardPage() {
 function NoOrg() {
   return (
     <div dir="rtl" className="min-h-screen flex items-center justify-center px-4">
-      <div className="bg-white border border-stone-200 rounded-xl p-8 max-w-md text-center">
+      <div className="bg-white border border-sky-100 rounded-xl p-8 max-w-md text-center">
         <h1 className="text-2xl font-bold mb-2">לא נמצא משרד</h1>
-        <p className="text-stone-600">יש ליצור רשומת ארגון ב-Supabase תחילה.</p>
+        <p className="text-slate-600">יש ליצור רשומת ארגון ב-Supabase תחילה.</p>
       </div>
     </div>
   );
