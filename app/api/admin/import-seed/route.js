@@ -32,20 +32,37 @@ export async function GET(request) {
     log.push(`✓ עודכן ארגון: ${orgId}`);
   }
 
-  // Step 2: team
+  // Step 2: team (create auth users + profiles)
   for (const p of seedData.team) {
     const { data: existing } = await sb.from('profiles').select('id').eq('organization_id', orgId).eq('full_name', p.full_name);
     if (existing?.length) { log.push(`· קיים: ${p.full_name}`); continue; }
+
+    // Create auth user first
+    const tempPassword = crypto.randomUUID().slice(0, 16) + 'A1!';
+    const { data: authUser, error: authErr } = await sb.auth.admin.createUser({
+      email: p.email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { full_name: p.full_name },
+    });
+    if (authErr) {
+      // User might already exist
+      const { data: list } = await sb.auth.admin.listUsers();
+      const found = list?.users?.find(u => u.email === p.email);
+      if (!found) { log.push(`✗ auth ${p.full_name}: ${authErr.message}`); continue; }
+      authUser.user = found;
+    }
+
     const { error } = await sb.from('profiles').insert({
-      id: crypto.randomUUID(),
+      id: authUser.user.id,
       organization_id: orgId,
       full_name: p.full_name,
       role: p.role,
       email: p.email,
       is_active: true,
     });
-    if (error) log.push(`✗ ${p.full_name}: ${error.message}`);
-    else log.push(`✓ צוות: ${p.full_name}`);
+    if (error) log.push(`✗ profile ${p.full_name}: ${error.message}`);
+    else log.push(`✓ צוות: ${p.full_name} (${p.email})`);
   }
 
   // Step 3: load profile lookup
