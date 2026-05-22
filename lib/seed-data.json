@@ -1,0 +1,1249 @@
+{
+  "organization": "משרד עו\"ד כהן-רוגוזינסקי",
+  "team": [
+    {
+      "full_name": "לידור",
+      "role": "lawyer",
+      "email": "lidor@meshrad.co.il"
+    },
+    {
+      "full_name": "פולינה",
+      "role": "lawyer",
+      "email": "polina@meshrad.co.il"
+    },
+    {
+      "full_name": "צופית",
+      "role": "lawyer",
+      "email": "tzofit@meshrad.co.il"
+    },
+    {
+      "full_name": "עופר",
+      "role": "admin",
+      "email": "ofer@meshrad.co.il"
+    }
+  ],
+  "matters": [
+    {
+      "lawyer": "פולינה",
+      "client_name": "אשכר טליה",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "יש טיוטה, ממתינה לעדכון של משה לגבי לוח תשלומים | מתווך: משה קבסה ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "סלק העברה ללא תמורה",
+      "address": "נהרייה",
+      "fee": 9440.0,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": null,
+      "notes": "גוש/חלקה: 45/5 18168 | מוכן לחתימה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "סלומני העברה ללא תמורה",
+      "address": "עבדון",
+      "fee": 8500.0,
+      "collected": 0.0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": null,
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "בירס -סולימני",
+      "address": "שאול המלך 20 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "גוש/חלקה: 8  19445 | טיוטה ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "סולימני - אחות בירס",
+      "address": "הסיגליות 14 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "גוש/חלקה: 18489,21/12 | יש להשלים טופס ארנונה, יתרת משכנתא ופרטי קונים",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "רונן מני",
+      "address": "בן שלום עובדיה 34 נתניה",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "שכ\"ט מקורי: 0.75 % + מע\"מ | ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "משה זגזג",
+      "address": "מגרש אבן מנחם",
+      "fee": 10000.0,
+      "collected": 0.0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "טיוטה הסכם מותנה בקבלה והארכת פיתוח | מתווך: ניר דמרי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "שחר סוזי וריקרדו-",
+      "address": "כרכום 5 כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "שכ\"ט מקורי: 0.4 כולל | טיוטה | מתווך: קילה ומעין",
+      "type": "sale"
+    },
+    {
+      "lawyer": "עופר",
+      "client_name": "אדלר דבורה",
+      "address": "מירון",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "שכ\"ט מקורי: 0.5+מעמ | ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "חזן - אינגה",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "לעשות הערות לטיוטה | עו\"ד צד שני: הודיה דיאמנט",
+      "type": "sale"
+    },
+    {
+      "lawyer": "עופר",
+      "client_name": "ארבל אורן",
+      "address": "בית העמק",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "מייצגים קונה | עו\"ד צד שני: ארז בר",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "הירש גבריאל וקטיה -",
+      "address": "עין יעקב",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "גוש/חלקה: 19899/87 | שכ\"ט מקורי: 0.75+מע\"מ | טיוטה + שומה עצמית",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "רונית שחר -",
+      "address": "קיבוץ אילון",
+      "fee": 10000.0,
+      "collected": 0.0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "גוש/חלקה: 18523/263",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "סגלי אמי אליזבטה - קורן",
+      "address": "מצובה",
+      "fee": 8000.0,
+      "collected": 0.0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "עסקה עם האמא",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "בן אברהם אליה",
+      "address": "מירון 5/15 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "גוש/חלקה: 21166/166/15 | העברה ללא תמורה בין האישה לבעלה - מכירה לפי דירה יחידה 49ב(2), ורכישה לפי דירה יחידה - רוצים אחרי זה למכור לצד ג' (לדבר איתו לאחר בדיקה של המיסים שאפשרי )",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "איתן שוחט",
+      "address": "מצדה 16",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "גוש/חלקה: 21166/81/4 | לא מעונין בהסכם מותנה, ממתינים לרישום על שמו,קבע עם לילך ב1.12 | מתווך: יניב בוזגלו",
+      "type": "sale"
+    },
+    {
+      "lawyer": "תיקים שנחתמו",
+      "client_name": null,
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": null,
+      "notes": null,
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "קונובלנקו פבל- פארס סימון",
+      "address": "מירון 16/4 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "שלחתי מסמכים לרישום הע\"א לחברה משכנת  | משכנתא: יש | מתווך: אנגליקה ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "נורדמן - יוסי אלפסי",
+      "address": "מושב לימן",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18210  162 | שכ\"ט מקורי: 0.5+מעמ | לעשות הערות לטיוטה. מותנה בקבלת למושב | עו\"ד צד שני: מירי דרכי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "זר אביעד ונורית -",
+      "address": "מצדה 22 מעלות",
+      "fee": 7000.0,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "שכ\"ט מקורי: 0.5 + מע\"מ | טיוטה+ שומה עצמית | מתווך: משה קבסה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "אלפסי יוסף -",
+      "address": "חוסן",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "שכ\"ט מקורי: 0.5+מעמ | נרשנה הע\"א ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "צ'ורני יורי - מרגריטה",
+      "address": "עלית הנוער 1/7, מעלות",
+      "fee": 0.0,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19435  11/7 | מסירה עד 15.8.2026 , תשלום שני עד 16.6 | משכנתא: יש | עו\"ד צד שני: תאמר אבו יונס",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "אונגר- גורלובסקי",
+      "address": "החשמונאים 6/3 מעלות",
+      "fee": 5250.0,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19440  4/15 | מסירה עד 1.8 תשלום שני עד 25.6 שכ\"ט תשלם ביוני | עו\"ד צד שני: דקלה דויטש | מתווך: משה קבסה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "קונדרטייב - איוונוב",
+      "address": "הרצל 155/10 מעלות",
+      "fee": 3800.0,
+      "collected": 3800.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18779  5/10 | מסירה עד 31/08/2026 מעקב קבלת ביטחונות | משכנתא: יש | מתווך: גרישה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "רוגל יורם",
+      "address": "בן עמי",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "העברה ללא תמורה מיסוי +רמי, ממתינים לשמאות ",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "גולוב- רחלי",
+      "address": "כרם 4/5 כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18410   64 |  מסירה 31/05/26 חברה משכנת צ.פ. יש כסף בנאמנות, חוסר אישור מועצה וועדה  | עו\"ד צד שני: אבנר גולוב | מתווך: מעיין",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "וימר נורית- גירוושין",
+      "address": "אבירים",
+      "fee": null,
+      "collected": 0.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19688   29 | הוגש להעברת זכויות מס' פנייה 21759089, ב7.5 שלחנו פסן מקור",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "ויצמן - בוטורשוילי",
+      "address": "אומן",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 20990   121 | מסירה 26.09.26 שלחתי לעו\"ד כל האישורי מיסים  | עו\"ד צד שני: טל משה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "בלסון קלאודין - ליאורה",
+      "address": "",
+      "fee": 15000.0,
+      "collected": 15000.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": " הוגש תיקון החלטה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "נתנזון יובל- שקולניק ניקיטה",
+      "address": "אבירים",
+      "fee": 19617.5,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19688   64 | שכ\"ט מקורי: 0.75+מעמ | מותנה בקבלה למושב אין פטור ממס שבח, יש לטפל בסילוק משכנתא | משכנתא: יש | עו\"ד צד שני: שלומי קסלסי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "בנקליפה - גמר אייה",
+      "address": "אביר יעקב 18  נהריה",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18148/92/4 | מסירה - 30/04/26 שלחתי מכתב הכוונות בערך העו\"ד עדכנה שיהיה כנראה עיכוב | משכנתא: נמסר מכתב כוונות ב15/3 | עו\"ד צד שני: ליעד אטיאס",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "דהן אמנון ואח'",
+      "address": "הגליל 441/18 מעלות",
+      "fee": 6000.0,
+      "collected": 0.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18737/7/19 | מסירה - 24/05/26 נשאר רק אישור עירייה  | עו\"ד צד שני: קלאודיה מרקוב | מתווך: יש",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "קרסנטי - אולג",
+      "address": "צבעוני 7 ב מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21093/24/2 | שכ\"ט מקורי: שולם | מסירה - 31/05/26 - ב11/3 הוגש העברת משלמים בארנונה פניה מס' 5071 | עו\"ד צד שני: זיאד סמעאן | מתווך: יניב בוזגלו",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "גנס לב- בליומין",
+      "address": "ההגנה 39/1 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19436/2/7 | מסירה - 01/06/2026 תיק מוכן | עו\"ד צד שני: וינוקורוב | מתווך: אנגליקה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "נאה יהודה ולירון- דיין",
+      "address": "מצדה 8/22 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21166 | מסירה ב15/6/26 ב19/4 הוגש בקשה לנכס ריק פניה 5338, הוגש בקשה להעברת משלמים פניה 5347, אין עדיין מס שבח סגרו רק רכישה | משכנתא: יש | מתווך: קיילה ומעיין",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "ביצ'קוב איגור - זנאתי",
+      "address": "זלמן שז\"ר 452/14",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18778  6/14 | שכ\"ט מקורי: שולם | מסירה -  07/06/26 מעקב קבלת צו קיום צוואה | עו\"ד צד שני: שרה זנאתי | מתווך: יניב בוזגלו",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "גורן - כץ",
+      "address": "מצדה 22/5 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21166  84/5 | שכ\"ט מקורי: יחד עם תשלום השני | מסירה - 01/07/26 יש מס שבח מקדמה. תשלום השני ישלם יחד עם משכנתא | עו\"ד צד שני: מירי דרכי | מתווך: אירה ואנה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "שלו - צ'ורני יורי",
+      "address": "עין שדה 42 שלומי",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21171 126 |  מסירה - 15/07/26 נשאר משכנתא | משכנתא: יש | עו\"ד צד שני: שילה שגל",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "פישה - נסטרנקו זויה",
+      "address": "ההגנה 32/3 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19436  4/3 | מסירה - 26/07/26 יש מס שבח מקדמה, הקפאה דירה שניה | עו\"ד צד שני: סבטה | מתווך: גריגורי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "רוזנטל - ויסוצקי",
+      "address": "בהברקן 11, מעלות",
+      "fee": 4250.0,
+      "collected": 0.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18484/6 | מסירה - 10/08/26 | עו\"ד צד שני: הודיה דיאמנט",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "מרגריטה - קונדרטייב נינה",
+      "address": "אסתר המלכה 3 מעלות",
+      "fee": 5865.0,
+      "collected": 5865.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19443 | מסירה - 15/08/26 תשלום שלישי עד 15.6 נגד מכתב הכוונות | משכנתא: יש | עו\"ד צד שני: תאמר אבו יונס",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "מואיסיס - וטפא",
+      "address": "עפרוני 33 כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21148/66 | מסירה - 15/08/26 נחתמו מסמכי משכנת לחתימה להדפיס מס שבח | משכנתא: ממתין | עו\"ד צד שני: נדאל מילאוי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "לוטם וליחי שושן",
+      "address": "מירון 4 דירה 5 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21166/165 | שכ\"ט מקורי: שולם | מסירה - 30/08/26 מטפלים בגרירה של המשכנתא | משכנתא: יש | עו\"ד צד שני: זיאד סמעאן | מתווך: אנה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "גורלובסקי אירינה - צ'רנין ילנה",
+      "address": "סיגליות 2/3מעלות",
+      "fee": 4000.0,
+      "collected": 0.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18594  10/3 | מסירה עד 1/9 שלחתי נסח נקי תשלום שני עד 1.6 | משכנתא: יש | עו\"ד צד שני: ואדים | מתווך: משה קבסה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "לוסטיג - לוסטיג",
+      "address": "נהריה נחלה 105 תל חי 18",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 19592/14 | שכ\"ט מקורי: שולם | מעקב תשלום מס שבח ניר לקח בקשה להחתמת האגודה ב14/9 התקבלו לאגודה מותנה ברישום ע\"ש הקונה  - מתנה אבא לבן ומכר מהדודה לבן | מתווך: ניר דמרי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "רות פיילר - ניר דמרי",
+      "address": "כפר שמאי",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 14689   54 | ניר מטפל בנכות לצורך ביטול הקנס ברמי ובמיסוי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "ברישום",
+      "client_name": null,
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": null,
+      "notes": null,
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "קשפר ויקטור - שגב",
+      "address": "משעול הערבה 10/36 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21090   33 | מסירה - 31/05/26 שלחנו מסמכי העברת זכויות | משכנתא: יש | מתווך: יניב בוזגלו",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "בולוס - גרזוזי",
+      "address": "מירון 20 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21166  33 |  מסירה מתעכבת- ממתינים לאישור המשכנתא של הקונה, הנכס בהליך רישום בית משותף | עו\"ד צד שני: ג'ריס ברהום",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "קאי מיכאל ומרגלית - עמר חלחיל",
+      "address": "חבצלת 14 כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21073/113 | מסירה בוצאה נשאר רק אישור ועדה (יש צ'ק בנאמנות) | עו\"ד צד שני: גריס ברהום",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "אבישי ואורטל עטיה  -",
+      "address": "מצדה 10 דירה 19",
+      "fee": 6608.0,
+      "collected": 6608.0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 21166/164/19 | מסירה - 01/05/26 מוכן למסירה | עו\"ד צד שני: אליאס מוסא | מתווך: אירה (אניה)",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "פרנקל - מזרחי ניקול",
+      "address": "צאלים 21, כפר ורדים",
+      "fee": 12400.0,
+      "collected": 12400.0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 22149 17 | הוגש לרמי פניה 21765700 , הקפאה דירה שניה 23.6.26 , מס רכישה | עו\"ד צד שני: הודיה דיאמנט",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "דותן פדידה - מקסים שבץ",
+      "address": "מירון 1/13 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 21166/166/32 | ממתינים לעדכון ללאור לגבי אישור עירייה | מתווך: אנגליקה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "לוי - גנס",
+      "address": "צנחנים 20 נהריה",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 19593/116 |  מעקב קבלת אישור ועד הבית. מסמכי העברת זכויות נשלח ב3.5 | משכנתא: יש | עו\"ד צד שני: דורין צחר",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "רפאלי - סגל צבי",
+      "address": "ק.ביאליק",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 10236  107/33 |  מס רכישה בהקפאה | משכנתא: יש | עו\"ד צד שני: רון זילברמן | מתווך: אור",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "סגל - בורקוב",
+      "address": "ההגנה 33/1 מעלות",
+      "fee": 6372.0,
+      "collected": 6372.0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 19436.14285714286 | 30,000 בנאמנות של עופר מעקב קבלת אישור ועדה ועירייה  | עו\"ד צד שני: ויקטוריה פישמן | מתווך: אלכס",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "ניר מירקין -אמאל",
+      "address": "חרמון 5, אורנים מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 21166/61/4 | שכ\"ט מקורי: שולם | מסירה - 26/03/26 - ב11/3 הוגש העברת משלמים בארנונה פניה מס' 5068 מירקין, להכין שטר מכר | עו\"ד צד שני: מאלק מורקוס | מתווך: ורדית",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "גיא - חרסונסקי",
+      "address": "גולדן וילג כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18410/64 | שכ\"ט מקורי: שולם | ב15/4 נשלח לעודה ממתינים לאישור סופי | מתווך: אנה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "שחר דינה",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "הונפק צו קיום צוואה, ב15/4 נשלח לעודה לקבלת אישור זכויות סופי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "היטנר - פסח",
+      "address": "כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "גוש/חלקה: 18710  57 | הוגש לרמ\"י מס פנייה 21796145 | עו\"ד צד שני: נטלי טמזין",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "עבדה - אריאלי נריה",
+      "address": "שאול המלך 39",
+      "fee": 9000.0,
+      "collected": 9000.0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18231.5 | העברה ברמי בוטלה - כי זה הופך להיות מכר בטאבו הכנתי שטר מכר ממתינים לרמי לסיום המכר | עו\"ד צד שני: אופיר- חיים הררי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "לילך דהן - יוסיפוב",
+      "address": "ההגנה 2/9 נהרייה",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18166   161/23 | שכ\"ט מקורי: שולם | בוצע מסירה מסמכים הועברו במייל לעו\"ד, המוכרים שילמו ארנונה הקונים מטפלים באישור טאבו | עו\"ד צד שני: קוטי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "אופטובסקי",
+      "address": "יחיעם",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "שכ\"ט מקורי: שולם | הוגש לרמי  פניה 21637843 הסכם חלוקת עיזבון פטור ממס , למקרה של מכירה 0.75% + מעמ שלחה מקור צו ירושה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "קרן, כרמלה, ניר- עוז אלדד וירדן",
+      "address": "מגרש 116 רמות מנשה",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 12381/4 | שכ\"ט מקורי: שולם | הוגש לרמי פניה 21468602 | עו\"ד צד שני: הדס ברקת",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "מויסה  - בן טוב איתי",
+      "address": "קריית ים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 10444/2458 | הוגש לרמי פניה 21456039 - יש להשלים הפניה - עמיגור רצו להשלמת מסמכים  | עו\"ד צד שני: דינה גן עדן",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "ברזון - דהן עדי",
+      "address": "זלמן שז\"ר 452 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18778/6/13 | הוגש לטאבו | עו\"ד צד שני: ערן יתח | מתווך: משה קבסה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "גנס לב -יוחימנקו",
+      "address": "ההגנה 14/5",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 19434  20/14 | סך של 20,000 בנאמנות עד לאישור עירייה  | עו\"ד צד שני: וינוקורוב | מתווך: אנג'ליקה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "אוחנה רותם ויפית - בובליל",
+      "address": "נהריה, הרצל 16",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18166/91/7 | שכ\"ט מקורי: שולם | סך של 60,000 בנאמנות עד לתיקון החניה בטאבו ב19/4 הוגש לטאבו לתיקון | עו\"ד צד שני: אירית בוקריס לוי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "אביטל ניסים - נעמה איברהים",
+      "address": "יקינטון 22 כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "שכ\"ט מקורי: שולם | סך של 50,000 בנאמנות הכללי עד לאישור וועדה מסמכים הועברו לעו\"ד | עו\"ד צד שני: גריס ברהום | מתווך: אנגלי'קה",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "קרני - דרנג אסא ואיריס",
+      "address": "קטיף 15 מעלות",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18407/15 | שכ\"ט מקורי: שולם | הקפאה דירה שניה סך של 30,000 בנאמנות בחשבון הבנק עד לאישור ועדה +עירייה, ביום 16.2 הוגש לרמי פניה 21718888  יש מכתב חוסרים להשלמה | עו\"ד צד שני: מירי דרכי | מתווך: מעין כהן",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "סער- סופר ממי ואלי חיים",
+      "address": "איילת השחר",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 13784/427/21 | שכ\"ט מקורי: שולם | הקפאה דירה שניה לא לשכוח שטרות משכנתא בסוף, מס רכישה,לעשות משכון | עו\"ד צד שני: רותם ארביל",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "חנינה ברמי ואח' - שחר רונית וליאור",
+      "address": "דולב 11 כפר ורדים",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "ברישום",
+      "notes": "גוש/חלקה: 18709/71 | שכ\"ט מקורי: שולם | הקפאה דירה שנייה  באילון - הוגש לרמי לרישום ב7/9 פניה 21569917 בוצעה העברה 50,000 בנאמנות חסר עירייה  להזמין שטרות משכנתא | עו\"ד צד שני: אורי בן שושן",
+      "type": "sale"
+    },
+    {
+      "lawyer": "מותנה",
+      "client_name": null,
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": null,
+      "notes": null,
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "גאורי יוסף אדם",
+      "address": "גרנות הגליל",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "מותנה",
+      "notes": "שכ\"ט מקורי: 0.75+מעמ | עסקה בוטלה לגבות שכ\"ט כלשהו?",
+      "type": "sale"
+    },
+    {
+      "lawyer": "פולינה",
+      "client_name": "הררי -קופפרמן",
+      "address": "מגרש 289 קיבוץ יחיעם",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "מותנה",
+      "notes": "גוש/חלקה: 18958   14 | הסכם מותנה בקבלת לקיבוץ. | עו\"ד צד שני: עדי טל",
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "רייף - אודי אוהד קליפי",
+      "address": "רסקו, נהריה נחלה",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "מותנה",
+      "notes": "גוש/חלקה: 19591/34 | שכ\"ט מקורי: שולם | תנאי מתלה | עו\"ד צד שני: יער בר | מתווך: ניר דמרי",
+      "type": "sale"
+    },
+    {
+      "lawyer": "ממתין לצד שני",
+      "client_name": null,
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": null,
+      "notes": null,
+      "type": "sale"
+    },
+    {
+      "lawyer": "צופית",
+      "client_name": "חזן - ספרינקלים",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "ממתין לצד שני",
+      "notes": "פניה 21217952 רמי מבקשים המלצה ממשרד הכלכלה לכך",
+      "type": "sale"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "שושנה אפללו",
+      "address": "",
+      "fee": 4000.0,
+      "collected": 0.0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "טיוטה",
+      "type": "other"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "אריאלי נריה וטליה הסכם ממון",
+      "address": "",
+      "fee": 4000.0,
+      "collected": 0.0,
+      "status": "pending",
+      "raw_status": "טיוטה",
+      "notes": "טיוטה",
+      "type": "other"
+    },
+    {
+      "lawyer": "לידור",
+      "client_name": "קוניו - הסכם חלוקת עזבון",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "active",
+      "raw_status": "נחתם",
+      "notes": "שכ\"ט מקורי: שולם | מסירה - ממתינים לאישור וועדה, תשלום בסך 200,000 יועבר רק לאחר רישום על שמו",
+      "type": "inheritance"
+    },
+    {
+      "lawyer": "עופר",
+      "client_name": "גדילן - משה חדיף",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "ממתין לצד שני",
+      "notes": "פירוק שיתוף- יש החלטת מיסוי לדחיה עד ליום 02/02/2030",
+      "type": "pinui"
+    },
+    {
+      "lawyer": null,
+      "client_name": "אלקיים רוזה",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": "ממתין לצד שני",
+      "notes": "חתמה על חוזה חכירה להמתין להוציא אישור זכויות ולהעביר לעמידר",
+      "type": "pinui"
+    },
+    {
+      "lawyer": null,
+      "client_name": "יוחייב חיביט",
+      "address": "",
+      "fee": null,
+      "collected": 0,
+      "status": "pending",
+      "raw_status": null,
+      "notes": null,
+      "type": "other"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "MSH-001",
+      "type": "ניהולי",
+      "description": "סקירה שבועית של תזכורות גביה",
+      "assignee": "עופר",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-002",
+      "type": "ניהולי",
+      "description": "פגישת צוות שבועית - יום ראשון 09:00",
+      "assignee": "עופר",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-003",
+      "type": "ניהולי",
+      "description": "מעקב עומסי עו\"ד - חלוקה מחדש לפי הצורך",
+      "assignee": "עופר",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-004",
+      "type": "ניהולי",
+      "description": "סקירת תיקים בשלב טיוטה > 60 יום",
+      "assignee": "עופר",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-005",
+      "type": "ניהולי",
+      "description": "אישור הוצאת חשבוניות חודשי",
+      "assignee": "עופר",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-006",
+      "type": "כללי",
+      "description": "עדכון מאגר טפסי משרד וכתבי טענות",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "נמוכה"
+    },
+    {
+      "id": "MSH-007",
+      "type": "כללי",
+      "description": "השתלמות מקצועית - חוק המכר דירות",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-008",
+      "type": "כללי",
+      "description": "מענה לפניות לקוחות חדשים בטלפון",
+      "assignee": "צופית",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-009",
+      "type": "כללי",
+      "description": "סידור ארכיון תיקים סגורים",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "נמוכה"
+    },
+    {
+      "id": "MSH-010",
+      "type": "כללי",
+      "description": "עדכון תבניות חוזה מכר - גרסה 2026",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-011",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-012",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-013",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-014",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-015",
+      "type": "תיק",
+      "description": "טיפול במשכנתא",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-016",
+      "type": "תיק",
+      "description": "לעשות הערות לטיוטה | השלמת טיוטה",
+      "assignee": "צופית",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-017",
+      "type": "תיק",
+      "description": "לעשות הערות לטיוטה | השלמת טיוטה",
+      "assignee": "צופית",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-018",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-019",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-020",
+      "type": "תיק",
+      "description": "השלמת טיוטה",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "בינונית"
+    },
+    {
+      "id": "MSH-021",
+      "type": "תיק",
+      "description": "מעקב",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-022",
+      "type": "תיק",
+      "description": "הגשה לרשות",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-023",
+      "type": "תיק",
+      "description": "פעולה נדרשת",
+      "assignee": "צופית",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-024",
+      "type": "תיק",
+      "description": "מעקב",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-025",
+      "type": "תיק",
+      "description": "מעקב | טיפול במשכנתא",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-026",
+      "type": "תיק",
+      "description": "פעולה נדרשת",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-027",
+      "type": "תיק",
+      "description": "מעקב",
+      "assignee": "לידור",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-028",
+      "type": "תיק",
+      "description": "מעקב | טיפול במשכנתא",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-029",
+      "type": "תיק",
+      "description": "טיפול במשכנתא",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-030",
+      "type": "תיק",
+      "description": "מעקב",
+      "assignee": "צופית",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-031",
+      "type": "תיק",
+      "description": "אישור עירייה",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-032",
+      "type": "תיק",
+      "description": "מעקב",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-033",
+      "type": "תיק",
+      "description": "אישור עירייה",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-034",
+      "type": "תיק",
+      "description": "להזמין מסמכים",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-035",
+      "type": "תיק",
+      "description": "אישור עירייה",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-036",
+      "type": "תיק",
+      "description": "אישור עירייה",
+      "assignee": "פולינה",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    },
+    {
+      "id": "MSH-037",
+      "type": "תיק",
+      "description": "להזמין מסמכים",
+      "assignee": "צופית",
+      "status": "פתוח",
+      "priority": "גבוהה"
+    }
+  ]
+}
