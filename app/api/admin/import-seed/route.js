@@ -74,21 +74,24 @@ export async function GET(request) {
   const { data: existingClients } = await sb.from('clients').select('id, name').eq('organization_id', orgId);
   const existingClientNames = new Set((existingClients || []).map(c => c.name));
 
+  // Build clientByName incrementally (from existing + newly inserted)
+  const clientByName = Object.fromEntries((existingClients || []).map(c => [c.name, c.id]));
   let clientsAdded = 0, clientErrors = 0;
   for (const name of uniqueClients) {
-    if (existingClientNames.has(name)) continue;
-    const { error } = await sb.from('clients').insert({
+    if (clientByName[name]) continue;
+    const { data: inserted, error } = await sb.from('clients').insert({
       organization_id: orgId,
       name,
-    });
-    if (!error) clientsAdded++;
-    else { clientErrors++; log.push(`✗ client ${name}: ${error.message}`); }
+    }).select('id').single();
+    if (!error && inserted) {
+      clientsAdded++;
+      clientByName[name] = inserted.id;
+    } else {
+      clientErrors++;
+      log.push(`✗ client ${name}: ${error?.message}`);
+    }
   }
   log.push(`✓ לקוחות חדשים: ${clientsAdded} (מתוך ${uniqueClients.length})`);
-
-  // Step 5: build client lookup
-  const { data: allClients } = await sb.from('clients').select('id, name').eq('organization_id', orgId);
-  const clientByName = Object.fromEntries(allClients.map(c => [c.name, c.id]));
 
   // Step 6: matters
   let mattersAdded = 0, matterErrors = 0;
