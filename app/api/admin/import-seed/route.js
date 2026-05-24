@@ -74,15 +74,15 @@ export async function GET(request) {
   const { data: existingClients } = await sb.from('clients').select('id, name').eq('organization_id', orgId);
   const existingClientNames = new Set((existingClients || []).map(c => c.name));
 
-  let clientsAdded = 0;
+  let clientsAdded = 0, clientErrors = 0;
   for (const name of uniqueClients) {
     if (existingClientNames.has(name)) continue;
     const { error } = await sb.from('clients').insert({
       organization_id: orgId,
       name,
-      source: 'excel_import',
     });
     if (!error) clientsAdded++;
+    else { clientErrors++; log.push(`✗ client ${name}: ${error.message}`); }
   }
   log.push(`✓ לקוחות חדשים: ${clientsAdded} (מתוך ${uniqueClients.length})`);
 
@@ -95,7 +95,7 @@ export async function GET(request) {
   for (const m of seedData.matters) {
     if (!m.client_name) continue;
     const clientId = clientByName[m.client_name];
-    if (!clientId) { matterErrors++; continue; }
+    if (!clientId) { matterErrors++; log.push(`✗ no client for: ${m.client_name}`); continue; }
 
     const title = (m.client_name + (m.address ? ` - ${m.address}` : '')).slice(0, 200);
     const responsibleLawyer = m.lawyer ? profileByName[m.lawyer.split(' ')[0]] || null : null;
