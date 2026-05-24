@@ -8,6 +8,7 @@ import {
   TrendingUp, TrendingDown, Target, ChevronRight, Check, Mail, MailCheck, Plus,
   Edit3, Upload, Download, BarChart3, PieChart, Activity, Users, Briefcase,
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   fmt, fmtMoney, daysBetween, today, getDeadlines, agingBucket, forecastTaxes,
   getGreeting, MATTER_TYPES, MATTER_STATUS, ROLE_LABELS, DEFAULT_RATES,
@@ -60,6 +61,7 @@ export default function DashboardClient({
     isAdmin && { id: 'team', label: 'צוות' },
     { id: 'deadlines', label: 'דדליינים' },
     isAdmin && { id: 'settings', label: 'הגדרות' },
+    isAdmin && { id: 'finance_link', label: '💰 כספים', href: '/finance' },
   ].filter(Boolean);
 
   return (
@@ -81,7 +83,12 @@ export default function DashboardClient({
           </div>
         </div>
         <nav className="max-w-7xl mx-auto px-6 flex gap-1 -mb-px overflow-x-auto">
-          {tabs.map(t => (
+          {tabs.map(t => t.href ? (
+            <Link key={t.id} href={t.href}
+              className="px-3 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors whitespace-nowrap">
+              {t.label}
+            </Link>
+          ) : (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t.id ? 'border-sky-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
               {t.label}
