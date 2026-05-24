@@ -112,7 +112,8 @@ export async function GET(request) {
       type: m.type,
       status: m.status,
       agreed_fee: m.fee,
-      notes: m.notes,
+      description: m.notes,
+      property_address: m.address || null,
       responsible_lawyer_id: responsibleLawyer,
     });
     if (error) { matterErrors++; log.push(`✗ ${title}: ${error.message}`); }
