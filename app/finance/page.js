@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   TrendingUp, Wallet, FileText, AlertCircle, Plus, CreditCard, Loader2,
+  MessageSquare, RefreshCw, CheckCircle, XCircle,
 } from 'lucide-react';
 
 const fmtMoney = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
@@ -22,10 +23,14 @@ export default function FinancePage() {
   const [openInvoices, setOpenInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [whatsappAlerts, setWhatsappAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     loadData();
+    loadAlerts();
   }, []);
 
   const loadData = async () => {
@@ -59,6 +64,42 @@ export default function FinancePage() {
       console.error(e);
     }
     setLoading(false);
+  };
+
+  const loadAlerts = async () => {
+    setAlertsLoading(true);
+    try {
+      const res = await fetch('/api/whatsapp/alerts?status=pending');
+      const data = await res.json();
+      setWhatsappAlerts(data.alerts || []);
+    } catch (e) {
+      console.error('loadAlerts error:', e);
+    }
+    setAlertsLoading(false);
+  };
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      await fetch('/api/whatsapp/scan', { method: 'POST' });
+      await loadAlerts();
+    } catch (e) {
+      console.error('scan error:', e);
+    }
+    setScanning(false);
+  };
+
+  const updateAlertStatus = async (id, status) => {
+    try {
+      await fetch('/api/whatsapp/alerts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      setWhatsappAlerts((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {
+      console.error('updateAlertStatus error:', e);
+    }
   };
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -206,6 +247,105 @@ export default function FinancePage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* WhatsApp Alerts */}
+        <div className="bg-white border border-green-100 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-green-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-5 h-5 text-green-600" />
+              <h2 className="font-semibold text-slate-800 text-lg">התראות WhatsApp - העברות בנקאיות</h2>
+              {whatsappAlerts.length > 0 && (
+                <span className="inline-flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
+                  {whatsappAlerts.length}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+            >
+              {scanning
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <RefreshCw className="w-4 h-4" />}
+              {scanning ? 'סורק...' : 'סרוק עכשיו'}
+            </button>
+          </div>
+
+          {alertsLoading ? (
+            <div className="p-8 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+            </div>
+          ) : !whatsappAlerts.length ? (
+            <div className="p-12 text-center text-slate-400">
+              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p>אין התראות ממתינות</p>
+              <p className="text-xs mt-1">לחץ "סרוק עכשיו" כדי לסרוק הודעות WhatsApp</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-green-100">
+                <tr>
+                  <Th>הודעה</Th>
+                  <Th>לקוח שזוהה</Th>
+                  <Th>סכום</Th>
+                  <Th>תאריך</Th>
+                  <Th>חשבונית</Th>
+                  <Th align="left">פעולה</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {whatsappAlerts.map((alert) => (
+                  <tr key={alert.id} className={`border-b border-green-50 hover:bg-green-50/30 ${!alert.has_invoice ? 'bg-red-50/20' : ''}`}>
+                    <Td>
+                      <span className="text-xs text-slate-600 line-clamp-2 max-w-xs block" title={alert.message_text}>
+                        {alert.message_text.length > 80
+                          ? alert.message_text.slice(0, 80) + '...'
+                          : alert.message_text}
+                      </span>
+                    </Td>
+                    <Td className={alert.detected_client ? 'font-medium' : 'text-slate-400 italic'}>
+                      {alert.detected_client || 'לא זוהה'}
+                    </Td>
+                    <Td className="font-semibold text-emerald-700">
+                      {alert.detected_amount ? fmtMoney(alert.detected_amount) : '—'}
+                    </Td>
+                    <Td className="text-xs text-slate-500">
+                      {fmt(alert.message_timestamp)}
+                    </Td>
+                    <Td>
+                      {alert.has_invoice ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
+                          <CheckCircle className="w-3 h-3" /> קיימת
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 px-2 py-1 rounded">
+                          <XCircle className="w-3 h-3" /> חסרה
+                        </span>
+                      )}
+                    </Td>
+                    <Td align="left">
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => updateAlertStatus(alert.id, 'resolved')}
+                          className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                        >
+                          פתור
+                        </button>
+                        <button
+                          onClick={() => updateAlertStatus(alert.id, 'dismissed')}
+                          className="text-xs px-2 py-1 border border-slate-200 text-slate-500 rounded hover:bg-slate-50"
+                        >
+                          התעלם
+                        </button>
+                      </div>
+                    </Td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
