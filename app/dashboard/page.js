@@ -1,31 +1,55 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import DashboardClient from '@/components/DashboardClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  // Demo mode — auth bypassed. Uses service client to load first organization.
-  const supabase = createServiceClient();
+  // Verify the authenticated user
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
 
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('*')
-    .order('created_at', { ascending: true })
-    .limit(1)
+  // Use service client for data queries
+  const serviceSupabase = createServiceClient();
+
+  // Load the user's profile and organization
+  const { data: profile } = await serviceSupabase
+    .from('profiles')
+    .select('*, organizations(*)')
+    .eq('id', user.id)
     .single();
+
+  // Fallback: if no profile yet, load first organization
+  let org = profile?.organizations;
+  if (!org) {
+    const { data: firstOrg } = await serviceSupabase
+      .from('organizations')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+    org = firstOrg;
+  }
 
   if (!org) {
     return <NoOrg />;
   }
 
-  const fakeProfile = {
-    id: 'demo-user',
-    full_name: 'משתמש הדגמה',
-    role: 'admin',
-    organization_id: org.id,
-    organizations: org,
-    is_active: true,
-  };
+  const orgId = org.id;
+
+  const resolvedProfile = profile
+    ? { ...profile, organizations: org }
+    : {
+        id: user.id,
+        full_name: user.email,
+        role: 'admin',
+        organization_id: orgId,
+        organizations: org,
+        is_active: true,
+      };
 
   const [
     { data: clients },
@@ -38,20 +62,20 @@ export default async function DashboardPage() {
     { data: alerts },
     { data: gmailPending },
   ] = await Promise.all([
-    supabase.from('clients').select('*').eq('organization_id', org.id).order('name'),
-    supabase.from('matters').select('*').eq('organization_id', org.id).order('created_at', { ascending: false }),
-    supabase.from('income').select('*').eq('organization_id', org.id).order('date', { ascending: false }).limit(500),
-    supabase.from('expense').select('*').eq('organization_id', org.id).order('date', { ascending: false }).limit(500),
-    supabase.from('invoices').select('*').eq('organization_id', org.id).order('issue_date', { ascending: false }),
-    supabase.from('timesheet').select('*').eq('organization_id', org.id).order('date', { ascending: false }).limit(500),
-    supabase.from('profiles').select('*').eq('organization_id', org.id).eq('is_active', true).order('full_name'),
-    supabase.from('alerts').select('*').eq('organization_id', org.id).eq('is_read', false).order('created_at', { ascending: false }).limit(20),
-    supabase.from('gmail_processed').select('*').eq('organization_id', org.id).eq('status', 'pending-review').order('processed_at', { ascending: false }).limit(50),
+    serviceSupabase.from('clients').select('*').eq('organization_id', orgId).order('name'),
+    serviceSupabase.from('matters').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }),
+    serviceSupabase.from('income').select('*').eq('organization_id', orgId).order('date', { ascending: false }).limit(500),
+    serviceSupabase.from('expense').select('*').eq('organization_id', orgId).order('date', { ascending: false }).limit(500),
+    serviceSupabase.from('invoices').select('*').eq('organization_id', orgId).order('issue_date', { ascending: false }),
+    serviceSupabase.from('timesheet').select('*').eq('organization_id', orgId).order('date', { ascending: false }).limit(500),
+    serviceSupabase.from('profiles').select('*').eq('organization_id', orgId).eq('is_active', true).order('full_name'),
+    serviceSupabase.from('alerts').select('*').eq('organization_id', orgId).eq('is_read', false).order('created_at', { ascending: false }).limit(20),
+    serviceSupabase.from('gmail_processed').select('*').eq('organization_id', orgId).eq('status', 'pending-review').order('processed_at', { ascending: false }).limit(50),
   ]);
 
   return (
     <DashboardClient
-      profile={fakeProfile}
+      profile={resolvedProfile}
       organization={org}
       clients={clients || []}
       matters={matters || []}
