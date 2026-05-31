@@ -135,6 +135,12 @@ export default function FinancePage() {
               <Plus className="w-4 h-4" /> חשבונית חדשה
             </Link>
             <Link
+              href="/finance/import"
+              className="px-4 py-2 border border-sky-200 text-slate-700 text-sm rounded-md hover:bg-sky-50 flex items-center gap-2"
+            >
+              ייבוא מקליגל 📥
+            </Link>
+            <Link
               href="/finance/invoices"
               className="px-4 py-2 border border-sky-200 text-slate-700 text-sm rounded-md hover:bg-sky-50"
             >
