@@ -138,66 +138,57 @@ async function login(page) {
   console.log('Login successful');
 }
 
-async function navigateToInvoices(page) {
-  // Try to find invoices/documents section
-  const invoiceNavSelectors = [
-    'a[href*="invoice"]',
-    'a[href*="document"]',
-    'a[href*="חשבונית"]',
-    'nav a:has-text("חשבוניות")',
-    'nav a:has-text("מסמכים")',
-    '[data-section="invoices"]',
-    'a:has-text("חשבוניות")',
-    'a:has-text("מסמכים")',
-  ];
-
-  for (const sel of invoiceNavSelectors) {
+/** Click the first element whose trimmed text exactly matches one of `texts`. */
+async function clickByText(page, texts) {
+  for (const t of texts) {
+    const loc = page.getByText(t, { exact: true }).first();
     try {
-      const el = await page.$(sel);
-      if (el) {
-        console.log(`Navigating to invoices via: ${sel}`);
-        await el.click();
-        await page.waitForLoadState('networkidle', { timeout: 10000 });
-        await sleep(1500);
-        console.log('Navigated to invoices, URL:', page.url());
-        return;
+      if (await loc.count() > 0) {
+        await loc.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
+        await loc.click({ timeout: 3000 });
+        console.log(`Clicked "${t}"`);
+        return t;
       }
-    } catch {}
+    } catch (err) {
+      console.log(`Click "${t}" failed: ${err.message}`);
+    }
+  }
+  return null;
+}
+
+async function navigateToInvoices(page, diagnostics) {
+  // Invoices live under the "הנהלת חשבונות" (accounting) sidebar item, which is
+  // a <li> without an href — it opens a sub-menu when clicked.
+  const openedAccounting = await clickByText(page, ['הנהלת חשבונות']);
+  if (openedAccounting) {
+    await sleep(2000);
+    diagnostics.steps.push(await collectDiagnostics(page, 'after-accounting-click'));
   }
 
-  // Try direct URL patterns
-  const invoiceUrls = [
-    `${CLIGAL_URL}/app/invoices`,
-    `${CLIGAL_URL}/app/documents`,
-    `${CLIGAL_URL}/app/#/invoices`,
-    `${CLIGAL_URL}/app/#/documents`,
-  ];
-
-  for (const url of invoiceUrls) {
-    try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 10000 });
-      await sleep(1500);
-      const hasTable = await page.$('table, [role="grid"], .invoice-list, .document-list');
-      if (hasTable) {
-        console.log('Found invoice table at:', url);
-        return;
-      }
-    } catch {}
+  // From the accounting area, open the invoices/documents list.
+  const openedInvoices = await clickByText(page, [
+    'חשבוניות', 'חשבונית', 'מסמכים חשבונאיים', 'מסמכי הנהלת חשבונות', 'מסמכים', 'הכנסות',
+  ]);
+  if (openedInvoices) {
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await sleep(2500);
+    console.log('Navigated to invoices, URL:', page.url());
+  } else {
+    console.warn('Could not find an invoices link under accounting');
   }
-
-  console.warn('Could not navigate to invoices directly, will try scraping from current page');
 }
 
 async function extractInvoicesFromPage(page) {
   const invoices = [];
 
-  // Try to find table rows
+  // Cligal renders tables with react-data-table-component: rows are
+  // `.rdt_TableRow` and cells `.rdt_TableCell` (the header row is a separate
+  // `.rdt_TableHeadRow`, so it's naturally excluded).
   const tableSelectors = [
+    '.rdt_TableRow',
+    'div[role="row"]:not(.rdt_TableHeadRow)',
     'table tbody tr',
     '[role="grid"] [role="row"]:not([role="columnheader"])',
-    '.invoice-row',
-    '.document-row',
-    'tr[data-id]',
     'tbody tr',
   ];
 
@@ -221,7 +212,7 @@ async function extractInvoicesFromPage(page) {
 
   for (const row of rows) {
     try {
-      const cells = await row.$$('td, [role="cell"]');
+      const cells = await row.$$('.rdt_TableCell, [role="gridcell"], td, [role="cell"]');
       if (cells.length < 3) continue;
 
       const cellTexts = await Promise.all(cells.map((c) => c.innerText().then((t) => t.trim())));
@@ -354,11 +345,13 @@ async function getPageCount(page) {
 
 async function goToNextPage(page) {
   const nextSelectors = [
+    '#pagination-next-page',
+    'button[aria-label="Next Page"]',
     'button[aria-label="Next page"]',
     'button[aria-label="עמוד הבא"]',
+    'button[id*="next"]',
     '.pagination .next',
     'button:has-text("הבא")',
-    'button:has-text(">")',
     '[data-page="next"]',
     '.next-page',
   ];
@@ -503,7 +496,7 @@ async function main() {
     await login(page);
     diagnostics.steps.push(await collectDiagnostics(page, 'after-login'));
 
-    await navigateToInvoices(page);
+    await navigateToInvoices(page, diagnostics);
     diagnostics.steps.push(await collectDiagnostics(page, 'invoices-page'));
 
     let pageNum = 1;
