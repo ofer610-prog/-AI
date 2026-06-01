@@ -394,8 +394,56 @@ async function syncToApp(invoices) {
   return result;
 }
 
+/** Collect a snapshot of the current page structure for remote debugging */
+async function collectDiagnostics(page, label) {
+  try {
+    return await page.evaluate((lbl) => {
+      const txt = (el) => (el && el.innerText ? el.innerText.trim().slice(0, 60) : '');
+      const inputs = Array.from(document.querySelectorAll('input')).map((i) => ({
+        type: i.type, name: i.name, id: i.id, placeholder: i.placeholder,
+      }));
+      const buttons = Array.from(document.querySelectorAll('button, input[type=submit], a[role=button]'))
+        .map((b) => txt(b)).filter(Boolean).slice(0, 30);
+      const navLinks = Array.from(document.querySelectorAll('nav a, aside a, a'))
+        .map((a) => ({ text: txt(a), href: a.getAttribute('href') }))
+        .filter((a) => a.text).slice(0, 40);
+      const tables = Array.from(document.querySelectorAll('table')).length;
+      const grids = Array.from(document.querySelectorAll('[role=grid]')).length;
+      const rows = Array.from(document.querySelectorAll('table tbody tr, [role=row]')).length;
+      return {
+        label: lbl,
+        url: location.href,
+        title: document.title,
+        inputs,
+        buttons,
+        navLinks,
+        tableCount: tables,
+        gridCount: grids,
+        rowCount: rows,
+        bodyTextSnippet: (document.body ? document.body.innerText : '').slice(0, 2000),
+      };
+    }, label);
+  } catch (err) {
+    return { label, error: err.message };
+  }
+}
+
+async function sendDiagnostics(diagnostics) {
+  try {
+    await fetch(`${APP_URL}/api/invoices/cligal-debug`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': CRON_SECRET },
+      body: JSON.stringify(diagnostics),
+    });
+    console.log('Diagnostics sent to server');
+  } catch (err) {
+    console.error('Failed to send diagnostics:', err.message);
+  }
+}
+
 async function main() {
   console.log('Starting Cligal invoice scraper...');
+  const diagnostics = { steps: [] };
 
   const browser = await chromium.launch({
     headless: true,
@@ -412,8 +460,15 @@ async function main() {
   let allInvoices = [];
 
   try {
+    // Snapshot the very first page (login screen) before doing anything
+    await page.goto(`${CLIGAL_URL}/app`, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+    diagnostics.steps.push(await collectDiagnostics(page, 'initial-landing'));
+
     await login(page);
+    diagnostics.steps.push(await collectDiagnostics(page, 'after-login'));
+
     await navigateToInvoices(page);
+    diagnostics.steps.push(await collectDiagnostics(page, 'invoices-page'));
 
     let pageNum = 1;
     const maxPages = 50; // Safety limit (50 rows/page × 50 pages = 2500 invoices)
@@ -435,13 +490,21 @@ async function main() {
     }
 
     console.log(`\nTotal invoices scraped: ${allInvoices.length}`);
+    diagnostics.totalScraped = allInvoices.length;
+    diagnostics.sampleInvoices = allInvoices.slice(0, 3);
+
+    // Always send diagnostics so we can see what the scraper encountered
+    await sendDiagnostics(diagnostics);
 
     if (allInvoices.length > 0) {
       await syncToApp(allInvoices);
     }
   } catch (err) {
     console.error('Scraper error:', err.message);
-    await page.screenshot({ path: 'debug-error.png' });
+    diagnostics.error = err.message;
+    diagnostics.steps.push(await collectDiagnostics(page, 'error-state'));
+    await sendDiagnostics(diagnostics);
+    await page.screenshot({ path: 'debug-error.png' }).catch(() => {});
     await browser.close();
     process.exit(1);
   }

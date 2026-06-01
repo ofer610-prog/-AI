@@ -44,10 +44,12 @@ jobs:
         run: node scrape-cligal.js
         working-directory: scripts
 
-      - name: Upload debug screenshots on failure
-        if: failure()
+      - name: Upload debug screenshots
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: debug-screenshots
           path: scripts/debug-*.png
           retention-days: 7
+          if-no-files-found: ignore
