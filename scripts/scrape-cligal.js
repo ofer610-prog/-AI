@@ -422,6 +422,25 @@ async function collectDiagnostics(page, label) {
       const tables = Array.from(document.querySelectorAll('table')).length;
       const grids = Array.from(document.querySelectorAll('[role=grid]')).length;
       const rows = Array.from(document.querySelectorAll('table tbody tr, [role=row]')).length;
+
+      // Find the most-repeated class combinations — these usually mark the
+      // repeating "row" elements in div-based grids (React/Angular tables).
+      const classCount = {};
+      Array.from(document.querySelectorAll('[class]')).forEach((el) => {
+        const c = (el.getAttribute('class') || '').trim();
+        if (c) classCount[c] = (classCount[c] || 0) + 1;
+      });
+      const repeatedClasses = Object.entries(classCount)
+        .filter(([, n]) => n >= 5)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 25)
+        .map(([cls, n]) => ({ cls, n }));
+
+      // Grab a trimmed HTML snapshot of the main content region so we can
+      // write accurate selectors from the real DOM.
+      const main = document.querySelector('main, [role=main], .content, #content, #root, #app, body');
+      const mainHtml = main ? main.outerHTML.replace(/\s+/g, ' ').slice(0, 12000) : '';
+
       return {
         label: lbl,
         url: location.href,
@@ -432,6 +451,8 @@ async function collectDiagnostics(page, label) {
         tableCount: tables,
         gridCount: grids,
         rowCount: rows,
+        repeatedClasses,
+        mainHtml,
         bodyTextSnippet: (document.body ? document.body.innerText : '').slice(0, 2000),
       };
     }, label);

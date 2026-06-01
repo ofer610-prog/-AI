@@ -3,14 +3,20 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-const DEBUG_MESSAGE_ID = '__cligal_debug__';
+// We persist diagnostics as a single special row in the `invoices` table
+// (which exists in the live DB), keyed by this invoice_number. It is deleted
+// and rewritten on every POST, and can be cleared via DELETE.
+const DEBUG_KEY = '__CLIGAL_DEBUG__';
+
+async function getOrgId(sb) {
+  const { data: orgs } = await sb.from('organizations').select('id').limit(1);
+  return orgs?.[0]?.id || null;
+}
 
 /**
  * POST /api/invoices/cligal-debug
- * Receives diagnostic info from the Playwright scraper and stores it in the
- * whatsapp_alerts table (status='debug', message_id='__cligal_debug__') so we
- * can read it back via GET. whatsapp_alerts has a free-form TEXT column with
- * no constraints, which makes it a reliable store for arbitrary diagnostics.
+ * Receives diagnostic info from the Playwright scraper and stores it in a
+ * dedicated invoices row (invoice_number='__CLIGAL_DEBUG__', notes=<json>).
  */
 export async function POST(request) {
   const secret = request.headers.get('x-cron-secret');
@@ -26,21 +32,21 @@ export async function POST(request) {
   }
 
   const sb = createServiceClient();
-  const { data: orgs } = await sb.from('organizations').select('id').limit(1);
-  const orgId = orgs?.[0]?.id;
+  const orgId = await getOrgId(sb);
   if (!orgId) return NextResponse.json({ error: 'No organization' }, { status: 500 });
 
   const payload = JSON.stringify({ captured_at: new Date().toISOString(), ...body });
 
-  // Remove any prior debug row, then insert fresh
-  await sb.from('whatsapp_alerts').delete().eq('organization_id', orgId).eq('message_id', DEBUG_MESSAGE_ID);
+  // Remove any prior debug row, then insert fresh.
+  await sb.from('invoices').delete().eq('organization_id', orgId).eq('invoice_number', DEBUG_KEY);
 
-  const { error } = await sb.from('whatsapp_alerts').insert({
+  const { error } = await sb.from('invoices').insert({
     organization_id: orgId,
-    message_id: DEBUG_MESSAGE_ID,
-    message_text: payload,
-    message_timestamp: new Date().toISOString(),
-    status: 'debug',
+    invoice_number: DEBUG_KEY,
+    number: DEBUG_KEY,
+    amount: 0,
+    status: 'draft',
+    notes: payload,
   });
 
   if (error) {
@@ -48,12 +54,13 @@ export async function POST(request) {
     return NextResponse.json({ received: false, dbError: error.message }, { status: 200 });
   }
 
-  return NextResponse.json({ received: true });
+  return NextResponse.json({ received: true, bytes: payload.length });
 }
 
 /**
  * GET /api/invoices/cligal-debug?secret=...
- * Returns the most recent diagnostics captured by the scraper.
+ *   &probe=1   -> report which tables exist + organizations columns
+ * Otherwise returns the most recent diagnostics captured by the scraper.
  */
 export async function GET(request) {
   const url = new URL(request.url);
@@ -63,36 +70,45 @@ export async function GET(request) {
   }
 
   const sb = createServiceClient();
-  const { data: orgs, error: orgErr } = await sb.from('organizations').select('id').limit(1);
-  const orgId = orgs?.[0]?.id;
-  if (!orgId) return NextResponse.json({ error: 'No organization', orgErr: orgErr?.message }, { status: 500 });
+  const orgId = await getOrgId(sb);
+  if (!orgId) return NextResponse.json({ error: 'No organization' }, { status: 500 });
 
-  // Diagnostic probe: report which tables exist + organizations columns,
-  // so we can pick a reliable place to store diagnostics.
   if (url.searchParams.get('probe') === '1') {
-    const probe = { orgId, tables: {}, orgColumns: null };
-    const candidates = ['whatsapp_alerts', 'integration_settings', 'invoices', 'clients', 'matters'];
+    const probe = { orgId, tables: {} };
+    const candidates = ['whatsapp_alerts', 'integration_settings', 'invoices', 'clients', 'matters', 'payments'];
     for (const t of candidates) {
       const r = await sb.from(t).select('*').limit(1);
       probe.tables[t] = r.error ? r.error.message : `ok (${r.data?.length ?? 0} rows sampled)`;
     }
-    const org = await sb.from('organizations').select('*').limit(1);
-    probe.orgColumns = org.data?.[0] ? Object.keys(org.data[0]) : (org.error?.message || 'no rows');
     return NextResponse.json({ probe });
   }
 
   const { data } = await sb
-    .from('whatsapp_alerts')
-    .select('message_text, created_at')
+    .from('invoices')
+    .select('notes, created_at')
     .eq('organization_id', orgId)
-    .eq('message_id', DEBUG_MESSAGE_ID)
+    .eq('invoice_number', DEBUG_KEY)
     .maybeSingle();
 
-  if (!data) return NextResponse.json({ error: 'No diagnostics captured yet' });
+  if (!data?.notes) return NextResponse.json({ error: 'No diagnostics captured yet' });
 
   try {
-    return NextResponse.json(JSON.parse(data.message_text));
+    return NextResponse.json(JSON.parse(data.notes));
   } catch {
-    return NextResponse.json({ raw: data.message_text });
+    return NextResponse.json({ raw: data.notes });
   }
+}
+
+/** DELETE /api/invoices/cligal-debug?secret=...  removes the debug row. */
+export async function DELETE(request) {
+  const url = new URL(request.url);
+  if (url.searchParams.get('secret') !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const sb = createServiceClient();
+  const orgId = await getOrgId(sb);
+  if (orgId) {
+    await sb.from('invoices').delete().eq('organization_id', orgId).eq('invoice_number', DEBUG_KEY);
+  }
+  return NextResponse.json({ deleted: true });
 }
