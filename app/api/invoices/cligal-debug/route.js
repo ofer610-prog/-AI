@@ -85,6 +85,14 @@ export async function GET(request) {
       const r = await sb.from(t).select('*').limit(1);
       probe.tables[t] = r.error ? r.error.message : `ok (${r.data?.length ?? 0} rows sampled)`;
     }
+    // Verify the exact debug-row INSERT works, so we don't need a scraper run to test it.
+    const today = new Date().toISOString().slice(0, 10);
+    const ins = await sb.from('invoices').insert({
+      organization_id: orgId, number: '__PROBE__', client_name: '__debug__',
+      amount: 0, issue_date: today, due_date: today, status: 'open', notes: 'probe',
+    });
+    probe.debugInsert = ins.error ? ins.error.message : 'ok';
+    await sb.from('invoices').delete().eq('organization_id', orgId).eq('number', '__PROBE__');
     return NextResponse.json({ probe });
   }
 
