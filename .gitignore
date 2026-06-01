@@ -1,7 +1,11 @@
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.js
+
+# scraper debug artifacts
+scripts/debug-*.png
 
 # testing
 /coverage
