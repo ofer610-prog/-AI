@@ -75,10 +75,10 @@ export async function POST(request) {
       number: inv.document_number,
       client_id: clientId,
       matter_id: matterId,
-      client_name: inv.client_name || null,
+      client_name: inv.client_name || '(לא ידוע)',
       amount: inv.amount || 0,
-      issue_date: inv.issue_date || null,
-      due_date: inv.due_date || null,
+      issue_date: inv.issue_date || new Date().toISOString().slice(0, 10),
+      due_date: inv.due_date || new Date().toISOString().slice(0, 10),
       status: mapStatus(inv.status),
       notes: inv.doc_type ? `סוג מסמך: ${inv.doc_type}` : null,
       source: 'cligal',
@@ -135,10 +135,9 @@ export async function POST(request) {
 }
 
 function mapStatus(status) {
-  if (!status) return 'draft';
+  if (!status) return 'open';
   const s = status.toLowerCase();
   if (s === 'paid' || s.includes('שולם') || s.includes('סגור')) return 'paid';
-  if (s === 'open' || s.includes('פתוח')) return 'sent';
   if (s === 'cancelled' || s.includes('מבוטל')) return 'cancelled';
-  return 'draft';
+  return 'open';
 }

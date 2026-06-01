@@ -40,12 +40,16 @@ export async function POST(request) {
   // Remove any prior debug row, then insert fresh.
   await sb.from('invoices').delete().eq('organization_id', orgId).eq('invoice_number', DEBUG_KEY);
 
+  const today = new Date().toISOString().slice(0, 10);
   const { error } = await sb.from('invoices').insert({
     organization_id: orgId,
     invoice_number: DEBUG_KEY,
     number: DEBUG_KEY,
+    client_name: '__debug__',
     amount: 0,
-    status: 'draft',
+    issue_date: today,
+    due_date: today,
+    status: 'open',
     notes: payload,
   });
 
