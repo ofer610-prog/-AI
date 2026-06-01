@@ -6,7 +6,8 @@
  * Required env vars:
  *   CLIGAL_EMAIL        - login email
  *   CLIGAL_PASSWORD     - login password
- *   APP_URL             - base URL of our app (e.g. https://your-app.vercel.app)
+ *   APP_URL             - base URL of our app (e.g. https://your-app.vercel.app).
+ *                         Any path in the value is stripped; only the origin is used.
  *   CRON_SECRET         - shared secret for the sync endpoint
  */
 
@@ -15,8 +16,19 @@ const { chromium } = require('playwright');
 const CLIGAL_URL = 'https://app.cligal.com';
 const EMAIL = process.env.CLIGAL_EMAIL;
 const PASSWORD = process.env.CLIGAL_PASSWORD;
-const APP_URL = process.env.APP_URL;
 const CRON_SECRET = process.env.CRON_SECRET;
+
+// Normalize APP_URL to just its origin so a stray path in the secret
+// (e.g. ".../dashboard") can never break the POST target.
+function normalizeAppUrl(raw) {
+  if (!raw) return raw;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, '');
+  }
+}
+const APP_URL = normalizeAppUrl(process.env.APP_URL);
 
 if (!EMAIL || !PASSWORD || !APP_URL || !CRON_SECRET) {
   console.error('Missing required env vars: CLIGAL_EMAIL, CLIGAL_PASSWORD, APP_URL, CRON_SECRET');
@@ -429,13 +441,16 @@ async function collectDiagnostics(page, label) {
 }
 
 async function sendDiagnostics(diagnostics) {
+  const target = `${APP_URL}/api/invoices/cligal-debug`;
   try {
-    await fetch(`${APP_URL}/api/invoices/cligal-debug`, {
+    const res = await fetch(target, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-cron-secret': CRON_SECRET },
       body: JSON.stringify(diagnostics),
+      redirect: 'manual',
     });
-    console.log('Diagnostics sent to server');
+    const text = await res.text().catch(() => '');
+    console.log(`Diagnostics POST ${target} -> ${res.status} ${text.slice(0, 200)}`);
   } catch (err) {
     console.error('Failed to send diagnostics:', err.message);
   }
