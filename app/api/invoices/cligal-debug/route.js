@@ -3,10 +3,14 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+const DEBUG_MESSAGE_ID = '__cligal_debug__';
+
 /**
  * POST /api/invoices/cligal-debug
- * Receives diagnostic info from the Playwright scraper and stores it in the DB
- * (integration_settings, provider='cligal_debug') so we can read it back.
+ * Receives diagnostic info from the Playwright scraper and stores it in the
+ * whatsapp_alerts table (status='debug', message_id='__cligal_debug__') so we
+ * can read it back via GET. whatsapp_alerts has a free-form TEXT column with
+ * no constraints, which makes it a reliable store for arbitrary diagnostics.
  */
 export async function POST(request) {
   const secret = request.headers.get('x-cron-secret');
@@ -21,30 +25,27 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  console.log('=== CLIGAL DEBUG DIAGNOSTICS ===');
-  console.log(JSON.stringify(body).slice(0, 1000));
-
   const sb = createServiceClient();
   const { data: orgs } = await sb.from('organizations').select('id').limit(1);
   const orgId = orgs?.[0]?.id;
+  if (!orgId) return NextResponse.json({ error: 'No organization' }, { status: 500 });
 
-  if (orgId) {
-    const payload = { captured_at: new Date().toISOString(), ...body };
-    const { data: existing } = await sb
-      .from('integration_settings')
-      .select('id')
-      .eq('organization_id', orgId)
-      .eq('provider', 'cligal_debug')
-      .maybeSingle();
+  const payload = JSON.stringify({ captured_at: new Date().toISOString(), ...body });
 
-    if (existing) {
-      await sb.from('integration_settings')
-        .update({ config: payload, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-    } else {
-      await sb.from('integration_settings')
-        .insert({ organization_id: orgId, provider: 'cligal_debug', config: payload, is_active: false });
-    }
+  // Remove any prior debug row, then insert fresh
+  await sb.from('whatsapp_alerts').delete().eq('organization_id', orgId).eq('message_id', DEBUG_MESSAGE_ID);
+
+  const { error } = await sb.from('whatsapp_alerts').insert({
+    organization_id: orgId,
+    message_id: DEBUG_MESSAGE_ID,
+    message_text: payload,
+    message_timestamp: new Date().toISOString(),
+    status: 'debug',
+  });
+
+  if (error) {
+    console.log('CLIGAL_DB_ERR:', error.message);
+    return NextResponse.json({ received: false, dbError: error.message }, { status: 200 });
   }
 
   return NextResponse.json({ received: true });
@@ -67,11 +68,17 @@ export async function GET(request) {
   if (!orgId) return NextResponse.json({ error: 'No organization' }, { status: 500 });
 
   const { data } = await sb
-    .from('integration_settings')
-    .select('config, updated_at')
+    .from('whatsapp_alerts')
+    .select('message_text, created_at')
     .eq('organization_id', orgId)
-    .eq('provider', 'cligal_debug')
+    .eq('message_id', DEBUG_MESSAGE_ID)
     .maybeSingle();
 
-  return NextResponse.json(data?.config || { error: 'No diagnostics captured yet' });
+  if (!data) return NextResponse.json({ error: 'No diagnostics captured yet' });
+
+  try {
+    return NextResponse.json(JSON.parse(data.message_text));
+  } catch {
+    return NextResponse.json({ raw: data.message_text });
+  }
 }
