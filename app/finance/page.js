@@ -26,6 +26,8 @@ export default function FinancePage() {
   const [whatsappAlerts, setWhatsappAlerts] = useState([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [cligalSyncing, setCligalSyncing] = useState(false);
+  const [cligalResult, setCligalResult] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -89,6 +91,20 @@ export default function FinancePage() {
     setScanning(false);
   };
 
+  const handleCligalSync = async () => {
+    setCligalSyncing(true);
+    setCligalResult(null);
+    try {
+      const res = await fetch('/api/invoices/trigger-cligal-sync', { method: 'POST' });
+      const data = await res.json();
+      setCligalResult(data);
+      if (data.success) loadData();
+    } catch (e) {
+      setCligalResult({ error: e.message });
+    }
+    setCligalSyncing(false);
+  };
+
   const updateAlertStatus = async (id, status) => {
     try {
       await fetch('/api/whatsapp/alerts', {
@@ -134,6 +150,14 @@ export default function FinancePage() {
             >
               <Plus className="w-4 h-4" /> חשבונית חדשה
             </Link>
+            <button
+              onClick={handleCligalSync}
+              disabled={cligalSyncing}
+              className="px-4 py-2 border border-blue-300 text-blue-700 text-sm rounded-md hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+            >
+              {cligalSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              סנכרן מקליגל
+            </button>
             <Link
               href="/finance/import"
               className="px-4 py-2 border border-sky-200 text-slate-700 text-sm rounded-md hover:bg-sky-50 flex items-center gap-2"
@@ -151,6 +175,17 @@ export default function FinancePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Cligal sync result */}
+        {cligalResult && (
+          <div className={`rounded-lg px-4 py-3 text-sm flex items-center gap-3 ${cligalResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+            {cligalResult.error
+              ? <><XCircle className="w-4 h-4 shrink-0" /> שגיאת סנכרון: {cligalResult.error}</>
+              : <><CheckCircle className="w-4 h-4 shrink-0" /> סנכרון הצליח — נוספו {cligalResult.inserted || 0}, עודכנו {cligalResult.updated || 0} חשבוניות</>
+            }
+            <button onClick={() => setCligalResult(null)} className="mr-auto text-xs opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
+
         {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard

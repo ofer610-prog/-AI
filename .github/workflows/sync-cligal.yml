@@ -1,0 +1,53 @@
+name: Sync Cligal Invoices
+
+on:
+  schedule:
+    # Run every day at 07:00 UTC (10:00 Israel time)
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug screenshots'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: scripts
+
+      - name: Run Cligal scraper
+        env:
+          CLIGAL_EMAIL: ${{ secrets.CLIGAL_EMAIL }}
+          CLIGAL_PASSWORD: ${{ secrets.CLIGAL_PASSWORD }}
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: node scrape-cligal.js
+        working-directory: scripts
+
+      - name: Upload debug screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: scripts/debug-*.png
+          retention-days: 7

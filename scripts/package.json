@@ -1,0 +1,12 @@
+{
+  "name": "cligal-scraper",
+  "version": "1.0.0",
+  "description": "Playwright scraper for Cligal invoice sync",
+  "type": "commonjs",
+  "scripts": {
+    "scrape": "node scrape-cligal.js"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
+}
