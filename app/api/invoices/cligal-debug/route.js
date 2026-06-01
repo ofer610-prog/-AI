@@ -37,13 +37,14 @@ export async function POST(request) {
 
   const payload = JSON.stringify({ captured_at: new Date().toISOString(), ...body });
 
-  // Remove any prior debug row, then insert fresh.
-  await sb.from('invoices').delete().eq('organization_id', orgId).eq('invoice_number', DEBUG_KEY);
+  // Remove any prior debug row, then insert fresh. Uses only base-schema
+  // columns ('number', not 'invoice_number', which lives in a migration that
+  // hasn't been applied to the live DB).
+  await sb.from('invoices').delete().eq('organization_id', orgId).eq('number', DEBUG_KEY);
 
   const today = new Date().toISOString().slice(0, 10);
   const { error } = await sb.from('invoices').insert({
     organization_id: orgId,
-    invoice_number: DEBUG_KEY,
     number: DEBUG_KEY,
     client_name: '__debug__',
     amount: 0,
@@ -91,7 +92,7 @@ export async function GET(request) {
     .from('invoices')
     .select('notes, created_at')
     .eq('organization_id', orgId)
-    .eq('invoice_number', DEBUG_KEY)
+    .eq('number', DEBUG_KEY)
     .maybeSingle();
 
   if (!data?.notes) return NextResponse.json({ error: 'No diagnostics captured yet' });
@@ -112,7 +113,7 @@ export async function DELETE(request) {
   const sb = createServiceClient();
   const orgId = await getOrgId(sb);
   if (orgId) {
-    await sb.from('invoices').delete().eq('organization_id', orgId).eq('invoice_number', DEBUG_KEY);
+    await sb.from('invoices').delete().eq('organization_id', orgId).eq('number', DEBUG_KEY);
   }
   return NextResponse.json({ deleted: true });
 }

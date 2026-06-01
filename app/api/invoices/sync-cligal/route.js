@@ -71,7 +71,6 @@ export async function POST(request) {
 
     const payload = {
       organization_id: orgId,
-      invoice_number: inv.document_number,
       number: inv.document_number,
       client_id: clientId,
       matter_id: matterId,
@@ -80,8 +79,7 @@ export async function POST(request) {
       issue_date: inv.issue_date || new Date().toISOString().slice(0, 10),
       due_date: inv.due_date || new Date().toISOString().slice(0, 10),
       status: mapStatus(inv.status),
-      notes: inv.doc_type ? `סוג מסמך: ${inv.doc_type}` : null,
-      source: 'cligal',
+      notes: inv.doc_type ? `סוג מסמך: ${inv.doc_type} (מקור: cligal)` : 'מקור: cligal',
     };
 
     // Check if invoice already exists by document number
@@ -89,13 +87,13 @@ export async function POST(request) {
       .from('invoices')
       .select('id')
       .eq('organization_id', orgId)
-      .eq('invoice_number', inv.document_number)
+      .eq('number', inv.document_number)
       .maybeSingle();
 
     if (existing) {
       const { error } = await sb
         .from('invoices')
-        .update({ ...payload, updated_at: new Date().toISOString() })
+        .update(payload)
         .eq('id', existing.id);
 
       if (error) {
@@ -107,17 +105,7 @@ export async function POST(request) {
       const { error } = await sb.from('invoices').insert(payload);
 
       if (error) {
-        // If source column doesn't exist yet, retry without it
-        if (error.message?.includes('source')) {
-          const { error: err2 } = await sb.from('invoices').insert({ ...payload, source: undefined });
-          if (err2) {
-            errors.push(`Insert ${inv.document_number}: ${err2.message}`);
-          } else {
-            inserted++;
-          }
-        } else {
-          errors.push(`Insert ${inv.document_number}: ${error.message}`);
-        }
+        errors.push(`Insert ${inv.document_number}: ${error.message}`);
       } else {
         inserted++;
       }
