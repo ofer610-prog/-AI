@@ -63,9 +63,26 @@ export async function GET(request) {
   }
 
   const sb = createServiceClient();
-  const { data: orgs } = await sb.from('organizations').select('id').limit(1);
+  const { data: orgs, error: orgErr } = await sb.from('organizations').select('id').limit(1);
   const orgId = orgs?.[0]?.id;
-  if (!orgId) return NextResponse.json({ error: 'No organization' }, { status: 500 });
+  if (!orgId) return NextResponse.json({ error: 'No organization', orgErr: orgErr?.message }, { status: 500 });
+
+  // Diagnostic probe: surface the exact DB error so we can see why inserts fail.
+  if (url.searchParams.get('probe') === '1') {
+    const probe = { orgId };
+    const ins = await sb.from('whatsapp_alerts').insert({
+      organization_id: orgId,
+      message_id: '__probe__',
+      message_text: 'probe',
+      message_timestamp: new Date().toISOString(),
+      status: 'debug',
+    });
+    probe.insertError = ins.error?.message || null;
+    const sel = await sb.from('whatsapp_alerts').select('id').limit(1);
+    probe.selectError = sel.error?.message || null;
+    await sb.from('whatsapp_alerts').delete().eq('message_id', '__probe__');
+    return NextResponse.json({ probe });
+  }
 
   const { data } = await sb
     .from('whatsapp_alerts')
