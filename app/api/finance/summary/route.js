@@ -49,7 +49,7 @@ export async function GET() {
       .from('invoices')
       .select('id, amount, due_date, status')
       .eq('organization_id', orgId)
-      .in('status', ['open', 'sent', 'draft', 'overdue']),
+      .eq('status', 'open'),
     supabase
       .from('payments')
       .select('id, amount, payment_date, method, client_id, clients(name)')
@@ -64,7 +64,7 @@ export async function GET() {
   const week_income = sum(weekPayments);
   const month_income = sum(monthPayments);
 
-  const open = (openInvoices || []).filter(i => i.status !== 'paid' && i.status !== 'cancelled');
+  const open = openInvoices || [];
   const overdue = open.filter(i => i.due_date && i.due_date < todayStr);
 
   return Response.json({
