@@ -438,25 +438,59 @@ async function syncToApp(invoices) {
     return;
   }
 
-  console.log(`Syncing ${invoices.length} invoices to ${APP_URL}...`);
-
-  const response = await fetch(`${APP_URL}/api/invoices/sync-cligal`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-cron-secret': CRON_SECRET,
-    },
-    body: JSON.stringify({ invoices }),
-  });
-
-  const result = await response.json();
-  console.log('Sync result:', JSON.stringify(result, null, 2));
-
-  if (!response.ok) {
-    throw new Error(`Sync failed: ${result.error || response.status}`);
+  const BATCH_SIZE = 50;
+  const batches = [];
+  for (let i = 0; i < invoices.length; i += BATCH_SIZE) {
+    batches.push(invoices.slice(i, i + BATCH_SIZE));
   }
 
-  return result;
+  console.log(`Syncing ${invoices.length} invoices in ${batches.length} batches of up to ${BATCH_SIZE}...`);
+
+  let totalImported = 0;
+  let totalSkipped = 0;
+  const allErrors = [];
+
+  for (let b = 0; b < batches.length; b++) {
+    const batch = batches[b];
+    console.log(`Sending batch ${b + 1}/${batches.length} (${batch.length} invoices)...`);
+
+    const response = await fetch(`${APP_URL}/api/invoices/sync-cligal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': CRON_SECRET,
+      },
+      body: JSON.stringify({ invoices: batch }),
+    });
+
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      result = { error: `HTTP ${response.status}` };
+    }
+
+    if (!response.ok) {
+      console.error(`Batch ${b + 1} failed:`, JSON.stringify(result));
+      allErrors.push(`Batch ${b + 1}: ${result.error || response.status}`);
+      // Continue with remaining batches rather than aborting
+      continue;
+    }
+
+    const batchImported = (result.inserted || 0) + (result.updated || 0);
+    console.log(`Batch ${b + 1} result: inserted=${result.inserted}, updated=${result.updated}, skipped=${result.skipped}, errors=${result.errors?.length || 0}`);
+    totalImported += batchImported;
+    totalSkipped += result.skipped || 0;
+    if (result.errors?.length) allErrors.push(...result.errors);
+
+    // Small pause between batches to avoid overwhelming the DB
+    if (b < batches.length - 1) await sleep(500);
+  }
+
+  console.log(`\nSync complete: imported=${totalImported}, skipped=${totalSkipped}, errors=${allErrors.length}`);
+  if (allErrors.length) console.error('Sync errors:', allErrors.slice(0, 10));
+
+  return { imported: totalImported, skipped: totalSkipped, errors: allErrors };
 }
 
 /** Collect a snapshot of the current page structure for remote debugging */
