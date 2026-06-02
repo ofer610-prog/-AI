@@ -238,7 +238,7 @@ export async function POST(request) {
     // Load existing clients (name -> id) and existing invoice numbers for dedupe
     const [{ data: existingClients }, { data: existingInvoices }] = await Promise.all([
       sb.from('clients').select('id, name').eq('organization_id', orgId),
-      sb.from('invoices').select('invoice_number').eq('organization_id', orgId),
+      sb.from('invoices').select('number').eq('organization_id', orgId),
     ]);
 
     const clientByName = new Map();
@@ -246,7 +246,7 @@ export async function POST(request) {
       if (c.name) clientByName.set(c.name.trim().toLowerCase(), c.id);
     });
     const existingInvNums = new Set(
-      (existingInvoices || []).map((i) => String(i.invoice_number || '').trim().toLowerCase()).filter(Boolean)
+      (existingInvoices || []).map((i) => String(i.number || '').trim().toLowerCase()).filter(Boolean)
     );
 
     let imported = 0;
@@ -299,18 +299,16 @@ export async function POST(request) {
         const total = m.total != null ? m.total : Math.round((subtotal + vatAmount) * 100) / 100;
         const invoiceNumber = m.invoice_number || `IMP-${Date.now()}-${i}`;
 
+        const validStatus = ['open', 'paid', 'cancelled'];
         const payload = {
           organization_id: orgId,
           client_id: clientId,
           number: invoiceNumber,
-          invoice_number: invoiceNumber,
           client_name: m.client_name || '',
           amount: total,
-          subtotal,
-          vat_amount: vatAmount,
           issue_date: m.issue_date || new Date().toISOString().slice(0, 10),
-          due_date: m.due_date || null,
-          status: m.status || 'sent',
+          due_date: m.due_date || new Date().toISOString().slice(0, 10),
+          status: validStatus.includes(m.status) ? m.status : 'open',
           notes: m.notes,
         };
 
