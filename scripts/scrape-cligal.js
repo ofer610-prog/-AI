@@ -157,17 +157,41 @@ async function clickByText(page, texts) {
 }
 
 async function navigateToInvoices(page, diagnostics) {
+  // The SPA renders the sidebar asynchronously; networkidle fires before the
+  // React tree is fully mounted. Wait explicitly for the accounting <li>.
+  console.log('Waiting for accounting sidebar item...');
+  try {
+    await page
+      .locator('li')
+      .filter({ hasText: /^הנהלת חשבונות$/ })
+      .first()
+      .waitFor({ state: 'visible', timeout: 25000 });
+    console.log('Accounting sidebar item is visible');
+  } catch (err) {
+    console.warn('Accounting item not found within 25 s:', err.message);
+    // Fallback: wait for any sidebar container to appear
+    await page
+      .waitForSelector('[class*="Sidebar_container"], [class*="Sidebar_links"]', { timeout: 10000 })
+      .catch(() => {});
+    await sleep(3000);
+  }
+
   // Invoices live under the "הנהלת חשבונות" (accounting) sidebar item, which is
   // a <li> without an href — it opens a sub-menu when clicked.
   const openedAccounting = await clickByText(page, ['הנהלת חשבונות']);
   if (openedAccounting) {
     await sleep(2000);
     diagnostics.steps.push(await collectDiagnostics(page, 'after-accounting-click'));
+  } else {
+    console.warn('Could not click הנהלת חשבונות');
+    diagnostics.steps.push(await collectDiagnostics(page, 'accounting-not-found'));
   }
 
   // From the accounting area, open the invoices/documents list.
+  // Try every plausible label the sub-menu might use.
   const openedInvoices = await clickByText(page, [
-    'חשבוניות', 'חשבונית', 'מסמכים חשבונאיים', 'מסמכי הנהלת חשבונות', 'מסמכים', 'הכנסות',
+    'חשבוניות', 'חשבונית', 'כל המסמכים', 'מסמכים חשבונאיים',
+    'מסמכי הנהלת חשבונות', 'מסמכים', 'הכנסות', 'דוחות',
   ]);
   if (openedInvoices) {
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
@@ -175,6 +199,7 @@ async function navigateToInvoices(page, diagnostics) {
     console.log('Navigated to invoices, URL:', page.url());
   } else {
     console.warn('Could not find an invoices link under accounting');
+    diagnostics.steps.push(await collectDiagnostics(page, 'invoices-not-found'));
   }
 }
 
