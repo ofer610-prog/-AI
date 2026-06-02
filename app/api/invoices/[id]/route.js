@@ -22,12 +22,11 @@ export async function PATCH(request, { params }) {
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ['status', 'notes', 'due_date', 'paid_date', 'subtotal', 'vat_rate', 'vat_amount', 'amount'];
+  const allowed = ['status', 'notes', 'due_date', 'paid_date', 'amount'];
   const update = {};
   for (const key of allowed) {
     if (key in body) update[key] = body[key];
   }
-  update.updated_at = new Date().toISOString();
 
   const { data, error } = await supabase
     .from('invoices')

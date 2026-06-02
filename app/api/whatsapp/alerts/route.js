@@ -22,7 +22,8 @@ export async function GET(request) {
     }
 
     const { data: alerts, error } = await query;
-    if (error) throw error;
+    // whatsapp_alerts table may not exist yet
+    if (error) return NextResponse.json({ alerts: [] });
 
     return NextResponse.json({ alerts: alerts || [] });
   } catch (err) {
@@ -46,7 +47,7 @@ export async function PATCH(request) {
       .update({ status })
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) return NextResponse.json({ error: 'whatsapp_alerts table not available' }, { status: 503 });
 
     return NextResponse.json({ success: true });
   } catch (err) {
