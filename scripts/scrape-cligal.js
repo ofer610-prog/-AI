@@ -157,23 +157,42 @@ async function clickByText(page, texts) {
 }
 
 async function navigateToInvoices(page, diagnostics) {
-  // The SPA renders the sidebar asynchronously; networkidle fires before the
-  // React tree is fully mounted. Wait explicitly for the accounting <li>.
+  // The SPA shows a full-page loading progress bar (AppLayout_progressContainer)
+  // until the React tree is fully mounted. networkidle fires at ~93% — before
+  // the sidebar renders. We must wait until the progress bar is gone.
+  console.log('Waiting for app loading progress bar to disappear...');
+  try {
+    await Promise.race([
+      // Primary signal: progress bar hidden/removed
+      page.waitForSelector('[class*="AppLayout_progressContainer"]', {
+        state: 'hidden',
+        timeout: 60000,
+      }),
+      // Fallback signal: sidebar itself becomes visible
+      page.waitForSelector('[class*="Sidebar_container"], [class*="Sidebar_links"]', {
+        state: 'visible',
+        timeout: 60000,
+      }),
+    ]);
+    console.log('App is ready (progress bar gone or sidebar visible)');
+  } catch (err) {
+    console.warn('App did not finish loading within 60 s:', err.message);
+  }
+
+  await sleep(1000);
+  diagnostics.steps.push(await collectDiagnostics(page, 'after-load-wait'));
+
   console.log('Waiting for accounting sidebar item...');
   try {
     await page
       .locator('li')
       .filter({ hasText: /^הנהלת חשבונות$/ })
       .first()
-      .waitFor({ state: 'visible', timeout: 25000 });
+      .waitFor({ state: 'visible', timeout: 15000 });
     console.log('Accounting sidebar item is visible');
   } catch (err) {
-    console.warn('Accounting item not found within 25 s:', err.message);
-    // Fallback: wait for any sidebar container to appear
-    await page
-      .waitForSelector('[class*="Sidebar_container"], [class*="Sidebar_links"]', { timeout: 10000 })
-      .catch(() => {});
-    await sleep(3000);
+    console.warn('Accounting item not found within 15 s:', err.message);
+    await sleep(2000);
   }
 
   // Invoices live under the "הנהלת חשבונות" (accounting) sidebar item, which is
