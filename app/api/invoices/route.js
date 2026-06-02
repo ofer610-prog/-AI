@@ -25,7 +25,7 @@ export async function GET(request) {
   if (status) query = query.eq('status', status);
 
   const search = searchParams.get('search');
-  if (search) query = query.or(`number.ilike.%${search}%,client_name.ilike.%${search}%,invoice_number.ilike.%${search}%`);
+  if (search) query = query.or(`number.ilike.%${search}%,client_name.ilike.%${search}%`);
 
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -67,22 +67,18 @@ export async function POST(request) {
     client_id: body.client_id || null,
     matter_id: body.matter_id || null,
     number: invoiceNumber,
-    invoice_number: invoiceNumber,
     client_name: clientName,
-    amount: total,
-    subtotal,
-    vat_rate: vatRate,
-    vat_amount: vatAmount,
+    amount: body.amount != null ? Number(body.amount) : total,
     issue_date: body.issue_date || new Date().toISOString().slice(0, 10),
-    due_date: body.due_date || null,
-    status: body.status || 'draft',
+    due_date: body.due_date || new Date().toISOString().slice(0, 10),
+    status: ['open', 'paid', 'cancelled'].includes(body.status) ? body.status : 'open',
     notes: body.notes || null,
   };
 
   const { data: invoice, error } = await supabase.from('invoices').insert(payload).select().single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  // Insert line items if provided
+  // Insert line items if provided (table exists only after accounting migration)
   if (body.items && body.items.length > 0) {
     const items = body.items
       .filter(i => i.description)
@@ -93,7 +89,7 @@ export async function POST(request) {
         unit_price: Number(i.unit_price) || 0,
       }));
     if (items.length > 0) {
-      await supabase.from('invoice_items').insert(items);
+      await supabase.from('invoice_items').insert(items).catch(() => null);
     }
   }
 
