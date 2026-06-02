@@ -215,7 +215,23 @@ async function navigateToInvoices(page, diagnostics) {
   if (openedInvoices) {
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     await sleep(2500);
-    console.log('Navigated to invoices, URL:', page.url());
+    console.log('Navigated to accounting area, URL:', page.url());
+
+    // The accounting page (/app/accounting) has tabs: יתרות לחיוב | טיוטות |
+    // דרישות תשלום | חשבוניות. We need the "חשבוניות" tab.
+    if (page.url().includes('/accounting')) {
+      console.log('On accounting page — clicking חשבוניות tab...');
+      const clickedTab = await clickByText(page, ['חשבוניות']);
+      if (clickedTab) {
+        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+        await sleep(2500);
+        console.log('Clicked חשבוניות tab, URL:', page.url());
+        diagnostics.steps.push(await collectDiagnostics(page, 'after-invoices-tab'));
+      } else {
+        console.warn('Could not click חשבוניות tab');
+        diagnostics.steps.push(await collectDiagnostics(page, 'invoices-tab-not-found'));
+      }
+    }
   } else {
     console.warn('Could not find an invoices link under accounting');
     diagnostics.steps.push(await collectDiagnostics(page, 'invoices-not-found'));
