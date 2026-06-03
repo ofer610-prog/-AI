@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsappToOffice, buildBankAlertMessage } from '@/lib/notifications';
+import { buildAuditEntry } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,11 +99,30 @@ export async function POST(request) {
     if (isCredit && !matchedInvoice) {
       const amt = Math.abs(Number(txn.amount));
 
-      // Try to find client name from invoice descriptions (best-effort)
+      // SECURITY: Match client by description text — unverified (bank description is external data)
       const { data: clients } = await sb.from('clients').select('name').eq('organization_id', orgId);
       const desc = (txn.description || '').toLowerCase();
       const matchedClient = (clients || []).find((c) => c.name && desc.includes(c.name.toLowerCase()));
       const clientName = matchedClient?.name || `לא ידוע (${(txn.description || '').slice(0, 30)})`;
+      const clientVerified = !!matchedClient;
+
+      // AUDIT: Log this agent decision before triggering any side effects
+      await sb.from('audit_log').insert(buildAuditEntry({
+        organizationId: orgId,
+        action: 'bank_unmatched_credit_detected',
+        entityType: 'bank_transaction',
+        sourceChannel: 'bank',
+        sourceMessageId: txn.reference || String(txn.date),
+        details: {
+          amount: amt,
+          description: txn.description?.slice(0, 200),
+          matched_client: clientName,
+          client_verified: clientVerified,
+          will_trigger_cligal_draft: true,
+          will_send_whatsapp: true,
+        },
+        approved: false, // requires office approval
+      })).catch((e) => console.warn('audit_log insert failed:', e.message));
 
       // Trigger Cligal draft creation (fire-and-forget; failures reported back separately)
       const baseUrl = process.env.APP_URL
