@@ -14,14 +14,17 @@ export async function GET(request) {
   const from = searchParams.get('from');
   const to   = searchParams.get('to');
 
+  const mine = searchParams.get('mine') === 'true';
+
   let q = sb
     .from('events')
-    .select('*, clients(name, phone)')
+    .select('*, clients(name, phone), profiles!assigned_to(id, full_name)')
     .eq('organization_id', profile.organization_id)
     .order('start_time', { ascending: true });
 
-  if (from) q = q.gte('start_time', from);
-  if (to)   q = q.lte('start_time', to);
+  if (from)  q = q.gte('start_time', from);
+  if (to)    q = q.lte('start_time', to);
+  if (mine)  q = q.eq('assigned_to', user.id);
 
   const { data, error } = await q;
   if (error) return Response.json({ error: error.message }, { status: 500 });
