@@ -1,3 +1,4 @@
+import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsappToOffice, buildEveningSummary } from '@/lib/notifications';
 
@@ -8,8 +9,8 @@ export const dynamic = 'force-dynamic';
  * Called daily at 19:00 (Israel time) by Vercel cron.
  */
 export async function GET(request) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  
+  if (!validateCronSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

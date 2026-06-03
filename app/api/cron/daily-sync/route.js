@@ -1,3 +1,4 @@
+import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 import { runGmailSync, generateAlerts } from '@/lib/sync';
 import { runWhatsappScan } from '@/lib/whatsapp-scan';
@@ -5,8 +6,8 @@ import { Resend } from 'resend';
 
 // Vercel cron sends Authorization header with secret
 export async function GET(request) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  
+  if (!validateCronSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

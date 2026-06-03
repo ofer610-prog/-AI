@@ -1,3 +1,4 @@
+import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 import { readDriveFileAllSheets } from '@/lib/gdrive';
 
@@ -15,8 +16,8 @@ export const dynamic = 'force-dynamic';
  */
 
 export async function GET(request) {
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  
+  if (!validateCronSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return runSync();

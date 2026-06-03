@@ -1,3 +1,4 @@
+import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +12,8 @@ export const dynamic = 'force-dynamic';
  * Can also be triggered manually: POST /api/cron/sync-gsheet (authenticated user).
  */
 export async function GET(request) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  
+  if (!validateCronSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return runSync();
