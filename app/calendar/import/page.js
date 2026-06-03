@@ -37,20 +37,12 @@ export default function CalendarImportPage() {
   };
 
   const handleImport = async () => {
-    if (!csvText) return;
+    if (!file) return;
     setLoading(true); setResult(null);
     try {
-      const parsed = parseCSV(csvText);
-      if (parsed.length < 2) { setResult({ error: 'הקובץ ריק או עם שורה אחת בלבד' }); return; }
-      const headers = parsed[0].map((h) => h.trim());
-      const rows = parsed.slice(1).map((cells) =>
-        Object.fromEntries(headers.map((h, i) => [h, (cells[i]||'').trim()]))
-      );
-      const res = await fetch('/api/events/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows }),
-      });
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/events/upload-xlsx', { method: 'POST', body: fd });
       const data = await res.json();
       setResult(data);
     } catch (e) { setResult({ error: e.message }); }
@@ -130,22 +122,22 @@ export default function CalendarImportPage() {
               <Upload className="w-5 h-5 text-sky-600" />
             </div>
             <div className="flex-1">
-              <h2 className="font-semibold text-lg mb-1">ייבוא קובץ CSV</h2>
+              <h2 className="font-semibold text-lg mb-1">ייבוא קובץ Excel / CSV</h2>
               <p className="text-sm text-slate-500 mb-4">
-                הורד מהגיליון: <strong>קובץ ← הורד ← CSV</strong>, ואז העלה כאן.
+                הורד את הקובץ מ-Google Drive (<strong>הורדה</strong>) ואז העלה כאן ישירות — Excel ו-CSV נתמכים.
               </p>
 
               <div className="border-2 border-dashed border-sky-200 rounded-lg p-6 text-center cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-colors mb-4"
-                onClick={() => document.getElementById('csv-input').click()}>
+                onClick={() => document.getElementById('file-input').click()}>
                 <Upload className="w-8 h-8 text-sky-400 mx-auto mb-2" />
-                <p className="text-sm text-slate-600">{file ? file.name : 'לחץ לבחירת קובץ CSV'}</p>
-                <p className="text-xs text-slate-400 mt-1">CSV בעברית — קידוד UTF-8</p>
-                <input id="csv-input" type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
+                <p className="text-sm text-slate-600">{file ? file.name : 'לחץ לבחירת קובץ'}</p>
+                <p className="text-xs text-slate-400 mt-1">Excel (.xlsx) או CSV — בעברית</p>
+                <input id="file-input" type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFile} className="hidden" />
               </div>
 
               {/* Column format hint */}
               <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-500 mb-4">
-                <p className="font-medium text-slate-600 mb-1">עמודות נתמכות (שמות בעברית או אנגלית):</p>
+                <p className="font-medium text-slate-600 mb-1">עמודות נתמכות (שמות בעברית):</p>
                 <p><code>תאריך, שעת התחלה, שעת סיום, כותרת, סוג, שם משתתף, טלפון, מיקום, הערות, עובד</code></p>
                 <p className="mt-1">סוגים: פגישה / דיון / שיחה / מועד אחרון</p>
               </div>
@@ -158,7 +150,7 @@ export default function CalendarImportPage() {
                 </div>
               )}
 
-              <button onClick={handleImport} disabled={!csvText || loading}
+              <button onClick={handleImport} disabled={!file || loading}
                 className="px-5 py-2.5 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 disabled:opacity-50 flex items-center gap-2">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 ייבא אירועים
