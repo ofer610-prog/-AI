@@ -94,14 +94,36 @@ export async function POST(request) {
 
     imported++;
 
-    // For unmatched credits: send office alert to handle in Cligal
+    // For unmatched credits: create draft invoice in Cligal + WhatsApp alert
     if (isCredit && !matchedInvoice) {
       const amt = Math.abs(Number(txn.amount));
-      const msg = buildBankAlertMessage({
-        amount: amt,
-        description: txn.description,
-        date: txn.date,
-      });
+
+      // Try to find client name from invoice descriptions (best-effort)
+      const { data: clients } = await sb.from('clients').select('name').eq('organization_id', orgId);
+      const desc = (txn.description || '').toLowerCase();
+      const matchedClient = (clients || []).find((c) => c.name && desc.includes(c.name.toLowerCase()));
+      const clientName = matchedClient?.name || `לא ידוע (${(txn.description || '').slice(0, 30)})`;
+
+      // Trigger Cligal draft creation (fire-and-forget; failures reported back separately)
+      const baseUrl = process.env.APP_URL
+        ? (() => { try { return new URL(process.env.APP_URL).origin; } catch { return process.env.APP_URL; } })()
+        : null;
+
+      if (baseUrl && process.env.GITHUB_TOKEN && process.env.GITHUB_REPO) {
+        fetch(`${baseUrl}/api/bank/create-cligal-draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET },
+          body: JSON.stringify({
+            client_name: clientName,
+            amount: amt,
+            description: txn.description || '',
+            date: txn.date,
+          }),
+        }).catch((err) => console.error('create-cligal-draft error:', err.message));
+      }
+
+      // Always send WhatsApp alert so the office knows
+      const msg = buildBankAlertMessage({ amount: amt, description: txn.description, date: txn.date });
       await sendWhatsappToOffice(msg);
       alertsCreated++;
     }
