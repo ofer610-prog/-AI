@@ -64,6 +64,8 @@ export default function DashboardClient({
     isAdmin && { id: 'finance_link', label: '💰 כספים', href: '/finance' },
     { id: 'calendar_link', label: '📅 לוח שנה', href: '/calendar' },
     { id: 'my_schedule',   label: '🗓️ הלוז שלי', href: '/my-schedule' },
+    { id: 'cases_link',    label: '📁 תיקים (Excel)', href: '/cases' },
+    { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
   ].filter(Boolean);
 
   return (
