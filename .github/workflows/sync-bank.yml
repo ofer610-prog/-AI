@@ -1,0 +1,39 @@
+name: Sync Bank Transactions
+
+on:
+  schedule:
+    # Run every day at 08:00 UTC (11:00 Israel time) — after Cligal sync
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: scripts
+
+      - name: Run bank scraper
+        env:
+          BANK_ID:       ${{ secrets.BANK_ID }}
+          BANK_PASSWORD: ${{ secrets.BANK_PASSWORD }}
+          APP_URL:       ${{ secrets.APP_URL }}
+          CRON_SECRET:   ${{ secrets.CRON_SECRET }}
+        run: node scrape-bank.js
+        working-directory: scripts

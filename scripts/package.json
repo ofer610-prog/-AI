@@ -1,12 +1,14 @@
 {
   "name": "cligal-scraper",
   "version": "1.0.0",
-  "description": "Playwright scraper for Cligal invoice sync",
+  "description": "Playwright scraper for Cligal + Israeli bank sync",
   "type": "commonjs",
   "scripts": {
-    "scrape": "node scrape-cligal.js"
+    "scrape": "node scrape-cligal.js",
+    "scrape-bank": "node scrape-bank.js"
   },
   "dependencies": {
-    "playwright": "^1.44.0"
+    "playwright": "^1.44.0",
+    "israeli-bank-scrapers": "^4.0.0"
   }
 }

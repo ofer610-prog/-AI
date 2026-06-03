@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   TrendingUp, Wallet, FileText, AlertCircle, Plus, CreditCard, Loader2,
-  MessageSquare, RefreshCw, CheckCircle, XCircle,
+  MessageSquare, RefreshCw, CheckCircle, XCircle, Upload, Landmark,
+  Send, Mail, Phone, ClipboardCheck,
 } from 'lucide-react';
 
 const fmtMoney = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
@@ -28,11 +29,20 @@ export default function FinancePage() {
   const [scanning, setScanning] = useState(false);
   const [cligalSyncing, setCligalSyncing] = useState(false);
   const [cligalResult, setCligalResult] = useState(null);
+  const [bankAlerts, setBankAlerts] = useState([]);
+  const [bankAlertsLoading, setBankAlertsLoading] = useState(false);
+  const [showBankImport, setShowBankImport] = useState(false);
+  const [bankImportResult, setBankImportResult] = useState(null);
+  const [draftInvoices, setDraftInvoices] = useState([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [sendModal, setSendModal] = useState(null); // { invoice }
   const router = useRouter();
 
   useEffect(() => {
     loadData();
     loadAlerts();
+    loadBankAlerts();
+    loadDrafts();
   }, []);
 
   const loadData = async () => {
@@ -89,6 +99,53 @@ export default function FinancePage() {
       console.error('scan error:', e);
     }
     setScanning(false);
+  };
+
+  const loadBankAlerts = async () => {
+    setBankAlertsLoading(true);
+    try {
+      const res = await fetch('/api/bank/unmatched');
+      const data = await res.json();
+      setBankAlerts(data.alerts || []);
+    } catch (e) {
+      console.error('loadBankAlerts error:', e);
+    }
+    setBankAlertsLoading(false);
+  };
+
+  const loadDrafts = async () => {
+    setDraftsLoading(true);
+    try {
+      const res = await fetch('/api/invoices?status=open&draft=true');
+      const data = await res.json();
+      const MARKER = '[טיוטה - ממתין לאישור]';
+      setDraftInvoices((data.invoices || []).filter((inv) => inv.notes?.includes(MARKER)));
+    } catch (e) { console.error('loadDrafts error:', e); }
+    setDraftsLoading(false);
+  };
+
+  const approveDraft = async (inv, overrides = {}) => {
+    try {
+      const res = await fetch('/api/invoices/approve-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inv.id, ...overrides }),
+      });
+      if (res.ok) { await loadDrafts(); await loadData(); }
+    } catch (e) { console.error('approveDraft error:', e); }
+  };
+
+  const handleBankAction = async (id, action, invoiceId) => {
+    try {
+      await fetch('/api/bank/unmatched', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action, invoice_id: invoiceId }),
+      });
+      setBankAlerts((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {
+      console.error('handleBankAction error:', e);
+    }
   };
 
   const handleCligalSync = async () => {
@@ -157,6 +214,12 @@ export default function FinancePage() {
             >
               {cligalSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               סנכרן מקליגל
+            </button>
+            <button
+              onClick={() => { setShowBankImport(true); setBankImportResult(null); }}
+              className="px-4 py-2 border border-indigo-200 text-indigo-700 text-sm rounded-md hover:bg-indigo-50 flex items-center gap-2"
+            >
+              <Landmark className="w-4 h-4" /> ייבוא דף חשבון
             </button>
             <Link
               href="/finance/import"
@@ -283,11 +346,200 @@ export default function FinancePage() {
                       <Td><StatusBadge status={inv.status} /></Td>
                       <Td align="left" className={`font-semibold ${isOverdue ? 'text-red-700' : ''}`}>{fmtMoney(inv.amount)}</Td>
                       <Td align="left">
-                        <Link href={`/finance/invoices`} className="text-xs text-sky-600 hover:text-sky-800">פרטים</Link>
+                        <div className="flex items-center gap-2 justify-end">
+                          <Link href={`/finance/invoices`} className="text-xs text-sky-600 hover:text-sky-800">פרטים</Link>
+                          <button
+                            onClick={() => setSendModal({ invoice: inv })}
+                            className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 flex items-center gap-1"
+                          >
+                            <Send className="w-3 h-3" /> שלח
+                          </button>
+                        </div>
                       </Td>
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Draft Invoices Pending Approval */}
+        {(draftsLoading || draftInvoices.length > 0) && (
+          <div className="bg-white border-2 border-amber-300 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-6 py-4 border-b border-amber-200 flex items-center justify-between bg-amber-50">
+              <div className="flex items-center gap-3">
+                <ClipboardCheck className="w-5 h-5 text-amber-600" />
+                <h2 className="font-semibold text-slate-800 text-lg">טיוטות חשבוניות — ממתינות לאישורך</h2>
+                {draftInvoices.length > 0 && (
+                  <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-white text-xs font-bold rounded-full">
+                    {draftInvoices.length}
+                  </span>
+                )}
+              </div>
+              <button onClick={loadDrafts} disabled={draftsLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded-md hover:bg-amber-100 disabled:opacity-50">
+                {draftsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                רענן
+              </button>
+            </div>
+            {draftsLoading ? (
+              <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>
+            ) : !draftInvoices.length ? (
+              <div className="p-8 text-center text-slate-400 text-sm">אין טיוטות ממתינות</div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-amber-100">
+                  <tr>
+                    <Th>מקור</Th>
+                    <Th>לקוח</Th>
+                    <Th>סכום</Th>
+                    <Th>תאריך</Th>
+                    <Th align="left">פעולות</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draftInvoices.map((inv) => (
+                    <tr key={inv.id} className="border-b border-amber-50 hover:bg-amber-50/40">
+                      <Td className="text-xs text-slate-400 max-w-xs">
+                        <span className="line-clamp-2" title={inv.notes}>
+                          {inv.notes?.replace('[טיוטה - ממתין לאישור]\n', '').slice(0, 60) || '—'}
+                        </span>
+                      </Td>
+                      <Td className="font-medium">{inv.client_name}</Td>
+                      <Td className="font-semibold text-emerald-700">{fmtMoney(inv.amount)}</Td>
+                      <Td className="text-slate-500">{fmt(inv.issue_date)}</Td>
+                      <Td align="left">
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            onClick={() => approveDraft(inv)}
+                            className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-1.5"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" /> אשר והפק
+                          </button>
+                          <button
+                            onClick={() => { approveDraft(inv).then(() => setSendModal({ invoice: { ...inv, status: 'open' } })); }}
+                            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1.5"
+                          >
+                            <Send className="w-3.5 h-3.5" /> אשר ושלח
+                          </button>
+                          <button
+                            onClick={() => setDraftInvoices((p) => p.filter((x) => x.id !== inv.id))}
+                            className="text-xs px-2 py-1.5 border border-slate-200 text-slate-400 rounded-md hover:bg-slate-50"
+                          >
+                            דחה
+                          </button>
+                        </div>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Bank import result */}
+        {bankImportResult && (
+          <div className={`rounded-lg px-4 py-3 text-sm flex items-center gap-3 ${bankImportResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+            {bankImportResult.error
+              ? <><XCircle className="w-4 h-4 shrink-0" /> {bankImportResult.error}</>
+              : <><CheckCircle className="w-4 h-4 shrink-0" /> יובאו {bankImportResult.imported} תנועות (דולגו {bankImportResult.skipped} כפולות)</>
+            }
+            <button onClick={() => setBankImportResult(null)} className="mr-auto text-xs opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
+
+        {/* Bank Unmatched Alerts */}
+        <div className="bg-white border border-indigo-100 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Landmark className="w-5 h-5 text-indigo-600" />
+              <h2 className="font-semibold text-slate-800 text-lg">הכנסות בנק ללא חשבונית</h2>
+              {bankAlerts.length > 0 && (
+                <span className="inline-flex items-center justify-center w-6 h-6 bg-orange-500 text-white text-xs font-bold rounded-full">
+                  {bankAlerts.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadBankAlerts}
+                disabled={bankAlertsLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-indigo-200 text-indigo-700 rounded-md hover:bg-indigo-50 disabled:opacity-50"
+              >
+                {bankAlertsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                רענן
+              </button>
+              <button
+                onClick={() => { setShowBankImport(true); setBankImportResult(null); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                <Upload className="w-3.5 h-3.5" /> ייבא CSV
+              </button>
+            </div>
+          </div>
+
+          {bankAlertsLoading ? (
+            <div className="p-8 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            </div>
+          ) : !bankAlerts.length ? (
+            <div className="p-12 text-center text-slate-400">
+              <Landmark className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p>אין הכנסות בנק ללא חשבונית</p>
+              <p className="text-xs mt-1">ייבא דף חשבון בנק (CSV) כדי לזהות הכנסות חסרות חשבוניות</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-indigo-100">
+                <tr>
+                  <Th>תאריך</Th>
+                  <Th>תיאור</Th>
+                  <Th>אסמכתא</Th>
+                  <Th align="left">סכום</Th>
+                  <Th>חשבוניות מוצעות</Th>
+                  <Th align="left">פעולה</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {bankAlerts.map((alert) => (
+                  <tr key={alert.id} className={`border-b border-indigo-50 hover:bg-indigo-50/30 ${!alert.has_match_candidate ? 'bg-orange-50/20' : ''}`}>
+                    <Td className="text-slate-500 whitespace-nowrap">{fmt(alert.date)}</Td>
+                    <Td>
+                      <span className="text-xs text-slate-700 line-clamp-2 max-w-xs block" title={alert.description}>
+                        {alert.description?.length > 60 ? alert.description.slice(0, 60) + '...' : (alert.description || '—')}
+                      </span>
+                    </Td>
+                    <Td className="text-xs text-slate-400">{alert.reference || '—'}</Td>
+                    <Td align="left" className="font-semibold text-emerald-700 whitespace-nowrap">{fmtMoney(alert.amount)}</Td>
+                    <Td>
+                      {alert.candidate_invoices?.length ? (
+                        <div className="flex flex-col gap-1">
+                          {alert.candidate_invoices.map((inv) => (
+                            <button
+                              key={inv.id}
+                              onClick={() => handleBankAction(alert.id, 'match', inv.id)}
+                              className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded hover:bg-emerald-100 text-right"
+                              title={`קשר לחשבונית ${inv.number}`}
+                            >
+                              #{inv.number} — {inv.client_name} — {fmtMoney(inv.amount)}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">אין חשבונית מתאימה</span>
+                      )}
+                    </Td>
+                    <Td align="left">
+                      <button
+                        onClick={() => handleBankAction(alert.id, 'dismiss')}
+                        className="text-xs px-2 py-1 border border-slate-200 text-slate-500 rounded hover:bg-slate-50"
+                      >
+                        התעלם
+                      </button>
+                    </Td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
@@ -397,6 +649,24 @@ export default function FinancePage() {
         <PaymentModal
           onClose={() => setShowPaymentModal(false)}
           onSaved={() => { setShowPaymentModal(false); loadData(); }}
+        />
+      )}
+      {showBankImport && (
+        <BankImportModal
+          onClose={() => setShowBankImport(false)}
+          onImported={(result) => {
+            setBankImportResult(result);
+            setShowBankImport(false);
+            loadBankAlerts();
+            loadDrafts();
+          }}
+        />
+      )}
+      {sendModal && (
+        <SendInvoiceModal
+          invoice={sendModal.invoice}
+          onClose={() => setSendModal(null)}
+          onSent={() => { setSendModal(null); loadData(); loadDrafts(); }}
         />
       )}
     </div>
@@ -521,6 +791,199 @@ function SelectField({ label, value, onChange, options }) {
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
+  );
+}
+
+function SendInvoiceModal({ invoice, onClose, onSent }) {
+  const [method, setMethod] = useState('whatsapp');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleSend = async () => {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/invoices/send-to-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: invoice.id,
+          method,
+          phone:  phone  || undefined,
+          email:  email  || undefined,
+        }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) setTimeout(onSent, 1200);
+    } catch (e) { setResult({ success: false, errors: [e.message] }); }
+    setSending(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" dir="rtl">
+        <div className="px-6 py-4 border-b border-sky-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Send className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-semibold text-lg">שלח חשבונית ללקוח</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-slate-50 rounded-lg p-3 text-sm">
+            <p className="font-medium text-slate-700">חשבונית #{invoice.number}</p>
+            <p className="text-slate-500">{invoice.client_name} — {`₪${Math.round(Number(invoice.amount) || 0).toLocaleString('he-IL')}`}</p>
+          </div>
+
+          {/* Method selector */}
+          <div>
+            <p className="text-xs text-slate-500 mb-2">שיטת שליחה</p>
+            <div className="flex gap-2">
+              {[
+                { v: 'whatsapp', label: 'WhatsApp', icon: Phone },
+                { v: 'email',    label: 'מייל',     icon: Mail },
+                { v: 'both',     label: 'שניהם',    icon: Send },
+              ].map(({ v, label, icon: Icon }) => (
+                <button
+                  key={v}
+                  onClick={() => setMethod(v)}
+                  className={`flex-1 py-2 text-sm rounded-md border flex items-center justify-center gap-1.5 transition-colors ${
+                    method === v
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" /> {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(method === 'whatsapp' || method === 'both') && (
+            <label className="block">
+              <span className="text-xs text-slate-500 mb-1 block">מספר טלפון (ללא 0 בהתחלה, כגון 972501234567)</span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="972501234567"
+                className="w-full px-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600"
+              />
+            </label>
+          )}
+
+          {(method === 'email' || method === 'both') && (
+            <label className="block">
+              <span className="text-xs text-slate-500 mb-1 block">כתובת מייל</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="client@example.com"
+                className="w-full px-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600"
+              />
+            </label>
+          )}
+
+          {result && (
+            <div className={`text-sm rounded-lg px-3 py-2 ${result.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+              {result.success
+                ? <><CheckCircle className="w-4 h-4 inline ml-1" /> החשבונית נשלחה בהצלחה!</>
+                : result.errors?.join(', ') || 'שגיאה בשליחה'}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={handleSend}
+              disabled={sending}
+              className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-md text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> שולח...</> : <><Send className="w-4 h-4" /> שלח עכשיו</>}
+            </button>
+            <button onClick={onClose} className="px-4 py-2 border border-sky-200 text-slate-700 rounded-md text-sm">ביטול</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BankImportModal({ onClose, onImported }) {
+  const [file, setFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) { setError('יש לבחור קובץ CSV'); return; }
+    setImporting(true);
+    setError('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/bank/import-csv', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'שגיאה בייבוא');
+      onImported(data);
+    } catch (e) {
+      setError(e.message);
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" dir="rtl">
+        <div className="px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Landmark className="w-5 h-5 text-indigo-600" />
+            <h3 className="font-semibold text-lg">ייבוא דף חשבון בנק</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <div className="p-6">
+          <div className="bg-indigo-50 rounded-lg p-4 text-sm text-indigo-800 mb-4 space-y-1">
+            <p className="font-medium">פורמטים נתמכים:</p>
+            <ul className="list-disc list-inside text-xs space-y-0.5 text-indigo-700">
+              <li>בנק הפועלים — CSV מהאזור האישי</li>
+              <li>לאומי — קובץ גיליון תנועות</li>
+              <li>דיסקונט / מזרחי טפחות / אוצר החייל</li>
+              <li>כל CSV עם עמודות תאריך + זכות/חובה</li>
+            </ul>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded">{error}</div>}
+            <label className="block">
+              <span className="text-xs text-slate-500 mb-1 block">בחר קובץ CSV *</span>
+              <input
+                type="file"
+                accept=".csv,.txt,.xls,.xlsx"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="w-full text-sm text-slate-700 file:ml-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+            </label>
+            <p className="text-xs text-slate-400">
+              המערכת תזהה אוטומטית את פורמט הבנק, תייבא הכנסות (זיכויים) ותסמן אותן לבדיקה.
+              תנועות כפולות ידולגו.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={importing || !file}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {importing ? <><Loader2 className="w-4 h-4 animate-spin" /> מייבא...</> : <><Upload className="w-4 h-4" /> ייבא</>}
+              </button>
+              <button type="button" onClick={onClose} className="px-4 py-2 border border-sky-200 text-slate-700 rounded-md text-sm">ביטול</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
 
