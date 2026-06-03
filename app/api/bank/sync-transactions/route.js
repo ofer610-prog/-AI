@@ -3,8 +3,6 @@ import { sendWhatsappToOffice, buildBankAlertMessage } from '@/lib/notifications
 
 export const dynamic = 'force-dynamic';
 
-const DRAFT_MARKER = '[טיוטה - ממתין לאישור]';
-
 export async function POST(request) {
   const secret = request.headers.get('x-cron-secret');
   if (secret !== process.env.CRON_SECRET) {
@@ -45,10 +43,6 @@ export async function POST(request) {
     .eq('organization_id', orgId)
     .neq('status', 'cancelled')
     .gte('issue_date', ninetyDaysAgo);
-
-  // Load clients for name-based matching
-  const { data: clients } = await sb.from('clients').select('id, name, phone, email').eq('organization_id', orgId);
-  const clientList = clients || [];
 
   let imported = 0;
   let skipped = 0;
@@ -100,42 +94,13 @@ export async function POST(request) {
 
     imported++;
 
-    // For unmatched credits: create draft invoice + send office alert
+    // For unmatched credits: send office alert to handle in Cligal
     if (isCredit && !matchedInvoice) {
       const amt = Math.abs(Number(txn.amount));
-
-      // Try to find client by name in description
-      const desc = (txn.description || '').toLowerCase();
-      const matchedClient = clientList.find(
-        (c) => c.name && desc.includes(c.name.toLowerCase())
-      ) || null;
-
-      // Create draft invoice
-      const today = txn.date || new Date().toISOString().slice(0, 10);
-      const dueDate = new Date(today);
-      dueDate.setDate(dueDate.getDate() + 30);
-
-      // Generate a draft number
-      const draftNum = `DRAFT-${Date.now()}`;
-
-      const { data: draft } = await sb.from('invoices').insert({
-        organization_id: orgId,
-        number:          draftNum,
-        client_id:       matchedClient?.id || null,
-        client_name:     matchedClient?.name || `(לא זוהה — ${txn.description?.slice(0, 30) || 'בנק'})`,
-        amount:          amt,
-        issue_date:      today,
-        due_date:        dueDate.toISOString().slice(0, 10),
-        status:          'open',
-        notes:           `${DRAFT_MARKER}\nהועבר אוטומטית מחשבון הבנק ב-${today}. תיאור: ${txn.description || ''}`,
-      }).select('id, number').single();
-
-      // Send WhatsApp alert to office
       const msg = buildBankAlertMessage({
         amount: amt,
         description: txn.description,
         date: txn.date,
-        draftInvoiceNumber: draft?.number,
       });
       await sendWhatsappToOffice(msg);
       alertsCreated++;

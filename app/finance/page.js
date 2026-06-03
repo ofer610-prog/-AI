@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   TrendingUp, Wallet, FileText, AlertCircle, Plus, CreditCard, Loader2,
   MessageSquare, RefreshCw, CheckCircle, XCircle, Upload, Landmark,
-  Send, Mail, Phone, ClipboardCheck,
+  Send, Mail, Phone,
 } from 'lucide-react';
 
 const fmtMoney = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
@@ -33,8 +33,6 @@ export default function FinancePage() {
   const [bankAlertsLoading, setBankAlertsLoading] = useState(false);
   const [showBankImport, setShowBankImport] = useState(false);
   const [bankImportResult, setBankImportResult] = useState(null);
-  const [draftInvoices, setDraftInvoices] = useState([]);
-  const [draftsLoading, setDraftsLoading] = useState(false);
   const [sendModal, setSendModal] = useState(null); // { invoice }
   const router = useRouter();
 
@@ -42,7 +40,6 @@ export default function FinancePage() {
     loadData();
     loadAlerts();
     loadBankAlerts();
-    loadDrafts();
   }, []);
 
   const loadData = async () => {
@@ -111,28 +108,6 @@ export default function FinancePage() {
       console.error('loadBankAlerts error:', e);
     }
     setBankAlertsLoading(false);
-  };
-
-  const loadDrafts = async () => {
-    setDraftsLoading(true);
-    try {
-      const res = await fetch('/api/invoices?status=open&draft=true');
-      const data = await res.json();
-      const MARKER = '[טיוטה - ממתין לאישור]';
-      setDraftInvoices((data.invoices || []).filter((inv) => inv.notes?.includes(MARKER)));
-    } catch (e) { console.error('loadDrafts error:', e); }
-    setDraftsLoading(false);
-  };
-
-  const approveDraft = async (inv, overrides = {}) => {
-    try {
-      const res = await fetch('/api/invoices/approve-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: inv.id, ...overrides }),
-      });
-      if (res.ok) { await loadDrafts(); await loadData(); }
-    } catch (e) { console.error('approveDraft error:', e); }
   };
 
   const handleBankAction = async (id, action, invoiceId) => {
@@ -364,79 +339,6 @@ export default function FinancePage() {
           )}
         </div>
 
-        {/* Draft Invoices Pending Approval */}
-        {(draftsLoading || draftInvoices.length > 0) && (
-          <div className="bg-white border-2 border-amber-300 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-6 py-4 border-b border-amber-200 flex items-center justify-between bg-amber-50">
-              <div className="flex items-center gap-3">
-                <ClipboardCheck className="w-5 h-5 text-amber-600" />
-                <h2 className="font-semibold text-slate-800 text-lg">טיוטות חשבוניות — ממתינות לאישורך</h2>
-                {draftInvoices.length > 0 && (
-                  <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-white text-xs font-bold rounded-full">
-                    {draftInvoices.length}
-                  </span>
-                )}
-              </div>
-              <button onClick={loadDrafts} disabled={draftsLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded-md hover:bg-amber-100 disabled:opacity-50">
-                {draftsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                רענן
-              </button>
-            </div>
-            {draftsLoading ? (
-              <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>
-            ) : !draftInvoices.length ? (
-              <div className="p-8 text-center text-slate-400 text-sm">אין טיוטות ממתינות</div>
-            ) : (
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-amber-100">
-                  <tr>
-                    <Th>מקור</Th>
-                    <Th>לקוח</Th>
-                    <Th>סכום</Th>
-                    <Th>תאריך</Th>
-                    <Th align="left">פעולות</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draftInvoices.map((inv) => (
-                    <tr key={inv.id} className="border-b border-amber-50 hover:bg-amber-50/40">
-                      <Td className="text-xs text-slate-400 max-w-xs">
-                        <span className="line-clamp-2" title={inv.notes}>
-                          {inv.notes?.replace('[טיוטה - ממתין לאישור]\n', '').slice(0, 60) || '—'}
-                        </span>
-                      </Td>
-                      <Td className="font-medium">{inv.client_name}</Td>
-                      <Td className="font-semibold text-emerald-700">{fmtMoney(inv.amount)}</Td>
-                      <Td className="text-slate-500">{fmt(inv.issue_date)}</Td>
-                      <Td align="left">
-                        <div className="flex items-center gap-2 justify-end">
-                          <button
-                            onClick={() => approveDraft(inv)}
-                            className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-1.5"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" /> אשר והפק
-                          </button>
-                          <button
-                            onClick={() => { approveDraft(inv).then(() => setSendModal({ invoice: { ...inv, status: 'open' } })); }}
-                            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1.5"
-                          >
-                            <Send className="w-3.5 h-3.5" /> אשר ושלח
-                          </button>
-                          <button
-                            onClick={() => setDraftInvoices((p) => p.filter((x) => x.id !== inv.id))}
-                            className="text-xs px-2 py-1.5 border border-slate-200 text-slate-400 rounded-md hover:bg-slate-50"
-                          >
-                            דחה
-                          </button>
-                        </div>
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
 
         {/* Bank import result */}
         {bankImportResult && (
@@ -658,7 +560,6 @@ export default function FinancePage() {
             setBankImportResult(result);
             setShowBankImport(false);
             loadBankAlerts();
-            loadDrafts();
           }}
         />
       )}
@@ -666,7 +567,7 @@ export default function FinancePage() {
         <SendInvoiceModal
           invoice={sendModal.invoice}
           onClose={() => setSendModal(null)}
-          onSent={() => { setSendModal(null); loadData(); loadDrafts(); }}
+          onSent={() => { setSendModal(null); loadData(); }}
         />
       )}
     </div>
