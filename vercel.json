@@ -21,7 +21,7 @@
       "schedule": "0 8 */2 * *"
     },
     {
-      "path": "/api/cron/sync-gsheet",
+      "path": "/api/cron/sync-gdrive",
       "schedule": "0 * * * *"
     }
   ]

@@ -71,38 +71,61 @@ export default function CalendarImportPage() {
 
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-8">
 
-        {/* Google Sheets sync */}
-        <div className="bg-white border-2 border-emerald-200 rounded-xl p-6">
+        {/* Google Drive AUTO sync */}
+        <div className="bg-white border-2 border-emerald-300 rounded-xl p-6 shadow-sm">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
-              <RefreshCw className="w-5 h-5 text-emerald-600" />
-            </div>
+            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0 text-2xl">📂</div>
             <div className="flex-1">
-              <h2 className="font-semibold text-lg mb-1">סנכרון מ-Google Sheets</h2>
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="font-semibold text-lg">סנכרון אוטומטי מ-Google Drive</h2>
+                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">מומלץ</span>
+              </div>
               <p className="text-sm text-slate-500 mb-4">
-                סנכרון אוטומטי מהגיליון שלך. כל שינוי בגיליון יעודכן כאן.
+                האפליקציה קוראת את קובץ ה-Excel ישירות מ-Google Drive שלך — כל שעה באופן אוטומטי. <strong>אין צורך בהורדות או העלאות.</strong>
               </p>
 
-              {/* Setup steps */}
-              <div className="bg-slate-50 rounded-lg p-4 text-sm space-y-2 mb-4">
-                <p className="font-medium text-slate-700">הגדרה חד-פעמית:</p>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-600 mr-2">
-                  <li>בגיליון: <strong>קובץ ← פרסם לאינטרנט ← גיליון 1 ← CSV ← פרסם</strong></li>
-                  <li>העתק את הקישור שקיבלת</li>
-                  <li>הוסף ב-Vercel env vars: <code className="bg-slate-200 px-1 rounded text-xs">GSHEET_CSV_URL=הקישור</code></li>
-                  <li>לחץ "סנכרן עכשיו" — הסנכרון ירוץ גם אוטומטית כל שעה</li>
+              <div className="bg-slate-50 rounded-lg p-4 text-sm mb-4">
+                <p className="font-semibold text-slate-700 mb-3">הגדרה חד-פעמית (5 דקות):</p>
+                <ol className="space-y-3 text-slate-600">
+                  <li className="flex gap-2">
+                    <span className="w-5 h-5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">1</span>
+                    <span>
+                      <strong>צור Service Account ב-Google Cloud:</strong><br/>
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" className="text-sky-600 underline text-xs">console.cloud.google.com</a>
+                      {' '}← Credentials ← Create credentials ← Service account ← תן שם ← Done ← לחץ על החשבון שנוצר ← Keys ← Add Key ← JSON ← הורד
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="w-5 h-5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">2</span>
+                    <span>
+                      <strong>אפשר Drive API:</strong><br/>
+                      <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" className="text-sky-600 underline text-xs">Enable Google Drive API</a>
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="w-5 h-5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">3</span>
+                    <span>
+                      <strong>שתף את קובץ ה-Excel עם ה-service account:</strong><br/>
+                      פתח את הקובץ ב-Drive ← שתף ← הדבק את כתובת המייל של ה-service account (נגמרת ב-<code className="bg-slate-200 px-1 rounded text-xs">@...iam.gserviceaccount.com</code>) ← צופה
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="w-5 h-5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">4</span>
+                    <span>
+                      <strong>הוסף ב-Vercel → Environment Variables:</strong><br/>
+                      <code className="bg-slate-200 px-1 rounded text-xs block mt-1">GOOGLE_SERVICE_ACCOUNT_JSON = {"{"} ... {"}"}</code>
+                      <span className="text-xs text-slate-400">(תוכן קובץ ה-JSON שהורדת)</span><br/>
+                      <code className="bg-slate-200 px-1 rounded text-xs block mt-1">GDRIVE_FILE_ID = 1TEc9HdfQOr9o0bCBcuWzWRd3rr1H76G5</code>
+                    </span>
+                  </li>
                 </ol>
-                <div className="mt-2 pt-2 border-t border-slate-200">
-                  <p className="font-medium text-slate-700 mb-1">לסנכרון בזמן אמת (כל שינוע מיידי):</p>
-                  <p className="text-slate-500 text-xs">הוסף Apps Script לגיליון — <a href="#apps-script" className="text-sky-600 underline">הוראות למטה</a></p>
-                </div>
               </div>
 
               {syncResult && (
                 <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-3 ${syncResult.error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
                   {syncResult.error
-                    ? <><XCircle className="w-4 h-4" /> {syncResult.error}</>
-                    : <><CheckCircle className="w-4 h-4" /> סונכרנו {syncResult.synced} אירועים</>}
+                    ? <><XCircle className="w-4 h-4" />{syncResult.error}</>
+                    : <><CheckCircle className="w-4 h-4" />סונכרנו {syncResult.synced} אירועים מתוך {syncResult.total_rows} שורות</>}
                 </div>
               )}
 
