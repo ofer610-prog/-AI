@@ -1,39 +1,88 @@
 name: Sync Bank Transactions
 
+# SECURITY MODEL:
+# - BANK_ID and BANK_PASSWORD live ONLY in GitHub Secrets
+# - They never reach Vercel/cloud servers
+# - Only JSON transaction data is sent to the API
+# - The API authenticates with CRON_SECRET (not bank credentials)
+
 on:
   schedule:
-    # Run every day at 08:00 UTC (11:00 Israel time) — after Cligal sync
-    - cron: '0 8 * * *'
+    # 3x per day — 07:00, 13:00, 17:00 UTC (10:00, 16:00, 20:00 Israel)
+    - cron: '0 7 * * *'
+    - cron: '0 13 * * *'
+    - cron: '0 17 * * *'
   workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'How many days back to scrape (default: 60)'
+        required: false
+        default: '60'
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6.4.0
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
 
       - name: Install dependencies
-        run: npm install
         working-directory: scripts
+        run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Install Playwright chromium
+        working-directory: scripts
         run: npx playwright install chromium --with-deps
-        working-directory: scripts
 
-      - name: Run bank scraper
+      - name: Run bank scraper (attempt 1)
+        id: scrape1
+        continue-on-error: true
+        working-directory: scripts
         env:
           BANK_ID:       ${{ secrets.BANK_ID }}
           BANK_PASSWORD: ${{ secrets.BANK_PASSWORD }}
           APP_URL:       ${{ secrets.APP_URL }}
           CRON_SECRET:   ${{ secrets.CRON_SECRET }}
+          DAYS_BACK:     ${{ inputs.days_back || '60' }}
         run: node scrape-bank.js
+
+      - name: Wait before retry
+        if: steps.scrape1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Run bank scraper (attempt 2 — retry)
+        if: steps.scrape1.outcome == 'failure'
+        id: scrape2
+        continue-on-error: true
         working-directory: scripts
+        env:
+          BANK_ID:       ${{ secrets.BANK_ID }}
+          BANK_PASSWORD: ${{ secrets.BANK_PASSWORD }}
+          APP_URL:       ${{ secrets.APP_URL }}
+          CRON_SECRET:   ${{ secrets.CRON_SECRET }}
+          DAYS_BACK:     ${{ inputs.days_back || '60' }}
+        run: node scrape-bank.js
+
+      - name: Fail if both attempts failed
+        if: steps.scrape1.outcome == 'failure' && steps.scrape2.outcome == 'failure'
+        run: |
+          echo "::error::Bank scraper failed after 2 attempts"
+          exit 1
+
+      - name: Upload debug screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bank-debug-${{ github.run_id }}
+          path: scripts/debug-bank-*.png
+          if-no-files-found: ignore
+          retention-days: 3
