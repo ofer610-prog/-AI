@@ -5,8 +5,24 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/morning-briefing",
+      "schedule": "0 6 * * 0-4"
+    },
+    {
+      "path": "/api/cron/invoice-reminders",
+      "schedule": "0 8 * * 0-4"
+    },
+    {
+      "path": "/api/cron/evening-summary",
+      "schedule": "0 17 * * 0-4"
+    },
+    {
       "path": "/api/cron/whatsapp-scan",
       "schedule": "0 8 */2 * *"
+    },
+    {
+      "path": "/api/cron/sync-gdrive",
+      "schedule": "0 * * * *"
     }
   ]
 }

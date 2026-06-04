@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   TrendingUp, Wallet, FileText, AlertCircle, Plus, CreditCard, Loader2,
   MessageSquare, RefreshCw, CheckCircle, XCircle, Upload, Landmark,
+  Send, Mail, Phone,
 } from 'lucide-react';
 
 const fmtMoney = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
@@ -32,6 +33,7 @@ export default function FinancePage() {
   const [bankAlertsLoading, setBankAlertsLoading] = useState(false);
   const [showBankImport, setShowBankImport] = useState(false);
   const [bankImportResult, setBankImportResult] = useState(null);
+  const [sendModal, setSendModal] = useState(null); // { invoice }
   const router = useRouter();
 
   useEffect(() => {
@@ -319,7 +321,15 @@ export default function FinancePage() {
                       <Td><StatusBadge status={inv.status} /></Td>
                       <Td align="left" className={`font-semibold ${isOverdue ? 'text-red-700' : ''}`}>{fmtMoney(inv.amount)}</Td>
                       <Td align="left">
-                        <Link href={`/finance/invoices`} className="text-xs text-sky-600 hover:text-sky-800">פרטים</Link>
+                        <div className="flex items-center gap-2 justify-end">
+                          <Link href={`/finance/invoices`} className="text-xs text-sky-600 hover:text-sky-800">פרטים</Link>
+                          <button
+                            onClick={() => setSendModal({ invoice: inv })}
+                            className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 flex items-center gap-1"
+                          >
+                            <Send className="w-3 h-3" /> שלח
+                          </button>
+                        </div>
                       </Td>
                     </tr>
                   );
@@ -328,6 +338,7 @@ export default function FinancePage() {
             </table>
           )}
         </div>
+
 
         {/* Bank import result */}
         {bankImportResult && (
@@ -552,6 +563,13 @@ export default function FinancePage() {
           }}
         />
       )}
+      {sendModal && (
+        <SendInvoiceModal
+          invoice={sendModal.invoice}
+          onClose={() => setSendModal(null)}
+          onSent={() => { setSendModal(null); loadData(); }}
+        />
+      )}
     </div>
   );
 }
@@ -674,6 +692,124 @@ function SelectField({ label, value, onChange, options }) {
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
+  );
+}
+
+function SendInvoiceModal({ invoice, onClose, onSent }) {
+  const [method, setMethod] = useState('whatsapp');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleSend = async () => {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/invoices/send-to-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: invoice.id,
+          method,
+          phone:  phone  || undefined,
+          email:  email  || undefined,
+        }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) setTimeout(onSent, 1200);
+    } catch (e) { setResult({ success: false, errors: [e.message] }); }
+    setSending(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" dir="rtl">
+        <div className="px-6 py-4 border-b border-sky-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Send className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-semibold text-lg">שלח חשבונית ללקוח</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-slate-50 rounded-lg p-3 text-sm">
+            <p className="font-medium text-slate-700">חשבונית #{invoice.number}</p>
+            <p className="text-slate-500">{invoice.client_name} — {`₪${Math.round(Number(invoice.amount) || 0).toLocaleString('he-IL')}`}</p>
+          </div>
+
+          {/* Method selector */}
+          <div>
+            <p className="text-xs text-slate-500 mb-2">שיטת שליחה</p>
+            <div className="flex gap-2">
+              {[
+                { v: 'whatsapp', label: 'WhatsApp', icon: Phone },
+                { v: 'email',    label: 'מייל',     icon: Mail },
+                { v: 'both',     label: 'שניהם',    icon: Send },
+              ].map(({ v, label, icon: Icon }) => (
+                <button
+                  key={v}
+                  onClick={() => setMethod(v)}
+                  className={`flex-1 py-2 text-sm rounded-md border flex items-center justify-center gap-1.5 transition-colors ${
+                    method === v
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" /> {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(method === 'whatsapp' || method === 'both') && (
+            <label className="block">
+              <span className="text-xs text-slate-500 mb-1 block">מספר טלפון (ללא 0 בהתחלה, כגון 972501234567)</span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="972501234567"
+                className="w-full px-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600"
+              />
+            </label>
+          )}
+
+          {(method === 'email' || method === 'both') && (
+            <label className="block">
+              <span className="text-xs text-slate-500 mb-1 block">כתובת מייל</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="client@example.com"
+                className="w-full px-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600"
+              />
+            </label>
+          )}
+
+          {result && (
+            <div className={`text-sm rounded-lg px-3 py-2 ${result.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+              {result.success
+                ? <><CheckCircle className="w-4 h-4 inline ml-1" /> החשבונית נשלחה בהצלחה!</>
+                : result.errors?.join(', ') || 'שגיאה בשליחה'}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={handleSend}
+              disabled={sending}
+              className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-md text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> שולח...</> : <><Send className="w-4 h-4" /> שלח עכשיו</>}
+            </button>
+            <button onClick={onClose} className="px-4 py-2 border border-sky-200 text-slate-700 rounded-md text-sm">ביטול</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

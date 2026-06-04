@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { runWhatsappScan } from '@/lib/whatsapp-scan';
+import { validateCronSecret } from '@/lib/security';
 
 export async function GET(request) {
-  // Vercel cron sends Authorization header with CRON_SECRET
-  const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!validateCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
