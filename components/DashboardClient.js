@@ -854,20 +854,102 @@ function DeadlinesPanel({ deadlines }) {
 
 function SettingsPanel({ organization, onRefresh }) {
   const [form, setForm] = useState({ name: organization.name || '', vat_rate: organization.vat_rate || 18, filing_freq: organization.filing_freq || 'bimonthly' });
+  const [pinForm, setPinForm]   = useState({ newPin: '', confirmPin: '' });
+  const [pinMsg, setPinMsg]     = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const [showPin, setShowPin]   = useState(false);
   const supabase = createClient();
+
   const save = async () => {
     await supabase.from('organizations').update(form).eq('id', organization.id);
     onRefresh();
     alert('נשמר');
   };
+
+  const savePin = async () => {
+    setPinMsg('');
+    if (!/^\d{4,8}$/.test(pinForm.newPin)) { setPinMsg('❌ הקוד חייב להיות 4–8 ספרות'); return; }
+    if (pinForm.newPin !== pinForm.confirmPin) { setPinMsg('❌ הקודים אינם תואמים'); return; }
+    setPinLoading(true);
+    try {
+      const res  = await fetch('/api/admin/cases-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinForm.newPin }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setPinMsg('✅ הקוד עודכן בהצלחה');
+        setPinForm({ newPin: '', confirmPin: '' });
+      } else {
+        setPinMsg('❌ ' + (json.error || 'שגיאה'));
+      }
+    } catch { setPinMsg('❌ שגיאת רשת'); }
+    setPinLoading(false);
+  };
+
   return (
     <div className="space-y-6">
       <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">הגדרות</h2>
+
+      {/* General settings */}
       <div className="bg-white border border-sky-100 rounded-lg p-6 space-y-4 max-w-2xl">
+        <h3 className="font-semibold text-gray-700">כללי</h3>
         <Field label="שם המשרד" value={form.name} onChange={v => setForm({ ...form, name: v })} />
         <Field label="שיעור מע״מ" type="number" value={form.vat_rate} onChange={v => setForm({ ...form, vat_rate: parseFloat(v) || 0 })} />
         <SelectField label="תדירות דיווח" value={form.filing_freq} onChange={v => setForm({ ...form, filing_freq: v })} options={[{value:'bimonthly',label:'דו-חודשי'},{value:'monthly',label:'חודשי'}]} />
         <button onClick={save} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md">שמור</button>
+      </div>
+
+      {/* Cases access PIN */}
+      <div className="bg-white border border-sky-100 rounded-lg p-6 space-y-4 max-w-2xl">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🔒</span>
+          <h3 className="font-semibold text-gray-700">קוד גישה לניהול תיקים</h3>
+        </div>
+        <p className="text-sm text-gray-500">
+          הקוד מגן על עמוד ניהול התיקים. עורכי הדין יתבקשו להזין אותו בכל כניסה חדשה (נזכר 8 שעות).
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">קוד חדש (4–8 ספרות)</label>
+            <div className="relative">
+              <input
+                type={showPin ? 'text' : 'password'}
+                inputMode="numeric"
+                maxLength={8}
+                value={pinForm.newPin}
+                onChange={e => setPinForm(p => ({ ...p, newPin: e.target.value.replace(/\D/g,'') }))}
+                placeholder="••••"
+                className="w-full border rounded-md px-3 py-2 text-sm pr-10 focus:outline-none focus:border-blue-400"
+              />
+              <button type="button" onClick={() => setShowPin(s => !s)}
+                className="absolute left-2 top-2 text-gray-400 hover:text-gray-600 text-xs">
+                {showPin ? '🙈' : '👁'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">אישור קוד</label>
+            <input
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              maxLength={8}
+              value={pinForm.confirmPin}
+              onChange={e => setPinForm(p => ({ ...p, confirmPin: e.target.value.replace(/\D/g,'') }))}
+              placeholder="••••"
+              className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+            />
+          </div>
+        </div>
+        {pinMsg && <p className={`text-sm ${pinMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{pinMsg}</p>}
+        <button
+          onClick={savePin}
+          disabled={pinLoading || !pinForm.newPin}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm rounded-md transition-colors"
+        >
+          {pinLoading ? 'שומר...' : 'עדכן קוד גישה'}
+        </button>
       </div>
     </div>
   );
