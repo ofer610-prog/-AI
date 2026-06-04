@@ -126,10 +126,22 @@ export default function DashboardClient({
 // Cockpit
 // ============================================================================
 function Cockpit({ ctx, setTab }) {
-  const { totals, forecast, invoices, deadlines, alerts, gmailPending, profile } = ctx;
+  const { totals, forecast, invoices, deadlines, alerts, gmailPending, profile, matters, timesheet } = ctx;
+  const isAdmin = profile.role === 'admin' || profile.role === 'accountant';
   const openInv = invoices.filter(i => i.status !== 'paid');
   const totalOpen = openInv.reduce((a, b) => a + Number(b.amount || 0), 0);
   const next = deadlines[0];
+
+  // Personal data for non-admin lawyers
+  const myMatters = matters.filter(m => m.responsible_lawyer_id === profile.id);
+  const myHoursThisMonth = timesheet
+    .filter(t => t.lawyer_id === profile.id && t.date?.startsWith(new Date().toISOString().slice(0, 7)))
+    .reduce((a, b) => a + Number(b.hours || 0), 0);
+  const urgentMatters = myMatters.filter(m => {
+    if (!m.delivery_date) return false;
+    const days = Math.round((new Date(m.delivery_date) - new Date()) / 86400000);
+    return days >= 0 && days <= 14;
+  });
 
   return (
     <div className="space-y-6">
@@ -151,7 +163,8 @@ function Cockpit({ ctx, setTab }) {
           )}
         </div>
 
-        {gmailPending.length > 0 && (
+        {/* Admin: gmail alert */}
+        {isAdmin && gmailPending.length > 0 && (
           <button onClick={() => setTab('gmail')} className="w-full text-right p-3 mb-2 rounded-lg border bg-blue-900/30 border-blue-800 hover:bg-blue-900/50 transition-colors flex items-start gap-3">
             <Mail className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -162,7 +175,8 @@ function Cockpit({ ctx, setTab }) {
           </button>
         )}
 
-        {alerts.length === 0 && gmailPending.length === 0 ? (
+        {/* Admin: system alerts */}
+        {isAdmin && (alerts.length === 0 && gmailPending.length === 0 ? (
           <div className="bg-emerald-900/30 border border-emerald-800 rounded-lg p-4 text-sm">
             <Check className="inline w-4 h-4 ml-1" /> הכל נקי. אין התראות חריגות.
           </div>
@@ -179,25 +193,77 @@ function Cockpit({ ctx, setTab }) {
               </div>
             ))}
           </div>
+        ))}
+
+        {/* Non-admin: personal summary */}
+        {!isAdmin && (
+          <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4 text-sm space-y-1">
+            <div className="flex justify-between"><span className="text-slate-300">תיקים שלי</span><span className="font-bold">{myMatters.length}</span></div>
+            <div className="flex justify-between"><span className="text-slate-300">דחופים (14 יום)</span><span className={`font-bold ${urgentMatters.length > 0 ? 'text-orange-300' : ''}`}>{urgentMatters.length}</span></div>
+            <div className="flex justify-between"><span className="text-slate-300">שעות החודש</span><span className="font-bold">{myHoursThisMonth.toFixed(1)}</span></div>
+          </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPI label="הכנסות חודשי" value={forecast.monthlyIncome} icon={TrendingUp} accent="emerald" />
-        <KPI label="הוצאות חודשי" value={forecast.monthlyExpense} icon={TrendingDown} accent="rose" />
-        <KPI label="רווח נקי" value={forecast.monthlyNet} icon={Wallet} accent={forecast.monthlyNet >= 0 ? 'sky' : 'red'} />
-        <KPI label="חשבוניות פתוחות" value={totalOpen} icon={FileText} accent="indigo" subtext={`${openInv.length} חשבוניות`} />
-      </div>
+      {/* Admin-only: financial KPIs + tax forecast */}
+      {isAdmin && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KPI label="הכנסות חודשי" value={forecast.monthlyIncome} icon={TrendingUp} accent="emerald" />
+            <KPI label="הוצאות חודשי" value={forecast.monthlyExpense} icon={TrendingDown} accent="rose" />
+            <KPI label="רווח נקי" value={forecast.monthlyNet} icon={Wallet} accent={forecast.monthlyNet >= 0 ? 'sky' : 'red'} />
+            <KPI label="חשבוניות פתוחות" value={totalOpen} icon={FileText} accent="indigo" subtext={`${openInv.length} חשבוניות`} />
+          </div>
+          <div className="bg-white border border-sky-100 rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">לחץ מס צפוי — 3 חודשים קדימה</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div><div className="text-xs text-slate-500 mb-1">מע״מ הבא</div><div className="text-2xl font-bold text-rose-700">{fmtMoney(forecast.nextVatPayment)}</div></div>
+              <div><div className="text-xs text-slate-500 mb-1">מקדמת מ״ה (חודשי)</div><div className="text-2xl font-bold text-orange-700">{fmtMoney(forecast.monthlyIncomeTax)}</div></div>
+              <div><div className="text-xs text-slate-500 mb-1">בל״ל (חודשי)</div><div className="text-2xl font-bold text-amber-700">{fmtMoney(forecast.monthlyBituach)}</div></div>
+              <div><div className="text-xs text-slate-500 mb-1">סה״כ ל-3 חודשים</div><div className="text-2xl font-bold">{fmtMoney(forecast.next3Months)}</div></div>
+            </div>
+          </div>
+        </>
+      )}
 
-      <div className="bg-white border border-sky-100 rounded-lg p-6">
-        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">לחץ מס צפוי — 3 חודשים קדימה</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div><div className="text-xs text-slate-500 mb-1">מע״מ הבא</div><div className="text-2xl font-bold text-rose-700">{fmtMoney(forecast.nextVatPayment)}</div></div>
-          <div><div className="text-xs text-slate-500 mb-1">מקדמת מ״ה (חודשי)</div><div className="text-2xl font-bold text-orange-700">{fmtMoney(forecast.monthlyIncomeTax)}</div></div>
-          <div><div className="text-xs text-slate-500 mb-1">בל״ל (חודשי)</div><div className="text-2xl font-bold text-amber-700">{fmtMoney(forecast.monthlyBituach)}</div></div>
-          <div><div className="text-xs text-slate-500 mb-1">סה״כ ל-3 חודשים</div><div className="text-2xl font-bold">{fmtMoney(forecast.next3Months)}</div></div>
+      {/* Non-admin: urgent matters */}
+      {!isAdmin && urgentMatters.length > 0 && (
+        <div className="bg-white border border-orange-100 rounded-lg p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">⚠️ תיקים דחופים שלי</h3>
+          <div className="space-y-2">
+            {urgentMatters.map(m => {
+              const days = Math.round((new Date(m.delivery_date) - new Date()) / 86400000);
+              return (
+                <div key={m.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0">
+                  <span className="font-medium">{m.clients?.name || m.title}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${days <= 3 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {days === 0 ? 'היום' : `${days} ימים`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Non-admin: their cases list */}
+      {!isAdmin && (
+        <div className="bg-white border border-sky-100 rounded-lg p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">📋 התיקים שלי</h3>
+          {myMatters.length === 0
+            ? <p className="text-sm text-slate-400">אין תיקים משויכים אליך</p>
+            : <div className="space-y-2">
+                {myMatters.slice(0, 6).map(m => (
+                  <div key={m.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0">
+                    <span>{m.clients?.name || m.title}</span>
+                    <span className="text-xs text-slate-400">{m.property_address || ''}</span>
+                  </div>
+                ))}
+                {myMatters.length > 6 && <p className="text-xs text-slate-400 mt-1">ועוד {myMatters.length - 6} תיקים נוספים</p>}
+              </div>
+          }
+        </div>
+      )}
     </div>
   );
 }
