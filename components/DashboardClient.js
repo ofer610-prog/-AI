@@ -48,19 +48,20 @@ export default function DashboardClient({
   const isLawyer = isAdmin || profile.role === 'lawyer';
 
   const tabs = [
-    { id: 'cockpit', label: 'קוקפיט' },
+    { id: 'cockpit',       label: 'קוקפיט' },
     isAdmin && { id: 'gmail', label: `📧 מייל${gmailPending.length > 0 ? ` (${gmailPending.length})` : ''}` },
-    { id: 'clients', label: 'לקוחות' },
-    { id: 'matters', label: 'תיקים' },
-    { id: 'timesheet', label: 'שעתון' },
-    isAdmin && { id: 'income', label: 'הכנסות' },
-    isAdmin && { id: 'expense', label: 'הוצאות' },
-    isAdmin && { id: 'invoices', label: 'חשבוניות' },
+    { id: 'clients',       label: 'לקוחות' },
+    { id: 'matters',       label: 'תיקים' },
+    { id: 'timesheet',     label: 'שעתון' },
+    isLawyer && { id: 'my_collection', label: '💳 גבייה שלי' },
+    isAdmin && { id: 'income',    label: 'הכנסות' },
+    isAdmin && { id: 'expense',   label: 'הוצאות' },
+    isAdmin && { id: 'invoices',  label: 'חשבוניות' },
     isAdmin && { id: 'collection', label: 'גבייה' },
-    isAdmin && { id: 'forecast', label: 'תחזיות מס' },
-    isAdmin && { id: 'team', label: 'צוות' },
-    { id: 'deadlines', label: 'דדליינים' },
-    isAdmin && { id: 'settings', label: 'הגדרות' },
+    isAdmin && { id: 'forecast',  label: 'תחזיות מס' },
+    isAdmin && { id: 'team',      label: 'צוות' },
+    { id: 'deadlines',     label: 'דדליינים' },
+    isAdmin && { id: 'settings',  label: 'הגדרות' },
     isAdmin && { id: 'finance_link', label: '💰 כספים', href: '/finance' },
     { id: 'calendar_link', label: '📅 לוח שנה', href: '/calendar' },
     { id: 'my_schedule',   label: '🗓️ הלוז שלי', href: '/my-schedule' },
@@ -115,6 +116,7 @@ export default function DashboardClient({
         {tab === 'team' && <TeamPanel team={team} onRefresh={() => router.refresh()} />}
         {tab === 'deadlines' && <DeadlinesPanel deadlines={deadlines} />}
         {tab === 'settings' && <SettingsPanel organization={organization} onRefresh={() => router.refresh()} />}
+        {tab === 'my_collection' && <MyCollectionPanel matters={matters} invoices={invoices} profile={profile} />}
       </main>
 
       {chatOpen && <AIAdvisor ctx={ctx} onClose={() => setChatOpen(false)} profile={profile} />}
@@ -913,6 +915,123 @@ function DeadlinesPanel({ deadlines }) {
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// My Collection Panel — lawyer sees only their clients who haven't paid
+// ============================================================================
+function MyCollectionPanel({ matters, invoices, profile }) {
+  const myMatters = matters.filter(m => m.responsible_lawyer_id === profile.id);
+  const myClientIds = new Set(myMatters.map(m => m.client_id).filter(Boolean));
+
+  // Unpaid invoices for my clients
+  const unpaid = invoices.filter(inv =>
+    inv.status !== 'paid' && inv.status !== 'cancelled' && myClientIds.has(inv.client_id)
+  );
+
+  // Group by client
+  const byClient = {};
+  for (const inv of unpaid) {
+    const key = inv.client_id || inv.client_name;
+    if (!byClient[key]) byClient[key] = { name: inv.client_name, invoices: [] };
+    byClient[key].invoices.push(inv);
+  }
+
+  // Also: matters with agreed_fee but not fully collected
+  const unchargedMatters = myMatters.filter(m =>
+    m.agreed_fee && Number(m.agreed_fee) > 0 &&
+    (!m.collected_amount || Number(m.collected_amount) < Number(m.agreed_fee)) &&
+    m.payment_status !== 'שולם'
+  );
+
+  return (
+    <div className="space-y-6" dir="rtl">
+      <h2 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-3xl font-bold">💳 גבייה שלי</h2>
+
+      {/* Unpaid invoices */}
+      <div className="bg-white border border-sky-100 rounded-lg p-6">
+        <h3 className="font-semibold text-slate-700 mb-4">חשבוניות פתוחות — לקוחות שלי</h3>
+        {unpaid.length === 0 ? (
+          <p className="text-slate-400 text-sm">אין חשבוניות פתוחות ללקוחות שלך</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">לקוח</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">חשבונית</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">סכום</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">תאריך</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">גיל</th>
+              </tr>
+            </thead>
+            <tbody>
+              {unpaid.map(inv => {
+                const days = Math.round((new Date() - new Date(inv.issue_date)) / 86400000);
+                return (
+                  <tr key={inv.id} className={`border-b ${days > 30 ? 'bg-red-50' : days > 14 ? 'bg-yellow-50' : ''}`}>
+                    <td className="px-3 py-2 font-medium">{inv.client_name}</td>
+                    <td className="px-3 py-2 text-gray-500">{inv.number || inv.invoice_number || '—'}</td>
+                    <td className="px-3 py-2 font-semibold text-rose-700">{fmtMoney(inv.amount)}</td>
+                    <td className="px-3 py-2 text-gray-500">{inv.issue_date}</td>
+                    <td className="px-3 py-2">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${days > 30 ? 'bg-red-100 text-red-700' : days > 14 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {days} ימים
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Uncharged matters */}
+      <div className="bg-white border border-sky-100 rounded-lg p-6">
+        <h3 className="font-semibold text-slate-700 mb-4">תיקים עם שכר טרחה שלא שולם</h3>
+        {unchargedMatters.length === 0 ? (
+          <p className="text-slate-400 text-sm">כל שכר הטרחה שולם</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">לקוח</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">נכס</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">שכ"ט מוסכם</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">שולם</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">יתרה</th>
+                <th className="text-right px-3 py-2 font-semibold text-gray-600">שלב</th>
+              </tr>
+            </thead>
+            <tbody>
+              {unchargedMatters.map(m => {
+                const agreed = Number(m.agreed_fee || 0);
+                const collected = Number(m.collected_amount || 0);
+                const balance = agreed - collected;
+                return (
+                  <tr key={m.id} className="border-b hover:bg-gray-50">
+                    <td className="px-3 py-2 font-medium">{m.clients?.name || '—'}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">{m.property_address || '—'}</td>
+                    <td className="px-3 py-2">{fmtMoney(agreed)}</td>
+                    <td className="px-3 py-2 text-green-700">{fmtMoney(collected)}</td>
+                    <td className="px-3 py-2 font-bold text-rose-700">{fmtMoney(balance)}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{m.stage || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="bg-gray-50 font-bold">
+              <tr>
+                <td colSpan={4} className="px-3 py-2 text-right text-gray-600">סה"כ יתרה לגביה:</td>
+                <td className="px-3 py-2 text-rose-700">{fmtMoney(unchargedMatters.reduce((a, m) => a + Number(m.agreed_fee||0) - Number(m.collected_amount||0), 0))}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        )}
       </div>
     </div>
   );
