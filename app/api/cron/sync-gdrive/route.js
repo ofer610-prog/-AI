@@ -28,6 +28,10 @@ export async function POST(request) {
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).single();
+  if (!['admin','accountant'].includes(profile?.role)) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
   return runSync();
 }
 

@@ -34,7 +34,17 @@ export async function GET(request) {
   if (mine)   q = q.eq('responsible_lawyer_id', profile.id);
   if (stage)  q = q.eq('stage', stage);
   if (type)   q = q.eq('type', type);
-  if (search) q = q.or(`title.ilike.%${search}%,property_address.ilike.%${search}%`);
+  if (search) {
+    // Also find client IDs matching the search
+    const { data: matchedClients } = await sb.from('clients')
+      .select('id').eq('organization_id', profile.organization_id)
+      .ilike('name', `%${search}%`);
+    const clientIds = (matchedClients || []).map(c => c.id);
+    const clientFilter = clientIds.length
+      ? `,client_id.in.(${clientIds.join(',')})`
+      : '';
+    q = q.or(`title.ilike.%${search}%,property_address.ilike.%${search}%,parcel.ilike.%${search}%${clientFilter}`);
+  }
 
   const { data, error } = await q;
   if (error) return Response.json({ error: error.message }, { status: 500 });

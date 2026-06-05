@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -335,6 +335,12 @@ export default function CasesPage() {
     if (gd !== 0) return gd;
     return new Date(b.created_at || 0) - new Date(a.created_at || 0);
   });
+  // Pre-calculate group counts to avoid O(n²) in map
+  const groupCounts = sortedMatters.reduce((acc, m) => {
+    const g = byGroup(m);
+    acc[g] = (acc[g] || 0) + 1;
+    return acc;
+  }, {});
 
   // Fixed columns definition
   const FIXED_COLS = [
@@ -567,18 +573,17 @@ export default function CasesPage() {
                 : daysLeft != null && daysLeft <= 7 ? 'bg-yellow-50'
                 : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/70';
 
-              const groupCount = sortedMatters.filter(x => byGroup(x) === group).length;
               return (
-                <>
+                <Fragment key={m.id}>
                 {showHead && (
-                  <tr key={`head-${group}`} className={`${GROUP_COLOR[group]} border-b-2`}>
+                  <tr className={`${GROUP_COLOR[group]} border-b-2`}>
                     <td colSpan={totalCols} className="px-4 py-2 font-bold text-sm tracking-wide">
                       {GROUP_LABEL[group]}
-                      <span className="mr-2 font-normal text-xs opacity-70">{groupCount} תיקים</span>
+                      <span className="mr-2 font-normal text-xs opacity-70">{groupCounts[group]} תיקים</span>
                     </td>
                   </tr>
                 )}
-                <tr key={m.id} className={`${rowBg} hover:bg-blue-50/60 border-b transition-colors`}>
+                <tr className={`${rowBg} hover:bg-blue-50/60 border-b transition-colors`}>
                   {/* שם לקוח – sticky */}
                   <td className={`px-1 py-1 border-l sticky right-0 z-10 ${rowBg}`}>
                     <EditableCell value={m.clients?.name}
@@ -683,7 +688,7 @@ export default function CasesPage() {
                   })}
                   <td/>
                 </tr>
-                </>
+                </Fragment>
               );
               });
             })()}
