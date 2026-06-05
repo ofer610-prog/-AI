@@ -7,7 +7,7 @@ const MATTER_SELECT = `
   property_address, parcel, delivery_date,
   other_lawyer, broker, agreed_fee, collected_amount, balance_amount,
   payment_status, mortgage, capital_gains, committee_status, municipality_status,
-  description, start_date, created_at,
+  description, start_date, created_at, extra_data,
   clients(id, name, phone, id_number, address),
   profiles!responsible_lawyer_id(id, full_name)
 `;
