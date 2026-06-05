@@ -67,6 +67,7 @@ export default function DashboardClient({
     { id: 'my_schedule',   label: '🗓️ הלוז שלי', href: '/my-schedule' },
     { id: 'cases_link',    label: '📁 תיקים (Excel)', href: '/cases' },
     { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
+    { id: 'expense_docs_link', label: '🧾 חשבוניות הוצאות', href: '/expense-docs' },
   ].filter(Boolean);
 
   return (
