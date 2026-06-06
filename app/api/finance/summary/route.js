@@ -1,21 +1,19 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request) {
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data: profile } = await sb.from('profiles').select('organization_id, role').eq('id', user.id).single();
+  if (!profile || !['admin','accountant'].includes(profile.role)) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const supabase = createServiceClient();
-
-  // Load first org (demo mode)
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('id')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single();
-
-  if (!org) return Response.json({ error: 'No organization found' }, { status: 404 });
-
-  const orgId = org.id;
+  const orgId = profile.organization_id;
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const weekStart = new Date(now);

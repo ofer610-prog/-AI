@@ -137,8 +137,12 @@ export async function PATCH(request) {
   delete updates.profiles;
 
   const { data, error } = await sb.from('matters')
-    .update(updates).eq('id', id).select(MATTER_SELECT).single();
+    .update(updates)
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)  // prevent cross-org write
+    .select(MATTER_SELECT).single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (!data) return Response.json({ error: 'Not found' }, { status: 404 });
 
   // Update client fields if provided
   if (data?.client_id && (client_name || client_phone || client_id_number)) {

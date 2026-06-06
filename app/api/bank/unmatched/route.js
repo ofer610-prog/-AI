@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +12,18 @@ export const dynamic = 'force-dynamic';
  * Marks a bank transaction as matched (optionally to an invoice) or dismissed.
  */
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const sb = createServiceClient();
+    const userSb = await createClient();
+    const { data: { user } } = await userSb.auth.getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: profile } = await userSb.from('profiles').select('organization_id, role').eq('id', user.id).single();
+    if (!profile || !['admin','accountant'].includes(profile.role)) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
-    const { data: org } = await sb
-      .from('organizations').select('id').order('created_at', { ascending: true }).limit(1).single();
-    if (!org) return Response.json({ alerts: [] });
-    const orgId = org.id;
+    const sb    = createServiceClient();
+    const orgId = profile.organization_id;
 
     // Credits with pending alert status (no invoice matched yet)
     let { data: credits, error } = await sb
@@ -84,7 +88,15 @@ export async function GET() {
 
 export async function PATCH(request) {
   try {
-    const sb = createServiceClient();
+    const userSb = await createClient();
+    const { data: { user } } = await userSb.auth.getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: profile } = await userSb.from('profiles').select('organization_id, role').eq('id', user.id).single();
+    if (!profile || !['admin','accountant'].includes(profile.role)) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const sb   = createServiceClient();
     const body = await request.json();
     const { id, action, invoice_id } = body;
 

@@ -1,8 +1,15 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { isRateLimited } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
+  // Rate limit: max 5 attempts per IP per minute
+  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+  if (isRateLimited(`pin:${ip}`, 5, 60_000)) {
+    return Response.json({ ok: false, error: 'יותר מדי ניסיונות — נסה שוב בעוד דקה' }, { status: 429 });
+  }
+
   const { pin } = await request.json().catch(() => ({}));
 
   // Check Supabase first (admin can change it), fall back to env var

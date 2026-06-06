@@ -18,9 +18,9 @@ export async function GET(request) {
   const orgId = orgs[0].id;
 
   const config = {
-    instance_id: '7107631283',
-    api_url: 'https://7107.api.greenapi.com',
-    token: '574296b4b6384a75a1136693c0a162e31316e872911349d082',
+    instance_id: process.env.GREENAPI_INSTANCE || '7107631283',
+    api_url:     'https://7107.api.greenapi.com',
+    token:       process.env.GREENAPI_TOKEN || '',
     target_group_name: 'משרד עורכי דין',
   };
 
