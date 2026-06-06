@@ -125,6 +125,9 @@ export async function PATCH(request) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { data: profile } = await sb.from('profiles').select('organization_id, id').eq('id', user.id).single();
+  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
+
   const body = await request.json();
   const { id, client_name, client_phone, client_id_number, ...updates } = body;
   if (!id) return Response.json({ error: 'id required' }, { status: 400 });
