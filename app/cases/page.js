@@ -40,7 +40,7 @@ const labelOf  = (opts, val) => opts.find(o => o.val === val)?.label || val || '
 
 // ─── PIN Screen ───────────────────────────────────────────────────────────────
 
-function PinScreen({ onUnlock }) {
+function PinScreen({ onUnlock, onClose }) {
   const [pin, setPin]         = useState('');
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,8 +75,8 @@ function PinScreen({ onUnlock }) {
     <div className="fixed inset-0 bg-gray-900/95 flex items-center justify-center z-50" dir="rtl">
       <div className="bg-white rounded-2xl shadow-2xl p-10 w-80 text-center">
         <div className="text-5xl mb-4">🔒</div>
-        <h1 className="text-xl font-bold text-gray-800 mb-1">ניהול תיקים</h1>
-        <p className="text-sm text-gray-500 mb-6">כהן-רוגוזינסקי עורכי דין</p>
+        <h1 className="text-xl font-bold text-gray-800 mb-1">כניסה לעריכה</h1>
+        <p className="text-sm text-gray-500 mb-6">הזן קוד גישה כדי לערוך ולהוסיף תיקים</p>
         <form onSubmit={submit} className="space-y-4">
           <input
             ref={inputRef} type="password" inputMode="numeric" maxLength={8}
@@ -89,6 +89,12 @@ function PinScreen({ onUnlock }) {
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-xl py-3 transition-colors">
             {loading ? '...' : 'כניסה'}
           </button>
+          {onClose && (
+            <button type="button" onClick={onClose}
+              className="w-full text-gray-500 hover:text-gray-700 text-sm py-1">
+              ביטול — המשך בצפייה בלבד
+            </button>
+          )}
         </form>
       </div>
     </div>
@@ -97,7 +103,7 @@ function PinScreen({ onUnlock }) {
 
 // ─── Editable Cell ────────────────────────────────────────────────────────────
 
-function EditableCell({ value, onSave, type = 'text', options, placeholder = '', currency = false, colType }) {
+function EditableCell({ value, onSave, type = 'text', options, placeholder = '', currency = false, colType, editable = true }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal]         = useState(value ?? '');
   const inputRef = useRef(null);
@@ -137,6 +143,15 @@ function EditableCell({ value, onSave, type = 'text', options, placeholder = '',
 
   const display = options ? labelOf(options, value) : (value ?? '');
   const shown   = currency && display ? fmtMoney(display) : display;
+
+  if (!editable) {
+    return (
+      <div className="min-h-[22px] px-1 py-0.5 truncate text-sm" title={String(display || '')}>
+        {shown || <span className="text-gray-300 text-xs">—</span>}
+      </div>
+    );
+  }
+
   return (
     <div onClick={() => setEditing(true)}
       className="min-h-[22px] px-1 py-0.5 rounded cursor-pointer hover:bg-blue-50 truncate text-sm"
@@ -236,6 +251,7 @@ export default function CasesPage() {
   const [adding,      setAdding]      = useState(false);
   const [showAddCol,  setShowAddCol]  = useState(false);
   const [deletingCol, setDeletingCol] = useState(null);
+  const [showPin,     setShowPin]     = useState(false);
 
   // Check PIN session (8h)
   useEffect(() => {
@@ -368,10 +384,15 @@ export default function CasesPage() {
 
   const totalCols = FIXED_COLS.length + customCols.length + 1; // +1 for add-col button col
 
-  if (!unlocked) return <PinScreen onUnlock={() => setUnlocked(true)} />;
-
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
+
+      {showPin && (
+        <PinScreen
+          onUnlock={() => { setUnlocked(true); setShowPin(false); }}
+          onClose={() => setShowPin(false)}
+        />
+      )}
 
       {showAddCol && (
         <AddColumnModal
@@ -404,23 +425,32 @@ export default function CasesPage() {
           <span className="text-sm text-gray-400">{matters.length} תיקים</span>
           <div className="flex-1"/>
 
-          <button onClick={() => setNewRow(newRow ? null : {})}
-            className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1.5 rounded-lg">
-            {newRow ? '✕ ביטול' : '+ תיק חדש'}
-          </button>
+          {unlocked ? (
+            <>
+              <button onClick={() => setNewRow(newRow ? null : {})}
+                className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1.5 rounded-lg">
+                {newRow ? '✕ ביטול' : '+ תיק חדש'}
+              </button>
 
-          <button onClick={syncNow} disabled={syncing}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm px-3 py-1.5 rounded-lg">
-            {syncing ? '⏳...' : '🔄 סנכרן Excel'}
-          </button>
+              <button onClick={syncNow} disabled={syncing}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm px-3 py-1.5 rounded-lg">
+                {syncing ? '⏳...' : '🔄 סנכרן Excel'}
+              </button>
 
-          <button onClick={() => setShowAddCol(true)}
-            className="border border-purple-400 text-purple-700 hover:bg-purple-50 text-sm px-3 py-1.5 rounded-lg">
-            ＋ עמודה
-          </button>
+              <button onClick={() => setShowAddCol(true)}
+                className="border border-purple-400 text-purple-700 hover:bg-purple-50 text-sm px-3 py-1.5 rounded-lg">
+                ＋ עמודה
+              </button>
 
-          <button onClick={() => { sessionStorage.removeItem('cases_unlocked'); setUnlocked(false); }}
-            title="נעל" className="text-gray-400 hover:text-gray-600 px-2 py-1.5 text-lg">🔒</button>
+              <button onClick={() => { sessionStorage.removeItem('cases_unlocked'); setUnlocked(false); setNewRow(null); }}
+                title="נעל עריכה" className="text-gray-400 hover:text-gray-600 px-2 py-1.5 text-lg">🔓</button>
+            </>
+          ) : (
+            <button onClick={() => setShowPin(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded-lg flex items-center gap-1">
+              🔒 כניסה לעריכה
+            </button>
+          )}
         </div>
         {syncMsg && <p className="text-xs mt-1 text-green-700">{syncMsg}</p>}
       </div>
@@ -445,17 +475,21 @@ export default function CasesPage() {
                   style={{ minWidth: '140px' }}>
                   <div className="flex items-center gap-1">
                     <span>{col.name}</span>
-                    <button
-                      onClick={() => deleteColumn(col)}
-                      disabled={deletingCol === col.id}
-                      title="מחק עמודה"
-                      className="text-gray-300 hover:text-red-400 text-xs ml-1 leading-none">✕</button>
+                    {unlocked && (
+                      <button
+                        onClick={() => deleteColumn(col)}
+                        disabled={deletingCol === col.id}
+                        title="מחק עמודה"
+                        className="text-gray-300 hover:text-red-400 text-xs ml-1 leading-none">✕</button>
+                    )}
                   </div>
                 </th>
               ))}
               <th className="px-2 py-2 text-right text-xs border-b bg-gray-50 whitespace-nowrap" style={{ minWidth: '45px' }}>
-                <button onClick={() => setShowAddCol(true)}
-                  className="text-purple-500 hover:text-purple-700 text-lg leading-none" title="הוסף עמודה">＋</button>
+                {unlocked && (
+                  <button onClick={() => setShowAddCol(true)}
+                    className="text-purple-500 hover:text-purple-700 text-lg leading-none" title="הוסף עמודה">＋</button>
+                )}
               </th>
             </tr>
           </thead>
@@ -586,28 +620,28 @@ export default function CasesPage() {
                 <tr className={`${rowBg} hover:bg-blue-50/60 border-b transition-colors`}>
                   {/* שם לקוח – sticky */}
                   <td className={`px-1 py-1 border-l sticky right-0 z-10 ${rowBg}`}>
-                    <EditableCell value={m.clients?.name}
+                    <EditableCell editable={unlocked} value={m.clients?.name}
                       onSave={v=>saveField(m.id,'client_name',v,true)} placeholder="שם לקוח"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.clients?.id_number}
+                    <EditableCell editable={unlocked} value={m.clients?.id_number}
                       onSave={v=>saveField(m.id,'client_id_number',v,true)} placeholder="ת.ז."/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.clients?.phone}
+                    <EditableCell editable={unlocked} value={m.clients?.phone}
                       onSave={v=>saveField(m.id,'client_phone',v,true)} type="tel" placeholder="טלפון"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.property_address}
+                    <EditableCell editable={unlocked} value={m.property_address}
                       onSave={v=>saveField(m.id,'property_address',v)} placeholder="כתובת"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.parcel}
+                    <EditableCell editable={unlocked} value={m.parcel}
                       onSave={v=>saveField(m.id,'parcel',v)} placeholder="גוש/חלקה"/>
                   </td>
                   {/* שלב */}
                   <td className="px-1 py-1">
-                    <EditableCell value={m.stage} onSave={v=>saveField(m.id,'stage',v)} options={STAGE_OPTIONS}/>
+                    <EditableCell editable={unlocked} value={m.stage} onSave={v=>saveField(m.id,'stage',v)} options={STAGE_OPTIONS}/>
                     {m.stage && (
                       <span className={`block mt-0.5 text-xs px-1.5 py-0.5 rounded-full w-fit ${STAGE_COLOR[m.stage]||'bg-gray-100'}`}>
                         {labelOf(STAGE_OPTIONS,m.stage)}
@@ -616,11 +650,11 @@ export default function CasesPage() {
                   </td>
                   {/* סוג */}
                   <td className="px-1 py-1">
-                    <EditableCell value={m.type} onSave={v=>saveField(m.id,'type',v)} options={TYPE_OPTIONS}/>
+                    <EditableCell editable={unlocked} value={m.type} onSave={v=>saveField(m.id,'type',v)} options={TYPE_OPTIONS}/>
                   </td>
                   {/* תאריך מסירה */}
                   <td className="px-1 py-1">
-                    <EditableCell value={m.delivery_date} onSave={v=>saveField(m.id,'delivery_date',v)} type="date"/>
+                    <EditableCell editable={unlocked} value={m.delivery_date} onSave={v=>saveField(m.id,'delivery_date',v)} type="date"/>
                     {daysLeft != null && (
                       <div className={`text-xs font-medium ${daysLeft<0?'text-red-600':daysLeft<=7?'text-orange-500':'text-gray-400'}`}>
                         {daysLeft<0?`${Math.abs(daysLeft)}י׳ איחור`:daysLeft===0?'היום':`${daysLeft} ימים`}
@@ -629,41 +663,41 @@ export default function CasesPage() {
                   </td>
                   {/* עו"ד אחראי */}
                   <td className="px-1 py-1">
-                    <EditableCell value={m.profiles?.id || m.responsible_lawyer_id}
+                    <EditableCell editable={unlocked} value={m.profiles?.id || m.responsible_lawyer_id}
                       onSave={v=>saveField(m.id,'responsible_lawyer_id',v)} options={lawyerOpts}/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.other_lawyer} onSave={v=>saveField(m.id,'other_lawyer',v)} placeholder="עו״ד"/>
+                    <EditableCell editable={unlocked} value={m.other_lawyer} onSave={v=>saveField(m.id,'other_lawyer',v)} placeholder="עו״ד"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.broker} onSave={v=>saveField(m.id,'broker',v)} placeholder="מתווך"/>
+                    <EditableCell editable={unlocked} value={m.broker} onSave={v=>saveField(m.id,'broker',v)} placeholder="מתווך"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.agreed_fee} onSave={v=>saveField(m.id,'agreed_fee',v)} type="number" currency placeholder="₪"/>
+                    <EditableCell editable={unlocked} value={m.agreed_fee} onSave={v=>saveField(m.id,'agreed_fee',v)} type="number" currency placeholder="₪"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.collected_amount} onSave={v=>saveField(m.id,'collected_amount',v)} type="number" currency placeholder="₪"/>
+                    <EditableCell editable={unlocked} value={m.collected_amount} onSave={v=>saveField(m.id,'collected_amount',v)} type="number" currency placeholder="₪"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.balance_amount} onSave={v=>saveField(m.id,'balance_amount',v)} type="number" currency placeholder="₪"/>
+                    <EditableCell editable={unlocked} value={m.balance_amount} onSave={v=>saveField(m.id,'balance_amount',v)} type="number" currency placeholder="₪"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.payment_status} onSave={v=>saveField(m.id,'payment_status',v)} placeholder="סטטוס"/>
+                    <EditableCell editable={unlocked} value={m.payment_status} onSave={v=>saveField(m.id,'payment_status',v)} placeholder="סטטוס"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.mortgage} onSave={v=>saveField(m.id,'mortgage',v)} placeholder="משכנתא"/>
+                    <EditableCell editable={unlocked} value={m.mortgage} onSave={v=>saveField(m.id,'mortgage',v)} placeholder="משכנתא"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.capital_gains} onSave={v=>saveField(m.id,'capital_gains',v)} placeholder="שבח"/>
+                    <EditableCell editable={unlocked} value={m.capital_gains} onSave={v=>saveField(m.id,'capital_gains',v)} placeholder="שבח"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.committee_status} onSave={v=>saveField(m.id,'committee_status',v)} placeholder="ועדה"/>
+                    <EditableCell editable={unlocked} value={m.committee_status} onSave={v=>saveField(m.id,'committee_status',v)} placeholder="ועדה"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.municipality_status} onSave={v=>saveField(m.id,'municipality_status',v)} placeholder="עירייה"/>
+                    <EditableCell editable={unlocked} value={m.municipality_status} onSave={v=>saveField(m.id,'municipality_status',v)} placeholder="עירייה"/>
                   </td>
                   <td className="px-1 py-1">
-                    <EditableCell value={m.description} onSave={v=>saveField(m.id,'description',v)} placeholder="הערות"/>
+                    <EditableCell editable={unlocked} value={m.description} onSave={v=>saveField(m.id,'description',v)} placeholder="הערות"/>
                   </td>
 
                   {/* Custom columns */}
@@ -675,6 +709,7 @@ export default function CasesPage() {
                     return (
                       <td key={col.id} className="px-1 py-1 bg-purple-50/40">
                         <EditableCell
+                          editable={unlocked}
                           value={cval}
                           onSave={v => saveExtra(m.id, col.id, v)}
                           colType={col.col_type}
@@ -697,7 +732,9 @@ export default function CasesPage() {
               <tr>
                 <td colSpan={totalCols} className="text-center py-16 text-gray-400">
                   <div className="text-4xl mb-2">📂</div>
-                  <div>אין תיקים. לחץ "סנכרן Excel" לייבוא, או "תיק חדש" להוספה ידנית.</div>
+                  <div>{unlocked
+                    ? 'אין תיקים. לחץ "סנכרן Excel" לייבוא, או "תיק חדש" להוספה ידנית.'
+                    : 'אין תיקים להצגה. ל­הוספה ועריכה לחץ "🔒 כניסה לעריכה".'}</div>
                 </td>
               </tr>
             )}
@@ -736,7 +773,7 @@ export default function CasesPage() {
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-red-100 border rounded inline-block"/>באיחור</div>
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-yellow-100 border rounded inline-block"/>≤7 ימים</div>
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-purple-100 border rounded inline-block"/>עמודות מותאמות</div>
-        <div className="text-gray-400 mt-1">לחץ תא לעריכה</div>
+        <div className="text-gray-400 mt-1">{unlocked ? 'לחץ תא לעריכה' : 'מצב צפייה — לעריכה נדרש קוד'}</div>
       </div>
     </div>
   );
