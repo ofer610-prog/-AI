@@ -252,6 +252,8 @@ export default function CasesPage() {
   const [showAddCol,  setShowAddCol]  = useState(false);
   const [deletingCol, setDeletingCol] = useState(null);
   const [showPin,     setShowPin]     = useState(false);
+  const [uploading,   setUploading]   = useState(false);
+  const fileInputRef = useRef(null);
 
   // Check PIN session (8h)
   useEffect(() => {
@@ -330,6 +332,24 @@ export default function CasesPage() {
       if (json.ok) load();
     } catch { setSyncMsg('שגיאת רשת'); }
     setSyncing(false);
+  }
+
+  async function uploadFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setSyncMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res  = await fetch('/api/cases/upload-xlsx', { method: 'POST', body: fd });
+      const json = await res.json();
+      setSyncMsg(json.ok
+        ? `יובאו ${json.matters||0} תיקים, ${json.clients||0} לקוחות, ${json.tasks||0} משימות`
+        : 'שגיאה: ' + (json.error||'לא ידוע'));
+      if (json.ok) load();
+    } catch { setSyncMsg('שגיאת העלאה'); }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   async function deleteColumn(col) {
@@ -437,9 +457,16 @@ export default function CasesPage() {
                 {newRow ? '✕ ביטול' : '+ תיק חדש'}
               </button>
 
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv"
+                onChange={uploadFile} className="hidden" />
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white text-sm px-3 py-1.5 rounded-lg">
+                {uploading ? '⏳ מעלה...' : '⬆️ העלה קובץ Excel'}
+              </button>
+
               <button onClick={syncNow} disabled={syncing}
                 className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm px-3 py-1.5 rounded-lg">
-                {syncing ? '⏳...' : '🔄 סנכרן Excel'}
+                {syncing ? '⏳...' : '🔄 סנכרן Drive'}
               </button>
 
               <button onClick={() => setShowAddCol(true)}
