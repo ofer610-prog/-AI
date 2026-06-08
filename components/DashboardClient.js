@@ -51,7 +51,6 @@ export default function DashboardClient({
     { id: 'cockpit',       label: 'קוקפיט' },
     isAdmin && { id: 'gmail', label: `📧 מייל${gmailPending.length > 0 ? ` (${gmailPending.length})` : ''}` },
     { id: 'clients',       label: 'לקוחות' },
-    { id: 'matters',       label: 'תיקים' },
     { id: 'timesheet',     label: 'שעתון' },
     isLawyer && { id: 'my_collection', label: '💳 גבייה שלי' },
     isAdmin && { id: 'income',    label: 'הכנסות' },
@@ -65,7 +64,7 @@ export default function DashboardClient({
     isAdmin && { id: 'finance_link', label: '💰 כספים', href: '/finance' },
     { id: 'calendar_link', label: '📅 לוח שנה', href: '/calendar' },
     { id: 'my_schedule',   label: '🗓️ הלוז שלי', href: '/my-schedule' },
-    { id: 'cases_link',    label: '📁 תיקים (Excel)', href: '/cases' },
+    { id: 'cases_link',    label: '📁 תיקים', href: '/cases' },
     { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
     { id: 'expense_docs_link', label: '🧾 חשבוניות הוצאות', href: '/expense-docs' },
   ].filter(Boolean);

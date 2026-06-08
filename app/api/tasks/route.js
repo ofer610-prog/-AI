@@ -33,6 +33,9 @@ export async function PATCH(request) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { data: profile } = await sb.from('profiles').select('organization_id').eq('id', user.id).single();
+  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
+
   const body = await request.json();
   const { id, ...updates } = body;
   if (!id) return Response.json({ error: 'id required' }, { status: 400 });
@@ -40,7 +43,11 @@ export async function PATCH(request) {
   delete updates.organization_id;
   delete updates.sheet_row_id;
 
-  const { data, error } = await sb.from('tasks').update(updates).eq('id', id).select().single();
+  const { data, error } = await sb.from('tasks').update(updates)
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select().single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (!data) return Response.json({ error: 'Not found' }, { status: 404 });
   return Response.json({ task: data });
 }

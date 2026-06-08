@@ -74,7 +74,11 @@ export async function PATCH(request) {
   if (status)            updates.status            = status;
   if (accountant_notes !== undefined) updates.accountant_notes = accountant_notes;
 
-  const { data, error } = await sb.from('expense_documents').update(updates).eq('id', id).select().single();
+  const { data, error } = await sb.from('expense_documents').update(updates)
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select().single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (!data) return Response.json({ error: 'Not found' }, { status: 404 });
   return Response.json({ doc: data });
 }
