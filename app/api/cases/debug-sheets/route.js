@@ -14,6 +14,7 @@ export async function GET(request) {
   // ── Service-client insert test ──
   if (searchParams.get('test') === 'insert') {
     const out = {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
       hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       serviceKeyLen: (process.env.SUPABASE_SERVICE_ROLE_KEY || '').length,
       hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
