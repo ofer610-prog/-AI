@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/sync-gdrive",
-      "schedule": "0 * * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }
