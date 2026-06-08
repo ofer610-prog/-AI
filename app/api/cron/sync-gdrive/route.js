@@ -20,14 +20,18 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { createClient } = await import('@/lib/supabase/server');
-  const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin','accountant'].includes(profile?.role)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  // Accept cases PIN as auth (same PIN that unlocks editing on /cases)
+  const body = await request.json().catch(() => ({}));
+  const pin = body.pin || request.headers.get('x-cases-pin');
+  const correctPin = process.env.CASES_ACCESS_PIN;
+
+  // If PIN is configured, verify it
+  if (correctPin) {
+    if (!pin || String(pin) !== String(correctPin)) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
+
   return runSync();
 }
 

@@ -61,6 +61,7 @@ function PinScreen({ onUnlock, onClose }) {
       const json = await res.json();
       if (json.ok) {
         sessionStorage.setItem('cases_unlocked', Date.now());
+        sessionStorage.setItem('cases_pin', pin);
         onUnlock();
       } else {
         setError('קוד שגוי. נסה שנית.');
@@ -326,7 +327,12 @@ export default function CasesPage() {
   async function syncNow() {
     setSyncing(true); setSyncMsg('');
     try {
-      const res  = await fetch('/api/cron/sync-gdrive', { method: 'POST' });
+      const pin = sessionStorage.getItem('cases_pin') || '';
+      const res  = await fetch('/api/cron/sync-gdrive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
       const json = await res.json();
       setSyncMsg(json.ok ? `סונכרן: ${json.matters||0} תיקים` : 'שגיאה: ' + (json.error||'לא ידוע'));
       if (json.ok) load();
@@ -474,7 +480,7 @@ export default function CasesPage() {
                 ＋ עמודה
               </button>
 
-              <button onClick={() => { sessionStorage.removeItem('cases_unlocked'); setUnlocked(false); setNewRow(null); }}
+              <button onClick={() => { sessionStorage.removeItem('cases_unlocked'); sessionStorage.removeItem('cases_pin'); setUnlocked(false); setNewRow(null); }}
                 title="נעל עריכה" className="text-gray-400 hover:text-gray-600 px-2 py-1.5 text-lg">🔓</button>
             </>
           ) : (
