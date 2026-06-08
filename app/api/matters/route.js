@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { validatePin, getPinFromRequest, getOrgId } from '@/lib/pinAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,78 +13,87 @@ const MATTER_SELECT = `
   profiles!responsible_lawyer_id(id, full_name)
 `;
 
-export async function GET(request) {
-  const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+/** Returns { orgId, sb } from either Supabase session or PIN */
+async function resolveAuth(request) {
+  // Try PIN first (cases page flow)
+  const pin = await getPinFromRequest(request);
+  if (pin) {
+    const ok = await validatePin(pin);
+    if (ok) {
+      const orgId = await getOrgId();
+      return orgId ? { orgId, sb: createServiceClient(), userId: null } : null;
+    }
+  }
 
-  const { data: profile } = await sb.from('profiles').select('organization_id, id').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
+  // Fall back to Supabase session (dashboard flow)
+  try {
+    const sb = await createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return null;
+    const { data: profile } = await sb.from('profiles').select('organization_id, id').eq('id', user.id).single();
+    if (!profile) return null;
+    return { orgId: profile.organization_id, sb, userId: user.id };
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(request) {
+  const auth = await resolveAuth(request);
+  if (!auth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const { orgId, sb } = auth;
 
   const { searchParams } = new URL(request.url);
-  const mine   = searchParams.get('mine') === 'true';
   const stage  = searchParams.get('stage');
   const search = searchParams.get('q');
   const type   = searchParams.get('type');
 
   let q = sb.from('matters')
     .select(MATTER_SELECT)
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', orgId)
     .order('delivery_date', { ascending: true, nullsFirst: false });
 
-  if (mine)   q = q.eq('responsible_lawyer_id', profile.id);
   if (stage)  q = q.eq('stage', stage);
   if (type)   q = q.eq('type', type);
   if (search) {
-    // Also find client IDs matching the search
     const { data: matchedClients } = await sb.from('clients')
-      .select('id').eq('organization_id', profile.organization_id)
-      .ilike('name', `%${search}%`);
+      .select('id').eq('organization_id', orgId).ilike('name', `%${search}%`);
     const clientIds = (matchedClients || []).map(c => c.id);
-    const clientFilter = clientIds.length
-      ? `,client_id.in.(${clientIds.join(',')})`
-      : '';
+    const clientFilter = clientIds.length ? `,client_id.in.(${clientIds.join(',')})` : '';
     q = q.or(`title.ilike.%${search}%,property_address.ilike.%${search}%,parcel.ilike.%${search}%${clientFilter}`);
   }
 
   const { data, error } = await q;
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  // Also fetch lawyers list for dropdowns
   const { data: lawyers } = await sb.from('profiles')
-    .select('id, full_name')
-    .eq('organization_id', profile.organization_id)
-    .eq('is_active', true);
+    .select('id, full_name').eq('organization_id', orgId).eq('is_active', true);
 
   return Response.json({ matters: data || [], lawyers: lawyers || [] });
 }
 
 export async function POST(request) {
-  const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await resolveAuth(request);
+  if (!auth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const { orgId, sb, userId } = auth;
 
-  const { data: profile } = await sb.from('profiles').select('organization_id, id').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
+  const body = await request.clone().json().catch(() => ({}));
 
-  const body = await request.json();
-
-  // Upsert or create client
   let clientId = body.client_id;
   if (!clientId && body.client_name) {
     const { data: existing } = await sb.from('clients')
-      .select('id').eq('organization_id', profile.organization_id)
+      .select('id').eq('organization_id', orgId)
       .ilike('name', body.client_name.trim()).limit(1).single();
 
     if (existing) {
       clientId = existing.id;
     } else {
       const { data: newClient } = await sb.from('clients').insert({
-        organization_id: profile.organization_id,
+        organization_id: orgId,
         name: body.client_name.trim(),
         phone: body.client_phone || null,
         id_number: body.client_id_number || null,
-        created_by: user.id,
+        created_by: userId,
       }).select('id').single();
       clientId = newClient?.id;
     }
@@ -92,7 +102,7 @@ export async function POST(request) {
   if (!clientId) return Response.json({ error: 'client_id or client_name required' }, { status: 400 });
 
   const { data, error } = await sb.from('matters').insert({
-    organization_id:      profile.organization_id,
+    organization_id:      orgId,
     client_id:            clientId,
     title:                body.title || body.client_name || 'תיק חדש',
     type:                 body.type || 'other',
@@ -113,7 +123,7 @@ export async function POST(request) {
     municipality_status:  body.municipality_status || null,
     description:          body.description || null,
     responsible_lawyer_id: body.responsible_lawyer_id || null,
-    created_by:           user.id,
+    created_by:           userId,
   }).select(MATTER_SELECT).single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -121,18 +131,14 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await resolveAuth(request);
+  if (!auth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const { orgId, sb } = auth;
 
-  const { data: profile } = await sb.from('profiles').select('organization_id, id').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
-
-  const body = await request.json();
-  const { id, client_name, client_phone, client_id_number, ...updates } = body;
+  const body = await request.clone().json().catch(() => ({}));
+  const { id, client_name, client_phone, client_id_number, pin, ...updates } = body;
   if (!id) return Response.json({ error: 'id required' }, { status: 400 });
 
-  // Forbidden fields
   delete updates.organization_id;
   delete updates.sheet_row_id;
   delete updates.created_at;
@@ -140,14 +146,11 @@ export async function PATCH(request) {
   delete updates.profiles;
 
   const { data, error } = await sb.from('matters')
-    .update(updates)
-    .eq('id', id)
-    .eq('organization_id', profile.organization_id)  // prevent cross-org write
+    .update(updates).eq('id', id).eq('organization_id', orgId)
     .select(MATTER_SELECT).single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   if (!data) return Response.json({ error: 'Not found' }, { status: 404 });
 
-  // Update client fields if provided
   if (data?.client_id && (client_name || client_phone || client_id_number)) {
     const clientUpdates = {};
     if (client_name)      clientUpdates.name      = client_name;

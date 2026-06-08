@@ -178,10 +178,11 @@ function AddColumnModal({ onAdd, onClose }) {
     const options = type === 'select'
       ? opts.split(',').map(s => s.trim()).filter(Boolean)
       : null;
+    const pin = sessionStorage.getItem('cases_pin') || '';
     const res  = await fetch('/api/cases/columns', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), col_type: type, options }),
+      headers: { 'Content-Type': 'application/json', 'x-cases-pin': pin },
+      body: JSON.stringify({ name: name.trim(), col_type: type, options, pin }),
     });
     const json = await res.json();
     setSaving(false);
@@ -262,15 +263,19 @@ export default function CasesPage() {
     if (ts && Date.now() - Number(ts) < 8 * 60 * 60 * 1000) setUnlocked(true);
   }, []);
 
+  const getPin = () => sessionStorage.getItem('cases_pin') || '';
+
   const load = useCallback(async () => {
     setLoading(true);
+    const pin = sessionStorage.getItem('cases_pin') || '';
     const params = new URLSearchParams();
     if (stage)      params.set('stage', stage);
     if (typeFilter) params.set('type', typeFilter);
     if (search)     params.set('q', search);
+    const pinHdr = { 'x-cases-pin': pin };
     const [mRes, cRes] = await Promise.all([
-      fetch(`/api/matters?${params}`),
-      fetch('/api/cases/columns'),
+      fetch(`/api/matters?${params}`, { headers: pinHdr }),
+      fetch('/api/cases/columns', { headers: pinHdr }),
     ]);
     const mJson = await mRes.json();
     const cJson = await cRes.json();
@@ -280,14 +285,14 @@ export default function CasesPage() {
     setLoading(false);
   }, [stage, typeFilter, search]);
 
-  useEffect(() => { if (unlocked) load(); }, [unlocked, load]);
+  useEffect(() => { load(); }, [load]);
 
   // Save a field on a matter
   async function saveField(matterId, field, value, isClient = false) {
-    const body = { id: matterId, [field]: value };
+    const body = { id: matterId, pin: getPin(), [field]: value };
     await fetch('/api/matters', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-cases-pin': getPin() },
       body: JSON.stringify(body),
     });
     setMatters(prev => prev.map(m => {
@@ -303,8 +308,8 @@ export default function CasesPage() {
     const extra  = { ...(matter?.extra_data || {}), [colId]: value };
     await fetch('/api/matters', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: matterId, extra_data: extra }),
+      headers: { 'Content-Type': 'application/json', 'x-cases-pin': getPin() },
+      body: JSON.stringify({ id: matterId, pin: getPin(), extra_data: extra }),
     });
     setMatters(prev => prev.map(m =>
       m.id === matterId ? { ...m, extra_data: extra } : m
@@ -316,8 +321,8 @@ export default function CasesPage() {
     setAdding(true);
     const res  = await fetch('/api/matters', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRow),
+      headers: { 'Content-Type': 'application/json', 'x-cases-pin': getPin() },
+      body: JSON.stringify({ ...newRow, pin: getPin() }),
     });
     const json = await res.json();
     if (json.matter) { setMatters(prev => [json.matter, ...prev]); setNewRow(null); }
@@ -347,7 +352,7 @@ export default function CasesPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res  = await fetch('/api/cases/upload-xlsx', { method: 'POST', body: fd });
+      const res  = await fetch('/api/cases/upload-xlsx', { method: 'POST', body: fd, headers: { 'x-cases-pin': getPin() } });
       const json = await res.json();
       setSyncMsg(json.ok
         ? `יובאו ${json.matters||0} תיקים, ${json.clients||0} לקוחות, ${json.tasks||0} משימות`
@@ -361,7 +366,7 @@ export default function CasesPage() {
   async function deleteColumn(col) {
     if (!confirm(`למחוק את העמודה "${col.name}"? הנתונים יאבדו.`)) return;
     setDeletingCol(col.id);
-    await fetch(`/api/cases/columns?id=${col.id}`, { method: 'DELETE' });
+    await fetch(`/api/cases/columns?id=${col.id}`, { method: 'DELETE', headers: { 'x-cases-pin': getPin() } });
     setCustomCols(prev => prev.filter(c => c.id !== col.id));
     setDeletingCol(null);
   }

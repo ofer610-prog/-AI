@@ -1,25 +1,16 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { validatePin, getPinFromRequest, getOrgId } from '@/lib/pinAuth';
 import { importSheets } from '@/lib/casesImport';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * POST /api/cases/upload-xlsx
- * Accepts multipart/form-data with field "file" (.xlsx/.xls/.csv).
- * Parses all sheets and imports cases/tasks/events — same logic as the
- * Google-Drive cron sync, but from a directly uploaded file.
- */
 export async function POST(request) {
-  const authSb = await createClient();
-  const { data: { user } } = await authSb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const pin = await getPinFromRequest(request);
+  const ok  = await validatePin(pin);
+  if (!ok) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { data: profile } = await authSb
-    .from('profiles').select('organization_id, role').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
-  if (!['admin', 'accountant', 'lawyer'].includes(profile.role)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const orgId = await getOrgId();
+  if (!orgId) return Response.json({ error: 'No organization' }, { status: 500 });
 
   const formData = await request.formData();
   const file = formData.get('file');
@@ -47,7 +38,7 @@ export async function POST(request) {
   }
 
   const sb = createServiceClient();
-  const stats = await importSheets(sb, profile.organization_id, sheets);
+  const stats = await importSheets(sb, orgId, sheets);
 
   return Response.json({ ok: true, ...stats });
 }

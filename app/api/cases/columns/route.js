@@ -1,49 +1,46 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { validatePin, getPinFromRequest, getOrgId } from '@/lib/pinAuth';
 
 export const dynamic = 'force-dynamic';
 
-async function getOrgAndProfile(sb) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return {};
-  const { data: profile } = await sb.from('profiles').select('organization_id, role').eq('id', user.id).single();
-  return { user, profile };
+async function authOrg(request) {
+  const pin = await getPinFromRequest(request);
+  const ok  = await validatePin(pin);
+  if (!ok) return null;
+  return await getOrgId();
 }
 
 export async function GET(request) {
-  const sb = await createClient();
-  const { profile } = await getOrgAndProfile(sb);
-  if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const pin = await getPinFromRequest(request);
+  const ok  = await validatePin(pin);
+  // GET is open — no PIN required for viewing
+  const orgId = await getOrgId();
+  if (!orgId) return Response.json({ columns: [] });
 
+  const sb = createServiceClient();
   const { data, error } = await sb
-    .from('case_custom_columns')
-    .select('*')
-    .eq('organization_id', profile.organization_id)
-    .order('position');
+    .from('case_custom_columns').select('*')
+    .eq('organization_id', orgId).order('position');
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ columns: data || [] });
 }
 
 export async function POST(request) {
-  const sb = await createClient();
-  const { profile } = await getOrgAndProfile(sb);
-  if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const orgId = await authOrg(request);
+  if (!orgId) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const body = await request.json().catch(() => ({}));
+  const body = await request.clone().json().catch(() => ({}));
   const { name, col_type = 'text', options } = body;
   if (!name) return Response.json({ error: 'name required' }, { status: 400 });
 
-  // get next position
-  const { count } = await sb
-    .from('case_custom_columns')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', profile.organization_id);
+  const sb = createServiceClient();
+  const { count } = await sb.from('case_custom_columns')
+    .select('*', { count: 'exact', head: true }).eq('organization_id', orgId);
 
   const { data, error } = await sb.from('case_custom_columns').insert({
-    organization_id: profile.organization_id,
-    name, col_type,
-    options: options || null,
-    position: (count || 0),
+    organization_id: orgId, name, col_type,
+    options: options || null, position: count || 0,
   }).select().single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -51,17 +48,16 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
-  const sb = await createClient();
-  const { profile } = await getOrgAndProfile(sb);
-  if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!['admin','accountant'].includes(profile.role)) return Response.json({ error: 'Forbidden' }, { status: 403 });
+  const orgId = await authOrg(request);
+  if (!orgId) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   if (!id) return Response.json({ error: 'id required' }, { status: 400 });
 
+  const sb = createServiceClient();
   const { error } = await sb.from('case_custom_columns').delete()
-    .eq('id', id).eq('organization_id', profile.organization_id);
+    .eq('id', id).eq('organization_id', orgId);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ ok: true });
 }
