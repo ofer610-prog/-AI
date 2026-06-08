@@ -1,23 +1,24 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function POST(request) {
-  const { messages, organizationId } = await request.json();
+  const authSb = await createClient();
+  const { data: { user } } = await authSb.auth.getUser();
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { messages } = await request.json();
   if (!messages?.length) return Response.json({ error: 'No messages' }, { status: 400 });
 
   const supabase = createServiceClient();
 
-  // Load org
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('*')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single();
+  const { data: profile } = await supabase
+    .from('profiles').select('organization_id').eq('id', user.id).single();
+  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
 
-  const orgId = organizationId || org?.id;
+  const orgId = profile.organization_id;
+  const { data: org } = await supabase.from('organizations').select('*').eq('id', orgId).single();
 
   const [
     { data: clients },

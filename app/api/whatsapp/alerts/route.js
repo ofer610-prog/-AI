@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export async function GET(request) {
   try {
+    const authSb = await createClient();
+    const { data: { user } } = await authSb.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: profile } = await authSb
+      .from('profiles').select('organization_id, role').eq('id', user.id).single();
+    if (!profile) return NextResponse.json({ error: 'No profile' }, { status: 403 });
+
     const sb = createServiceClient();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'pending';
 
-    const { data: orgs } = await sb.from('organizations').select('id');
-    const orgId = orgs?.[0]?.id;
+    const orgId = profile.organization_id;
     if (!orgId) return NextResponse.json({ alerts: [] });
 
     let query = sb
@@ -34,6 +41,14 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
+    const authSb = await createClient();
+    const { data: { user } } = await authSb.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: profile } = await authSb
+      .from('profiles').select('organization_id, role').eq('id', user.id).single();
+    if (!profile) return NextResponse.json({ error: 'No profile' }, { status: 403 });
+
     const sb = createServiceClient();
     const body = await request.json();
     const { id, status } = body;
@@ -45,7 +60,8 @@ export async function PATCH(request) {
     const { error } = await sb
       .from('whatsapp_alerts')
       .update({ status })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organization_id', profile.organization_id);
 
     if (error) return NextResponse.json({ error: 'whatsapp_alerts table not available' }, { status: 503 });
 

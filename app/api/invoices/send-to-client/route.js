@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import {
   sendWhatsappToPhone,
   sendEmail,
@@ -8,15 +8,16 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-/**
- * POST /api/invoices/send-to-client
- * Body: { invoice_id, method: 'whatsapp'|'email'|'both', phone?, email? }
- *
- * Sends the invoice to the client and marks it as 'sent'.
- * phone/email are optional overrides — defaults to client's stored contact.
- */
 export async function POST(request) {
   try {
+    const authSb = await createClient();
+    const { data: { user } } = await authSb.auth.getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: userProfile } = await authSb
+      .from('profiles').select('organization_id').eq('id', user.id).single();
+    if (!userProfile) return Response.json({ error: 'No profile' }, { status: 403 });
+
     const sb = createServiceClient();
     const body = await request.json();
     const { invoice_id, method = 'whatsapp', phone: phoneOverride, email: emailOverride } = body;
@@ -26,17 +27,17 @@ export async function POST(request) {
       return Response.json({ error: 'method must be whatsapp, email, or both' }, { status: 400 });
     }
 
-    // Load invoice + client
+    // Load invoice + client — scoped to user's org
     const { data: inv, error: invErr } = await sb
       .from('invoices')
       .select('*, clients(name, phone, email)')
       .eq('id', invoice_id)
+      .eq('organization_id', userProfile.organization_id)
       .single();
     if (invErr || !inv) return Response.json({ error: 'Invoice not found' }, { status: 404 });
 
-    // Load org name
     const { data: org } = await sb
-      .from('organizations').select('name').order('created_at', { ascending: true }).limit(1).single();
+      .from('organizations').select('name').eq('id', userProfile.organization_id).single();
 
     const clientName = inv.client_name || inv.clients?.name || 'לקוח';
     const phone = phoneOverride || inv.clients?.phone || null;
