@@ -62,6 +62,16 @@ const fmtMoney = v => (v || v === 0) && !isNaN(Number(v)) ? `₪${Number(v).toLo
 const labelOf  = (opts, val) => opts.find(o => o.val === val)?.label || val || '';
 const today    = () => new Date().toISOString().slice(0, 10);
 
+// שלבים "לא חתום" vs "חתום"
+const UNSIGNED_STAGES = new Set(['draft', 'conditional', 'waiting', '', null, undefined]);
+const SIGNED_STAGES   = new Set(['signed', 'registration', 'closed']);
+
+function groupByStage(matters) {
+  const unsigned = matters.filter(m => UNSIGNED_STAGES.has(m.stage));
+  const signed   = matters.filter(m => SIGNED_STAGES.has(m.stage));
+  return { unsigned, signed };
+}
+
 function whatsAppLink(phone, name, balance) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g, '').replace(/^0/, '972');
@@ -178,7 +188,7 @@ function EditableCell({ value, onSave, type = 'text', options, placeholder = '',
 
   if (!editable) {
     return (
-      <div className="min-h-[22px] px-1 py-0.5 whitespace-pre-wrap break-words text-sm" title={String(display || '')}>
+      <div className="min-h-[24px] px-1.5 py-0.5 whitespace-pre-wrap break-words text-sm" title={String(display || '')}>
         {shown || <span className="text-gray-300 text-xs">—</span>}
       </div>
     );
@@ -186,9 +196,10 @@ function EditableCell({ value, onSave, type = 'text', options, placeholder = '',
 
   return (
     <div onClick={() => setEditing(true)}
-      className="min-h-[22px] px-1 py-0.5 rounded cursor-pointer hover:bg-blue-50 whitespace-pre-wrap break-words text-sm"
-      title={String(display || 'לחץ לעריכה')}>
-      {shown || <span className="text-gray-300 text-xs">{placeholder || '+'}</span>}
+      className="group relative min-h-[24px] px-1.5 py-0.5 rounded cursor-text border border-transparent hover:border-blue-300 hover:bg-blue-50/60 whitespace-pre-wrap break-words text-sm transition-colors"
+      title="לחץ לעריכה">
+      {shown || <span className="text-gray-300 text-xs">{placeholder || '—'}</span>}
+      <span className="absolute left-0.5 top-0.5 opacity-0 group-hover:opacity-40 text-blue-400 text-[10px] leading-none pointer-events-none">✎</span>
     </div>
   );
 }
@@ -667,57 +678,84 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
         </thead>
 
         <tbody>
-          {matters.map((m, idx) => {
-            const days = m.delivery_date ? Math.round((new Date(m.delivery_date) - new Date()) / 86400000) : null;
-            const rowBg = days != null && days < 0 ? 'bg-red-50'
-              : days != null && days <= 7 ? 'bg-yellow-50'
-              : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/70';
-            return (
-              <tr key={m.id} className={`${rowBg} hover:bg-blue-50/60 border-b transition-colors`}>
-                {cols.map(col => (
-                  <td key={col.key}
-                    className={`px-1 py-1 ${col.sticky ? `border-l sticky right-0 z-10 ${rowBg}` : ''}`}>
-                    {renderCell(m, col)}
-                  </td>
-                ))}
-                {customCols.map(col => {
-                  const selectOpts = col.col_type === 'select' && col.options
-                    ? col.options.map(o => ({ val: o, label: o })) : null;
-                  return (
-                    <td key={col.id} className="px-1 py-1 bg-purple-50/40">
-                      <EditableCell editable={unlocked} value={m.extra_data?.[col.id]}
-                        onSave={v => saveExtra(m.id, col.id, v)} colType={col.col_type} options={selectOpts}
-                        type={col.col_type === 'number' ? 'number' : col.col_type === 'date' ? 'date' : 'text'}
-                        placeholder="+"/>
-                    </td>
-                  );
-                })}
-                <td/>
-              </tr>
-            );
-          })}
-
-          {matters.length === 0 && (
+          {matters.length === 0 ? (
             <tr><td colSpan={totalCols} className="text-center py-16 text-gray-400">
               <div className="text-4xl mb-2">📂</div>
               <div>{unlocked ? 'אין תיקים. לחץ "סנכרן Drive" לייבוא, או "+ תיק חדש" להוספה.' : 'אין תיקים להצגה.'}</div>
             </td></tr>
-          )}
+          ) : (() => {
+            const { unsigned, signed } = groupByStage(matters);
+            const renderRow = (m, idx) => {
+              const days  = m.delivery_date ? Math.round((new Date(m.delivery_date) - new Date()) / 86400000) : null;
+              const rowBg = days != null && days < 0 ? 'bg-red-50'
+                : days != null && days <= 7 ? 'bg-yellow-50'
+                : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
+              return (
+                <tr key={m.id} className={`${rowBg} hover:bg-blue-50/70 border-b transition-colors`}>
+                  {cols.map(col => (
+                    <td key={col.key} className={`px-1 py-0.5 ${col.sticky ? `border-l sticky right-0 z-10 ${rowBg}` : ''}`}>
+                      {renderCell(m, col)}
+                    </td>
+                  ))}
+                  {customCols.map(col => {
+                    const selectOpts = col.col_type === 'select' && col.options ? col.options.map(o => ({ val: o, label: o })) : null;
+                    return (
+                      <td key={col.id} className="px-1 py-0.5 bg-purple-50/40">
+                        <EditableCell editable={unlocked} value={m.extra_data?.[col.id]}
+                          onSave={v => saveExtra(m.id, col.id, v)} colType={col.col_type} options={selectOpts}
+                          type={col.col_type === 'number' ? 'number' : col.col_type === 'date' ? 'date' : 'text'}
+                          placeholder="—"/>
+                      </td>
+                    );
+                  })}
+                  <td/>
+                </tr>
+              );
+            };
+
+            const GroupHeader = ({ label, count, color }) => (
+              <tr>
+                <td colSpan={totalCols}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border-y ${color}`}>
+                  {label} <span className="font-normal opacity-70">({count})</span>
+                </td>
+              </tr>
+            );
+
+            return (
+              <>
+                {/* ── תיקים פעילים / לא חתומים ── */}
+                <GroupHeader label="📋 תיקים פעילים — לפני חתימה" count={unsigned.length} color="bg-blue-50 text-blue-800 border-blue-200"/>
+                {unsigned.map((m, i) => renderRow(m, i))}
+                {unsigned.length === 0 && (
+                  <tr><td colSpan={totalCols} className="px-3 py-3 text-xs text-gray-400 bg-blue-50/30">אין תיקים פעילים</td></tr>
+                )}
+
+                {/* ── תיקים שנחתמו / סגורים ── */}
+                {signed.length > 0 && (
+                  <>
+                    <GroupHeader label="✅ תיקים שנחתמו / ברישום / סגורים" count={signed.length} color="bg-green-50 text-green-800 border-green-200"/>
+                    {signed.map((m, i) => renderRow(m, i))}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </tbody>
 
         {matters.length > 0 && (
-          <tfoot className="bg-gray-100 sticky bottom-0 z-10">
+          <tfoot className="bg-gray-100 sticky bottom-0 z-10 shadow-[0_-1px_3px_rgba(0,0,0,0.08)]">
             <tr className="font-semibold text-sm">
               {cols.map((col, i) => {
                 if (i === 0) return (
-                  <td key={col.key} className={`px-2 py-2 border-t text-xs text-gray-600 ${col.sticky ? 'sticky right-0 bg-gray-100 border-l' : ''}`}>
-                    סה"כ ({matters.length})
+                  <td key={col.key} className={`px-2 py-2 border-t text-xs text-gray-600 whitespace-nowrap ${col.sticky ? 'sticky right-0 bg-gray-100 border-l' : ''}`}>
+                    סה"כ: {matters.length} תיקים
                   </td>
                 );
                 if (col.kind === 'money') {
-                  const sum = matters.reduce((s, m) => s + Number(m[col.key] || 0), 0);
+                  const sum   = matters.reduce((s, m) => s + Number(m[col.key] || 0), 0);
                   const color = col.key === 'collected_amount' ? 'text-blue-700' : col.key === 'balance_amount' ? 'text-orange-700' : 'text-green-700';
-                  return <td key={col.key} className={`px-2 py-2 border-t ${color}`}>{fmtMoney(sum)}</td>;
+                  return <td key={col.key} className={`px-2 py-2 border-t font-bold ${color} whitespace-nowrap`}>{fmtMoney(sum)}</td>;
                 }
                 return <td key={col.key} className="border-t"/>;
               })}
