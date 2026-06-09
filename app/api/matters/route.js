@@ -6,8 +6,10 @@ export const dynamic = 'force-dynamic';
 const MATTER_SELECT = `
   id, title, type, stage, status,
   property_address, parcel, delivery_date,
-  other_lawyer, broker, agreed_fee, collected_amount, balance_amount,
+  other_lawyer, broker, agreed_fee, fee_text, collected_amount, balance_amount,
   payment_status, mortgage, capital_gains, committee_status, municipality_status,
+  case_category, sheet_order, rami_status, referral_source, case_number,
+  open_date, target_date, documents, days_to_delivery,
   description, start_date, created_at, extra_data,
   clients(id, name, phone, id_number, address),
   profiles!responsible_lawyer_id(id, full_name)
@@ -44,15 +46,20 @@ export async function GET(request) {
   const { orgId, sb } = auth;
 
   const { searchParams } = new URL(request.url);
-  const stage  = searchParams.get('stage');
-  const search = searchParams.get('q');
-  const type   = searchParams.get('type');
+  const stage    = searchParams.get('stage');
+  const search   = searchParams.get('q');
+  const type     = searchParams.get('type');
+  const category = searchParams.get('category'); // 'realestate' | 'other'
 
+  // Newest first: follow the workbook row order (sheet_order asc = top of sheet),
+  // with manually-added matters (no sheet_order) shown first by creation time.
   let q = sb.from('matters')
     .select(MATTER_SELECT)
     .eq('organization_id', orgId)
-    .order('delivery_date', { ascending: true, nullsFirst: false });
+    .order('sheet_order', { ascending: true, nullsFirst: true })
+    .order('created_at', { ascending: false });
 
+  if (category) q = q.eq('case_category', category);
   if (stage)  q = q.eq('stage', stage);
   if (type)   q = q.eq('type', type);
   if (search) {
@@ -121,6 +128,13 @@ export async function POST(request) {
     capital_gains:        body.capital_gains || null,
     committee_status:     body.committee_status || null,
     municipality_status:  body.municipality_status || null,
+    case_category:        body.case_category || 'realestate',
+    rami_status:          body.rami_status || null,
+    referral_source:      body.referral_source || null,
+    case_number:          body.case_number || null,
+    open_date:            body.open_date || null,
+    target_date:          body.target_date || null,
+    fee_text:             body.fee_text || null,
     description:          body.description || null,
     responsible_lawyer_id: body.responsible_lawyer_id || null,
     created_by:           userId,
