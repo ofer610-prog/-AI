@@ -67,6 +67,7 @@ export default function DashboardClient({
     { id: 'cases_link',    label: '📁 תיקים', href: '/cases' },
     { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
     { id: 'expense_docs_link', label: '🧾 חשבוניות הוצאות', href: '/expense-docs' },
+    isAdmin && { id: 'staff_link', label: '👥 ניהול עובדים', href: '/staff' },
   ].filter(Boolean);
 
   return (
