@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -62,14 +62,21 @@ const fmtMoney = v => (v || v === 0) && !isNaN(Number(v)) ? `₪${Number(v).toLo
 const labelOf  = (opts, val) => opts.find(o => o.val === val)?.label || val || '';
 const today    = () => new Date().toISOString().slice(0, 10);
 
-// שלבים "לא חתום" vs "חתום"
-const UNSIGNED_STAGES = new Set(['draft', 'conditional', 'waiting', '', null, undefined]);
-const SIGNED_STAGES   = new Set(['signed', 'registration', 'closed']);
+// קבוצות שלבים — בדיוק כמו באקסל
+// גיליון "תיקי נדלן": טיוטה/מותנה → [תיקים שנחתמו] → [ברישום] → [ממתין לצד שני]
+const STAGE_GROUPS = [
+  { key: 'draft',        stages: ['draft', 'conditional', null, '', undefined], label: '📋 תיקים פעילים — לפני חתימה', color: 'bg-sky-50 text-sky-900 border-sky-200' },
+  { key: 'signed',       stages: ['signed'],                                    label: '✅ תיקים שנחתמו',                color: 'bg-green-50 text-green-900 border-green-200' },
+  { key: 'registration', stages: ['registration'],                              label: '📝 ברישום',                      color: 'bg-purple-50 text-purple-900 border-purple-200' },
+  { key: 'waiting',      stages: ['waiting'],                                   label: '⏳ ממתין לצד שני',               color: 'bg-orange-50 text-orange-900 border-orange-200' },
+  { key: 'closed',       stages: ['closed'],                                    label: '🔒 סגורים',                      color: 'bg-gray-100 text-gray-500 border-gray-200' },
+];
 
 function groupByStage(matters) {
-  const unsigned = matters.filter(m => UNSIGNED_STAGES.has(m.stage));
-  const signed   = matters.filter(m => SIGNED_STAGES.has(m.stage));
-  return { unsigned, signed };
+  return STAGE_GROUPS.map(g => ({
+    ...g,
+    items: matters.filter(m => g.stages.includes(m.stage)),
+  })).filter(g => g.items.length > 0);
 }
 
 function whatsAppLink(phone, name, balance) {
@@ -545,25 +552,28 @@ function StatsCards({ matters, tasks, lawyers }) {
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
+// סדר עמודות בדיוק כמו גיליון "תיקי נדלן" באקסל:
+// עו"ד | שם | גוש/חלקה | כתובת | הערות | תאריך מסירה | ימים | שכ"ט | סטטוס | משכנתא | מס שבח | ועדה | עירייה | עו"ד צד שני | מתווך | נגבה | יתרה | פניה רמי
 const RE_COLS = [
-  { key: 'client_name',           label: 'שם לקוח',       w: 150, kind: 'client', field: 'name',       sticky: true },
-  { key: 'parcel',                label: 'גוש/חלקה',       w: 110, kind: 'field' },
-  { key: 'property_address',      label: 'כתובת הנכס',     w: 170, kind: 'field' },
-  { key: 'stage',                 label: 'שלב',            w: 130, kind: 'stage' },
-  { key: 'responsible_lawyer_id', label: 'עו"ד מטפל',      w: 110, kind: 'lawyer' },
-  { key: 'delivery_date',         label: 'תאריך מסירה',    w: 130, kind: 'date' },
-  { key: 'fee_text',              label: 'שכ"ט',           w: 110, kind: 'field' },
-  { key: 'collected_amount',      label: 'נגבה',           w: 90,  kind: 'money' },
-  { key: 'balance_amount',        label: 'יתרה',           w: 90,  kind: 'money' },
-  { key: 'payment_status',        label: 'סטטוס תשלום',    w: 120, kind: 'paystat' },
-  { key: 'mortgage',              label: 'משכנתא',         w: 90,  kind: 'field' },
-  { key: 'capital_gains',         label: 'מס שבח',         w: 90,  kind: 'field' },
-  { key: 'committee_status',      label: 'ועדה',           w: 90,  kind: 'field' },
-  { key: 'municipality_status',   label: 'עירייה/ארנונה',  w: 120, kind: 'field' },
-  { key: 'other_lawyer',          label: 'עו"ד צד שני',    w: 120, kind: 'field' },
-  { key: 'broker',                label: 'מתווך',          w: 100, kind: 'field' },
-  { key: 'rami_status',           label: 'פניה רמי',       w: 160, kind: 'field' },
-  { key: 'description',           label: 'הערות',          w: 220, kind: 'field' },
+  { key: 'client_name',           label: 'שם התיק/לקוח',  w: 160, kind: 'client',  field: 'name', sticky: true },
+  { key: 'responsible_lawyer_id', label: 'עו"ד מטפל',     w: 100, kind: 'lawyer' },
+  { key: 'stage',                 label: 'שלב',           w: 120, kind: 'stage' },
+  { key: 'parcel',                label: 'גוש/חלקה',      w: 100, kind: 'field' },
+  { key: 'property_address',      label: 'כתובת הנכס',    w: 160, kind: 'field' },
+  { key: 'delivery_date',         label: 'תאריך מסירה',   w: 110, kind: 'date' },
+  { key: 'days_left',             label: 'ימים',          w: 65,  kind: 'days_left' },
+  { key: 'fee_text',              label: 'שכ"ט',          w: 100, kind: 'field' },
+  { key: 'payment_status',        label: 'סטטוס תשלום',   w: 110, kind: 'paystat' },
+  { key: 'mortgage',              label: 'משכנתא',        w: 80,  kind: 'field' },
+  { key: 'capital_gains',         label: 'מס שבח',        w: 75,  kind: 'field' },
+  { key: 'committee_status',      label: 'ועדה',          w: 75,  kind: 'field' },
+  { key: 'municipality_status',   label: 'עירייה',        w: 90,  kind: 'field' },
+  { key: 'other_lawyer',          label: 'עו"ד צד שני',   w: 110, kind: 'field' },
+  { key: 'broker',                label: 'מתווך',         w: 90,  kind: 'field' },
+  { key: 'collected_amount',      label: 'נגבה (₪)',      w: 90,  kind: 'money' },
+  { key: 'balance_amount',        label: 'יתרה (₪)',      w: 90,  kind: 'money' },
+  { key: 'rami_status',           label: 'פניה רמי',      w: 150, kind: 'field' },
+  { key: 'description',           label: 'הערות',         w: 200, kind: 'field' },
 ];
 
 const OTHER_COLS = [
@@ -627,18 +637,16 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
       return <EditableCell editable={unlocked} value={m.payment_status} onSave={v => saveField(m.id, 'payment_status', v)} options={PAYMENT_STATUS_OPTS}/>;
     }
     if (col.kind === 'date') {
-      return (
-        <>
-          <EditableCell editable={unlocked} value={m[col.key]} onSave={v => saveField(m.id, col.key, v)} type="date"/>
-          {days != null && (
-            <div className={`text-xs font-medium ${days < 0 ? 'text-red-600' : days <= 7 ? 'text-orange-500' : 'text-gray-400'}`}>
-              {days < 0 ? `${Math.abs(days)}י׳ איחור` : days === 0 ? 'היום' : `${days} ימים`}
-            </div>
-          )}
-        </>
-      );
+      return <EditableCell editable={unlocked} value={m[col.key]} onSave={v => saveField(m.id, col.key, v)} type="date"/>;
     }
-    return <EditableCell editable={unlocked} value={m[col.key]} onSave={v => saveField(m.id, col.key, v)} placeholder={col.label}/>;
+    if (col.kind === 'days_left') {
+      if (!m.delivery_date) return <span className="text-gray-200 text-xs px-1">—</span>;
+      const d = Math.round((new Date(m.delivery_date) - new Date()) / 86400000);
+      const cls = d < 0 ? 'bg-red-100 text-red-700 font-bold' : d === 0 ? 'bg-orange-100 text-orange-700 font-bold' : d <= 7 ? 'bg-yellow-100 text-yellow-700' : 'text-gray-400';
+      const txt = d < 0 ? `-${Math.abs(d)}` : d === 0 ? 'היום' : `${d}`;
+      return <span className={`text-xs px-1.5 py-0.5 rounded ${cls}`}>{txt}</span>;
+    }
+    return <EditableCell editable={unlocked} value={m[col.key]} onSave={v => saveField(m.id, col.key, v)} placeholder="—"/>;
   }
 
   const minW = cols.reduce((s, c) => s + c.w, 0) + customCols.length * 140 + 50;
@@ -713,31 +721,22 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
               );
             };
 
-            const GroupHeader = ({ label, count, color }) => (
-              <tr>
-                <td colSpan={totalCols}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border-y ${color}`}>
-                  {label} <span className="font-normal opacity-70">({count})</span>
-                </td>
-              </tr>
-            );
+            const groups = groupByStage(matters);
 
             return (
               <>
-                {/* ── תיקים פעילים / לא חתומים ── */}
-                <GroupHeader label="📋 תיקים פעילים — לפני חתימה" count={unsigned.length} color="bg-blue-50 text-blue-800 border-blue-200"/>
-                {unsigned.map((m, i) => renderRow(m, i))}
-                {unsigned.length === 0 && (
-                  <tr><td colSpan={totalCols} className="px-3 py-3 text-xs text-gray-400 bg-blue-50/30">אין תיקים פעילים</td></tr>
-                )}
-
-                {/* ── תיקים שנחתמו / סגורים ── */}
-                {signed.length > 0 && (
-                  <>
-                    <GroupHeader label="✅ תיקים שנחתמו / ברישום / סגורים" count={signed.length} color="bg-green-50 text-green-800 border-green-200"/>
-                    {signed.map((m, i) => renderRow(m, i))}
-                  </>
-                )}
+                {groups.map(g => (
+                  <React.Fragment key={g.key}>
+                    {/* כותרת קבוצה */}
+                    <tr>
+                      <td colSpan={totalCols}
+                        className={`px-3 py-1.5 text-xs font-bold border-y ${g.color}`}>
+                        {g.label} <span className="font-normal opacity-60">({g.items.length})</span>
+                      </td>
+                    </tr>
+                    {g.items.map((m, i) => renderRow(m, i))}
+                  </React.Fragment>
+                ))}
               </>
             );
           })()}
