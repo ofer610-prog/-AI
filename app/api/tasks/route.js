@@ -81,6 +81,21 @@ export async function POST(request) {
   }).select(TASK_SELECT).single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // New assigned task → in-app notification (popup on the assignee's screen)
+  if (data?.assigned_to) {
+    const service = createServiceClient();
+    await service.from('notifications').insert({
+      organization_id: orgId,
+      user_id: data.assigned_to,
+      kind: 'task',
+      title: '📋 משימה חדשה',
+      body: data.description + (data.due_date ? ` (יעד: ${new Date(data.due_date).toLocaleDateString('he-IL')})` : ''),
+      link: '/tasks',
+      task_id: data.id,
+    });
+  }
+
   return Response.json({ task: data }, { status: 201 });
 }
 

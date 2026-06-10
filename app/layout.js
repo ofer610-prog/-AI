@@ -1,4 +1,5 @@
 import './globals.css';
+import NotificationBell from '@/components/NotificationBell';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -16,7 +17,10 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body className="text-slate-800 antialiased">{children}</body>
+      <body className="text-slate-800 antialiased">
+        {children}
+        <NotificationBell />
+      </body>
     </html>
   );
 }

@@ -27,9 +27,10 @@ const TYPE_OPTIONS = [
 ];
 
 const TASK_STATUS  = [
-  { val: 'open',      label: 'פתוח' },
-  { val: 'done',      label: 'הושלם' },
-  { val: 'cancelled', label: 'מבוטל' },
+  { val: 'open',        label: 'פתוח' },
+  { val: 'in_progress', label: 'בטיפול' },
+  { val: 'done',        label: 'הושלם' },
+  { val: 'cancelled',   label: 'מבוטל' },
 ];
 const TASK_PRIORITY = [
   { val: 'high',   label: 'גבוהה' },

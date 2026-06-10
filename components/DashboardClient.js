@@ -49,6 +49,7 @@ export default function DashboardClient({
   const isLawyer = isAdmin || profile.role === 'lawyer';
 
   const tabs = [
+    isAdmin && { id: 'command_link', label: '🎯 מרכז שליטה', href: '/command' },
     { id: 'cockpit',       label: 'קוקפיט' },
     isAdmin && { id: 'gmail', label: `📧 מייל${gmailPending.length > 0 ? ` (${gmailPending.length})` : ''}` },
     { id: 'clients',       label: 'לקוחות' },
@@ -68,6 +69,7 @@ export default function DashboardClient({
     { id: 'cases_link',    label: '📁 תיקים', href: '/cases' },
     { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
     { id: 'expense_docs_link', label: '🧾 חשבוניות הוצאות', href: '/expense-docs' },
+    isAdmin && { id: 'office_expenses_link', label: '💸 מעקב הוצאות', href: '/expenses' },
     isAdmin && { id: 'staff_link', label: '👥 ניהול עובדים', href: '/staff' },
   ].filter(Boolean);
 
