@@ -27,7 +27,7 @@ export default function TasksPage() {
   useEffect(() => { load(); }, [load]);
 
   async function toggleDone(t) {
-    const newStatus = t.status === 'open' ? 'done' : 'open';
+    const newStatus = t.status === 'done' ? 'open' : 'done';
     await fetch('/api/tasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -58,7 +58,7 @@ export default function TasksPage() {
         {/* Filters */}
         <div className="bg-white rounded-xl border p-4 mb-4 flex gap-4 items-center">
           <div className="flex gap-1">
-            {[['open','פתוח'],['done','הושלם'],['cancelled','מבוטל']].map(([val, label]) => (
+            {[['open','פתוח'],['in_progress','בטיפול'],['done','הושלם'],['cancelled','מבוטל']].map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setStatus(val)}
