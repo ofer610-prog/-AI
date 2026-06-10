@@ -693,9 +693,9 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
   const minW = cols.reduce((s, c) => s + c.w, 0) + customCols.length * 140 + 50;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 130px)' }}>
       <table className="w-full text-sm border-collapse" style={{ minWidth: `${minW}px` }}>
-        <thead className="bg-gray-100 sticky top-[140px] z-20">
+        <thead className="bg-gray-100 sticky top-0 z-20">
           <tr>
             {cols.map(col => (
               <th key={col.key}
@@ -837,9 +837,9 @@ function TasksTable({ tasks, lawyers, unlocked, saveTask }) {
   const now  = new Date();
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 130px)' }}>
       <table className="w-full text-sm border-collapse" style={{ minWidth: `${minW}px` }}>
-        <thead className="bg-gray-100 sticky top-[140px] z-20">
+        <thead className="bg-gray-100 sticky top-0 z-20">
           <tr>
             {COLS.map(c => (
               <th key={c.key} className="px-2 py-2 text-right font-semibold border-b text-xs whitespace-nowrap" style={{ minWidth: c.w }}>{c.label}</th>
@@ -893,14 +893,14 @@ function CollectionTable({ matters, lawyers, unlocked, saveField }) {
   const COLS = ['שם לקוח', 'סוג', 'שלב', 'שכ"ט', 'נגבה', 'יתרה', 'סטטוס תשלום', 'עו"ד מטפל', 'WhatsApp'];
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 130px)' }}>
       {rows.length > 0 && (
         <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 text-sm text-orange-800 font-medium">
           סה"כ יתרה לגבייה: <strong>{fmtMoney(totalBalance)}</strong> — {rows.length} תיקים
         </div>
       )}
       <table className="w-full text-sm border-collapse min-w-[800px]">
-        <thead className="bg-gray-100 sticky top-[140px] z-20">
+        <thead className="bg-gray-100 sticky top-0 z-20">
           <tr>
             {COLS.map(c => (
               <th key={c} className="px-2 py-2 text-right font-semibold border-b text-xs whitespace-nowrap">{c}</th>
