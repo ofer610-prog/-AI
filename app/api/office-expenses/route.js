@@ -29,7 +29,11 @@ export async function GET(request) {
     .order('item_name');
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ entries: data || [], year });
+
+  const { data: org } = await sb.from('organizations')
+    .select('accountant_email').eq('id', profile.organization_id).single();
+
+  return Response.json({ entries: data || [], year, accountant_email: org?.accountant_email || '' });
 }
 
 /**
