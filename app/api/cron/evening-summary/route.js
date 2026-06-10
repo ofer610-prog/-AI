@@ -1,6 +1,7 @@
 import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsappToOffice, buildEveningSummary } from '@/lib/notifications';
+import { israelToday, israelDayRange } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +20,8 @@ export async function GET(request) {
     .from('organizations').select('id, name').order('created_at', { ascending: true }).limit(1).single();
   if (!org) return Response.json({ error: 'No organization' }, { status: 500 });
 
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
-  const today      = new Date().toISOString().slice(0, 10);
+  const { start: todayStart, end: todayEnd } = israelDayRange();
+  const today      = israelToday();
 
   // Today's events (mark past ones as completed automatically)
   const { data: todayEvents } = await sb
