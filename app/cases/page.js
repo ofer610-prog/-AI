@@ -1383,6 +1383,7 @@ export default function CasesPage() {
   const [deletingCol,  setDeletingCol]  = useState(null);
   const [showPin,      setShowPin]      = useState(false);
   const [uploading,    setUploading]    = useState(false);
+  const [lastUpdated,  setLastUpdated]  = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -1392,8 +1393,8 @@ export default function CasesPage() {
 
   const getPin = () => sessionStorage.getItem('cases_pin') || '';
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const pinHdr = { 'x-cases-pin': getPin() };
 
     try {
@@ -1422,12 +1423,26 @@ export default function CasesPage() {
 
       // Filtered tasks for tasks tab
       setTasks(allTasks);
+      setLastUpdated(new Date());
     } catch { /* silently fail */ }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Auto-refresh: silent reload every 60s + on tab focus ──
+  // Skipped while the user is typing in a cell so input isn't lost.
+  useEffect(() => {
+    const isTyping = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    const tick = () => {
+      if (document.visibilityState === 'visible' && !isTyping()) load(true);
+    };
+    const interval = setInterval(tick, 60_000);
+    const onVisible = () => { if (document.visibilityState === 'visible' && !isTyping()) load(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
+  }, [load]);
 
   // Apply client-side filters
   const filterMatters = (list) => {
@@ -1716,7 +1731,15 @@ export default function CasesPage() {
           ))}
         </div>
 
-        {syncMsg && <p className="text-xs mt-1 text-green-700">{syncMsg}</p>}
+        <div className="flex items-center gap-3 mt-1">
+          {syncMsg && <p className="text-xs text-green-700">{syncMsg}</p>}
+          {lastUpdated && (
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse"/>
+              מתעדכן אוטומטית · עודכן {lastUpdated.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* ── Stats Cards (on matter/task tabs) ── */}
