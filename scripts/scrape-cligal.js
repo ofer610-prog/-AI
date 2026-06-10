@@ -490,6 +490,13 @@ async function syncToApp(invoices) {
   console.log(`\nSync complete: imported=${totalImported}, skipped=${totalSkipped}, errors=${allErrors.length}`);
   if (allErrors.length) console.error('Sync errors:', allErrors.slice(0, 10));
 
+  // If nothing made it through (e.g. wrong CRON_SECRET → all batches 401),
+  // fail the job so the workflow run shows red instead of a silent no-op.
+  if (totalImported === 0 && totalSkipped === 0 && allErrors.length > 0) {
+    console.error('All batches failed — failing the job');
+    process.exit(1);
+  }
+
   return { imported: totalImported, skipped: totalSkipped, errors: allErrors };
 }
 
