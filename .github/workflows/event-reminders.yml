@@ -1,0 +1,26 @@
+name: Event Reminders
+
+# Runs every hour — sends WhatsApp to clients 24h before their event
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send reminders
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "${{ secrets.APP_URL }}/api/cron/event-reminders")
+            cat /tmp/resp.json
+            if [ "$code" = "200" ]; then exit 0; fi
+            echo "attempt $i failed with HTTP $code, retrying..."
+            sleep $((i * 10))
+          done
+          exit 1

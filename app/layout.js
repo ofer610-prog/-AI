@@ -1,5 +1,6 @@
 import './globals.css';
 import NotificationBell from '@/components/NotificationBell';
+import TimeTracker from '@/components/TimeTracker';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
       <body className="text-slate-800 antialiased">
         {children}
         <NotificationBell />
+        <TimeTracker />
       </body>
     </html>
   );

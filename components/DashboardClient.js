@@ -70,6 +70,7 @@ export default function DashboardClient({
     { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
     { id: 'expense_docs_link', label: '🧾 חשבוניות הוצאות', href: '/expense-docs' },
     isAdmin && { id: 'office_expenses_link', label: '💸 מעקב הוצאות', href: '/expenses' },
+    { id: 'time_link', label: '⏱ שעות עבודה', href: '/time' },
     isAdmin && { id: 'staff_link', label: '👥 ניהול עובדים', href: '/staff' },
   ].filter(Boolean);
 
