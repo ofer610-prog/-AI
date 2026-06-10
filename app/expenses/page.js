@@ -16,6 +16,13 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [newItem, setNewItem] = useState({ section: null, name: '' });
+  const [showReport, setShowReport] = useState(false);
+  const [acctEmail, setAcctEmail] = useState('');
+  const [reportMonth, setReportMonth] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [sending, setSending] = useState(false);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -25,6 +32,7 @@ export default function ExpensesPage() {
       if (res.status === 401) { window.location.href = '/login'; return; }
       const d = await res.json();
       setEntries(d.entries || []);
+      if (d.accountant_email) setAcctEmail((prev) => prev || d.accountant_email);
     } catch {}
     setLoading(false);
   }, [year]);
@@ -90,6 +98,23 @@ export default function ExpensesPage() {
     load();
   };
 
+  const sendReport = async () => {
+    if (!acctEmail.trim()) { alert('הזן מייל רו"ח'); return; }
+    setSending(true);
+    try {
+      const [y, m] = reportMonth.split('-').map(Number);
+      const res = await fetch('/api/cron/accountant-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountant_email: acctEmail.trim(), send: true, year: y, month: m }),
+      });
+      const d = await res.json();
+      if (d.ok) { alert(`✅ הדוח נשלח ל-${d.to}`); setShowReport(false); }
+      else alert('שגיאה: ' + (d.error || ''));
+    } catch { alert('שגיאת רשת'); }
+    setSending(false);
+  };
+
   const sectionRows = (key) => Object.entries(matrix[key] || {})
     .sort((a, b) => (a[1].sort ?? 9999) - (b[1].sort ?? 9999));
 
@@ -115,7 +140,37 @@ export default function ExpensesPage() {
             className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-sm px-4 py-2 rounded-xl">
             {uploading ? '⏳ מייבא…' : '⬆️ ייבוא אקסל'}
           </button>
+          <button onClick={() => setShowReport((s) => !s)}
+            className="bg-blue-600 hover:bg-blue-500 text-sm px-4 py-2 rounded-xl">
+            📤 דוח לרו"ח
+          </button>
         </div>
+
+        {showReport && (
+          <div className="max-w-[1500px] mx-auto px-5 pb-4">
+            <div className="bg-slate-800 rounded-xl p-4 flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">מייל רו"ח</label>
+                <input type="email" value={acctEmail} onChange={(e) => setAcctEmail(e.target.value)}
+                  placeholder="accountant@example.com" dir="ltr"
+                  className="bg-slate-700 text-white rounded-lg px-3 py-1.5 text-sm w-64 border-0" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">חודש הדוח</label>
+                <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}
+                  className="bg-slate-700 text-white rounded-lg px-3 py-1.5 text-sm border-0" />
+              </div>
+              <button onClick={sendReport} disabled={sending}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm px-4 py-2 rounded-lg">
+                {sending ? '⏳ שולח…' : 'שלח עכשיו 📤'}
+              </button>
+              <div className="text-xs text-slate-400 w-full">
+                בנוסף לשליחה ידנית — הדוח נשלח <b>אוטומטית ב-1 לכל חודש</b> עם נתוני החודש שהסתיים,
+                כקובץ אקסל מנותח (סיכום, מטריצת מעקב, הוצאות הנה"ח וחשבוניות).
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-8">

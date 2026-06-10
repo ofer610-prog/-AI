@@ -1,0 +1,27 @@
+name: Monthly Accountant Report
+
+# 1st of every month, 06:00 UTC (08:00-09:00 בישראל) —
+# שולח לרו"ח את דוח ההוצאות של החודש שהסתיים.
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send report
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "${{ secrets.APP_URL }}/api/cron/accountant-report")
+            cat /tmp/resp.json
+            if [ "$code" = "200" ]; then exit 0; fi
+            echo "attempt $i failed with HTTP $code, retrying..."
+            sleep $((i * 15))
+          done
+          exit 1
