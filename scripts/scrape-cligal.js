@@ -305,7 +305,8 @@ function parseRowCells(cells) {
 
   const datePattern = /^\d{1,2}[./]\d{1,2}[./]\d{2,4}$/;
   const numberPattern = /^\d{4,}$/;
-  const amountPattern = /^-?[\d,]+\.?\d*$/;
+  // Allow optional ₪ prefix/suffix and commas: "2000.00₪", "₪2,000", "2,000.00"
+  const amountPattern = /^₪?-?[\d,]+\.?\d*₪?$/;
   const statusValues = ['סגור', 'פתוח', 'מבוטל', 'טיוטה', 'שולם'];
   const docTypes = ['חשבונית מס', 'חשבונית מס קבלה', 'קבלה', 'הצעת מחיר', 'תעודת משלוח'];
 
@@ -332,7 +333,7 @@ function parseRowCells(cells) {
   dueDate = dateColumns[1]?.value || null;
   status = statusColumns[0]?.value || null;
   docType = doctypeColumns[0]?.value || null;
-  amount = amountColumns[0]?.value?.replace(/,/g, '') || null;
+  amount = amountColumns[0]?.value?.replace(/[₪,]/g, '') || null;
 
   // Text columns for client and matter
   const textColumns = categorized
