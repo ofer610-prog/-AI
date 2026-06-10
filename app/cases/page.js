@@ -79,6 +79,47 @@ function groupByStage(matters) {
   })).filter(g => g.items.length > 0);
 }
 
+// ─── Row Actions ─────────────────────────────────────────────────────────────
+function RowActions({ isClosed, onClose, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(o => !o)}
+        className="opacity-0 group-hover/row:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 px-1.5 py-0.5 rounded hover:bg-gray-100 text-base leading-none"
+        title="פעולות">⋮</button>
+      {open && (
+        <div className="absolute left-0 top-6 bg-white border rounded-lg shadow-lg z-50 min-w-[160px] py-1" style={{ direction: 'rtl' }}>
+          {!isClosed && (
+            <button onClick={() => { onClose(); setOpen(false); }}
+              className="w-full text-right px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50 flex items-center gap-2">
+              🔒 עסקה התפוצצה
+            </button>
+          )}
+          {isClosed && (
+            <button onClick={() => { onClose(); setOpen(false); }}
+              className="w-full text-right px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50 flex items-center gap-2">
+              ↩️ החזר לפעיל
+            </button>
+          )}
+          <hr className="my-1"/>
+          <button onClick={() => { onDelete(); setOpen(false); }}
+            className="w-full text-right px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+            🗑️ מחק שורה
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function whatsAppLink(phone, name, balance) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g, '').replace(/^0/, '972');
@@ -560,6 +601,7 @@ const RE_COLS = [
   { key: 'stage',                 label: 'שלב',           w: 120, kind: 'stage' },
   { key: 'parcel',                label: 'גוש/חלקה',      w: 100, kind: 'field' },
   { key: 'property_address',      label: 'כתובת הנכס',    w: 160, kind: 'field' },
+  { key: 'description',           label: 'הערות',         w: 200, kind: 'field' },
   { key: 'delivery_date',         label: 'תאריך מסירה',   w: 110, kind: 'date' },
   { key: 'days_left',             label: 'ימים',          w: 65,  kind: 'days_left' },
   { key: 'fee_text',              label: 'שכ"ט',          w: 100, kind: 'field' },
@@ -573,7 +615,6 @@ const RE_COLS = [
   { key: 'collected_amount',      label: 'נגבה (₪)',      w: 90,  kind: 'money' },
   { key: 'balance_amount',        label: 'יתרה (₪)',      w: 90,  kind: 'money' },
   { key: 'rami_status',           label: 'פניה רמי',      w: 150, kind: 'field' },
-  { key: 'description',           label: 'הערות',         w: 200, kind: 'field' },
 ];
 
 const OTHER_COLS = [
@@ -595,7 +636,7 @@ const OTHER_COLS = [
 
 // ─── Matters Table ────────────────────────────────────────────────────────────
 
-function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField, saveExtra, onAddCol, onDeleteCol, deletingCol }) {
+function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField, saveExtra, onAddCol, onDeleteCol, deletingCol, onDeleteRow, onCloseRow }) {
   const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
   const totalCols  = cols.length + customCols.length + 1;
 
@@ -699,7 +740,7 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
                 : days != null && days <= 7 ? 'bg-yellow-50'
                 : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
               return (
-                <tr key={m.id} className={`${rowBg} hover:bg-blue-50/70 border-b transition-colors`}>
+                <tr key={m.id} className={`${rowBg} hover:bg-blue-50/70 border-b transition-colors group/row`}>
                   {cols.map(col => (
                     <td key={col.key} className={`px-1 py-0.5 ${col.sticky ? `border-l sticky right-0 z-10 ${rowBg}` : ''}`}>
                       {renderCell(m, col)}
@@ -716,7 +757,16 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
                       </td>
                     );
                   })}
-                  <td/>
+                  {/* עמודת פעולות */}
+                  <td className="px-1 py-0.5 text-center">
+                    {unlocked && (
+                      <RowActions
+                        isClosed={m.stage === 'closed'}
+                        onClose={() => onCloseRow(m.id)}
+                        onDelete={() => onDeleteRow(m.id, m.clients?.name || m.title)}
+                      />
+                    )}
+                  </td>
                 </tr>
               );
             };
@@ -1441,6 +1491,22 @@ export default function CasesPage() {
     update(otherMatters, setOtherMatters);
   }
 
+  async function deleteRow(matterId, name) {
+    if (!confirm(`למחוק את התיק "${name}"? פעולה זו אינה הפיכה.`)) return;
+    await fetch(`/api/matters?id=${matterId}`, {
+      method: 'DELETE',
+      headers: { 'x-cases-pin': getPin() },
+    });
+    setReMatters(p => p.filter(m => m.id !== matterId));
+    setOtherMatters(p => p.filter(m => m.id !== matterId));
+  }
+
+  async function closeRow(matterId) {
+    const matter = [...reMatters, ...otherMatters].find(m => m.id === matterId);
+    const newStage = matter?.stage === 'closed' ? 'draft' : 'closed';
+    await saveField(matterId, 'stage', newStage);
+  }
+
   async function saveTask(taskId, field, value) {
     await fetch('/api/tasks', {
       method: 'PATCH',
@@ -1680,6 +1746,7 @@ export default function CasesPage() {
           cols={cols} matters={displayedMatters} lawyers={lawyers} customCols={customCols}
           unlocked={unlocked} saveField={saveField} saveExtra={saveExtra}
           onAddCol={() => setShowAddCol(true)} onDeleteCol={deleteColumn} deletingCol={deletingCol}
+          onDeleteRow={deleteRow} onCloseRow={closeRow}
         />
       )}
 

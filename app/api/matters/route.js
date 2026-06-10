@@ -175,3 +175,32 @@ export async function PATCH(request) {
 
   return Response.json({ matter: data });
 }
+
+export async function DELETE(request) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  if (!id) return Response.json({ error: 'id required' }, { status: 400 });
+
+  const auth = await resolveAuth(request);
+  if (!auth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const { sb, orgId } = auth;
+
+  // Delete linked client too if this is the only matter for that client
+  const { data: matter } = await sb.from('matters')
+    .select('id, client_id').eq('id', id).eq('organization_id', orgId).maybeSingle();
+  if (!matter) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  const { error } = await sb.from('matters').delete().eq('id', id).eq('organization_id', orgId);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Clean up orphan client (no other matters linked to it)
+  if (matter.client_id) {
+    const { data: siblings } = await sb.from('matters')
+      .select('id').eq('client_id', matter.client_id).limit(1);
+    if (!siblings?.length) {
+      await sb.from('clients').delete().eq('id', matter.client_id).eq('organization_id', orgId);
+    }
+  }
+
+  return Response.json({ ok: true });
+}
