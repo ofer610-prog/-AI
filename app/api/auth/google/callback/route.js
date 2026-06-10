@@ -36,6 +36,10 @@ export async function GET(request) {
       .eq('id', user.id)
       .single();
 
+    if (!profile?.organization_id) {
+      return Response.redirect(new URL('/dashboard?gmail_error=no_profile', request.url));
+    }
+
     await supabase
       .from('organizations')
       .update({

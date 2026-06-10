@@ -1,6 +1,7 @@
 import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsappToOffice, buildMorningBriefing } from '@/lib/notifications';
+import { israelToday, israelDayRange } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +21,8 @@ export async function GET(request) {
     .from('organizations').select('id, name').order('created_at', { ascending: true }).limit(1).single();
   if (!org) return Response.json({ error: 'No organization' }, { status: 500 });
 
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
-  const weekStart  = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const { start: todayStart, end: todayEnd } = israelDayRange();
+  const weekStart  = new Date(todayStart); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
   // Today's events
   const { data: todayEvents } = await sb
@@ -35,7 +35,7 @@ export async function GET(request) {
     .order('start_time', { ascending: true });
 
   // Overdue invoices
-  const today = new Date().toISOString().slice(0, 10);
+  const today = israelToday();
   const { data: overdueInvoices } = await sb
     .from('invoices')
     .select('id, number, client_name, amount, due_date')

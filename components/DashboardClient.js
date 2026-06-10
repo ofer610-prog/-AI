@@ -7,6 +7,7 @@ import {
   Sparkles, Loader2, X, Send, Trash2, Bell, AlertCircle, Clock, Wallet, FileText,
   TrendingUp, TrendingDown, Target, ChevronRight, Check, Mail, MailCheck, Plus,
   Edit3, Upload, Download, BarChart3, PieChart, Activity, Users, Briefcase,
+  RefreshCw, XCircle, CheckCircle, Calendar, DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 import {

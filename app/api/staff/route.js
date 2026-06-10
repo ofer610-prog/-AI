@@ -99,7 +99,9 @@ export async function POST(request) {
   if (action === 'send-digest') {
     const pin = process.env.CASES_ACCESS_PIN;
     const payload = pin ? { pin, lawyerId: body.lawyerId || undefined } : {};
-    const res  = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/cron/attorney-digest`, {
+    const base = process.env.NEXT_PUBLIC_SITE_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const res  = await fetch(`${base}/api/cron/attorney-digest`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

@@ -1,0 +1,28 @@
+name: Auto Sync (Drive → Site)
+
+# Vercel Hobby plan only allows daily crons, so GitHub Actions
+# drives the frequent sync: every 10 minutes the site pulls the
+# latest Excel from Google Drive and updates the database.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Drive sync
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "${{ secrets.APP_URL }}/api/cron/sync-gdrive")
+            cat /tmp/resp.json
+            if [ "$code" = "200" ]; then exit 0; fi
+            echo "attempt $i failed with HTTP $code, retrying..."
+            sleep $((i * 10))
+          done
+          exit 1

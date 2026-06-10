@@ -53,6 +53,7 @@ export async function POST(request) {
     location, client_id: client_id || null, matter_id: matter_id || null,
     attendee_name, attendee_phone, event_type: event_type || 'meeting',
     notes, created_by: user.id,
+    assigned_to: body.assigned_to || user.id,
   }).select().single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -68,9 +69,16 @@ export async function PATCH(request) {
   if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
 
   const body = await request.json();
-  const { id, ...updates } = body;
+  const { id, ...rest } = body;
   if (!id) return Response.json({ error: 'id required' }, { status: 400 });
-  delete updates.organization_id;
+
+  // Only pass real event columns — edit forms may include joined objects (clients/profiles)
+  const EVENT_FIELDS = ['title', 'description', 'start_time', 'end_time', 'all_day', 'location',
+    'client_id', 'matter_id', 'attendee_name', 'attendee_phone', 'event_type', 'notes',
+    'status', 'assigned_to', 'reminder_sent'];
+  const updates = Object.fromEntries(
+    Object.entries(rest).filter(([k]) => EVENT_FIELDS.includes(k))
+  );
 
   const { data, error } = await sb.from('events').update(updates)
     .eq('id', id)

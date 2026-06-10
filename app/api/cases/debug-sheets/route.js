@@ -1,5 +1,6 @@
 import { readDriveFileAllSheets } from '@/lib/gdrive';
 import { createServiceClient } from '@/lib/supabase/server';
+import { validatePin, getPinFromRequest } from '@/lib/pinAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
  * ?test=insert  → tests whether the service client can actually insert (RLS / key check)
  */
 export async function GET(request) {
+  if (!(await validatePin(await getPinFromRequest(request)))) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
 
   // ── Service-client insert test ──
@@ -24,6 +28,7 @@ export async function GET(request) {
       const { data: org } = await sb.from('organizations')
         .select('id').order('created_at', { ascending: true }).limit(1).single();
       out.orgId = org?.id || null;
+      if (!org) return Response.json(out);
 
       const { data, error } = await sb.from('clients').insert({
         organization_id: org.id,

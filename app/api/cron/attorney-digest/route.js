@@ -5,6 +5,7 @@ import {
   buildAttorneyDigest, buildAttorneyDigestEmail,
   isWhatsappEnabled,
 } from '@/lib/notifications';
+import { israelToday } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +48,8 @@ async function runDigest({ lawyerId }) {
   const { data: lawyers } = await lawyerQ;
   if (!lawyers?.length) return Response.json({ ok: true, sent: 0, skipped: 'no active lawyers' });
 
-  const today = new Date().toISOString().slice(0, 10);
-  const in14  = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const today = israelToday();
+  const in14  = israelToday(14);
 
   // Load all data once for the org, then filter per attorney
   const [

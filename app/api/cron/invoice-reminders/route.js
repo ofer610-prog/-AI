@@ -1,6 +1,7 @@
 import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
-import { sendWhatsappToOffice, buildOverdueReminderMessage } from '@/lib/notifications';
+import { sendWhatsappToOffice, sendWhatsappToPhone, buildOverdueReminderMessage } from '@/lib/notifications';
+import { israelToday } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function GET(request) {
     .from('organizations').select('id, name').order('created_at', { ascending: true }).limit(1).single();
   if (!org) return Response.json({ error: 'No organization' }, { status: 500 });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = israelToday();
 
   // All overdue invoices (not reminded today already)
   const { data: overdue } = await sb
@@ -59,8 +60,6 @@ export async function GET(request) {
     const phone = inv.clients?.phone;
     if (!phone) continue;
 
-    // Import dynamically to avoid circular deps
-    const { sendWhatsappToPhone, buildInvoiceClientMessage } = await import('@/lib/notifications');
     const msg = [
       `שלום ${inv.client_name},`,
       ``,
