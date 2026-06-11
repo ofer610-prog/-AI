@@ -272,6 +272,93 @@ function Cockpit({ ctx, setTab }) {
           }
         </div>
       )}
+
+      {/* Non-admin: My Day widget */}
+      {!isAdmin && <MyDayWidget profileId={profile.id} />}
+    </div>
+  );
+}
+
+function MyDayWidget({ profileId }) {
+  const [tasks, setTasks] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [loadingT, setLoadingT] = useState(true);
+  const [loadingE, setLoadingE] = useState(true);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    fetch(`/api/tasks?assigned_to=${profileId}`)
+      .then(r => r.ok ? r.json() : { tasks: [] })
+      .then(d => setTasks((d.tasks || []).filter(t => t.status === 'open' || t.status === 'in_progress').slice(0, 5)))
+      .catch(() => {})
+      .finally(() => setLoadingT(false));
+  }, [profileId]);
+
+  useEffect(() => {
+    fetch(`/api/calendar?start=${todayStr}&end=${todayStr}`)
+      .then(r => r.ok ? r.json() : { events: [] })
+      .then(d => setEvents(d.events || []))
+      .catch(() => {})
+      .finally(() => setLoadingE(false));
+  }, [todayStr]);
+
+  const markDone = async (taskId) => {
+    await fetch('/api/tasks', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: taskId, status: 'done' }) });
+    setTasks(ts => ts.filter(t => t.id !== taskId));
+  };
+
+  const priorityColor = (p) => p === 'high' ? 'bg-red-100 text-red-700' : p === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600';
+  const priorityLabel = (p) => p === 'high' ? 'דחוף' : p === 'medium' ? 'בינוני' : 'רגיל';
+
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      {/* Tasks */}
+      <div className="bg-white border border-sky-100 rounded-lg p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-slate-700">✅ המשימות שלי</h3>
+          <Link href="/tasks" className="text-xs text-sky-600 hover:underline">כל המשימות ←</Link>
+        </div>
+        {loadingT ? <p className="text-sm text-slate-400">טוען...</p> : tasks.length === 0 ? (
+          <p className="text-sm text-slate-400">אין משימות פתוחות. כל הכבוד!</p>
+        ) : (
+          <ul className="space-y-2">
+            {tasks.map(t => (
+              <li key={t.id} className="flex items-start gap-2 text-sm">
+                <button onClick={() => markDone(t.id)} className="mt-0.5 w-4 h-4 rounded border-2 border-slate-300 flex-shrink-0 hover:border-green-500 transition-colors" title="סמן הושלם" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-slate-800 truncate">{t.title || t.description}</p>
+                  {t.due_date && <p className="text-xs text-slate-500">{t.due_date}</p>}
+                </div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${priorityColor(t.priority)}`}>{priorityLabel(t.priority)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Today's calendar events */}
+      <div className="bg-white border border-sky-100 rounded-lg p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-slate-700">📅 אירועי היום</h3>
+          <Link href="/calendar" className="text-xs text-sky-600 hover:underline">יומן ←</Link>
+        </div>
+        {loadingE ? <p className="text-sm text-slate-400">טוען...</p> : events.length === 0 ? (
+          <p className="text-sm text-slate-400">אין אירועים מתוכננים להיום</p>
+        ) : (
+          <ul className="space-y-2">
+            {events.map(e => (
+              <li key={e.id} className="flex gap-3 text-sm border-r-2 border-sky-400 pr-2">
+                <div>
+                  <p className="font-medium text-slate-800">{e.title}</p>
+                  {(e.start_time || e.start_date) && (
+                    <p className="text-xs text-slate-500">{e.start_time || e.start_date}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

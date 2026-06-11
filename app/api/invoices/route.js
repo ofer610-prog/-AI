@@ -22,8 +22,8 @@ export async function GET(request) {
   let query = supabase
     .from('invoices')
     .select(lawyerId
-      ? '*, clients(name, phone, email), matters!inner(title, responsible_lawyer_id)'
-      : '*, clients(name, phone, email), matters(title, responsible_lawyer_id)')
+      ? 'id, number, client_id, client_name, amount, issue_date, due_date, status, notes, last_reminder_sent, reminder_count, clients(name, phone, email), matters!inner(title, responsible_lawyer_id)'
+      : 'id, number, client_id, client_name, amount, issue_date, due_date, status, notes, last_reminder_sent, reminder_count, clients(name, phone, email), matters(title, responsible_lawyer_id)')
     .eq('organization_id', org.id)
     .order('issue_date', { ascending: false });
 

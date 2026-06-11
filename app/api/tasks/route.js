@@ -38,17 +38,21 @@ export async function GET(request) {
   const { orgId, sb, userId } = auth;
 
   const { searchParams } = new URL(request.url);
-  const mine   = searchParams.get('mine') === 'true';
-  const status = searchParams.get('status');
+  const mine        = searchParams.get('mine') === 'true';
+  const status      = searchParams.get('status');
+  const assignedTo  = searchParams.get('assigned_to');
+  const priority    = searchParams.get('priority');
 
   let q = sb.from('tasks')
     .select(TASK_SELECT)
     .eq('organization_id', orgId)
-    .order('status', { ascending: true })          // open before done
+    .order('status', { ascending: true })
     .order('due_date', { ascending: true, nullsFirst: false });
 
-  if (mine && userId) q = q.eq('assigned_to', userId);
-  if (status)         q = q.eq('status', status);
+  if (mine && userId)  q = q.eq('assigned_to', userId);
+  if (assignedTo)      q = q.eq('assigned_to', assignedTo);
+  if (status)          q = q.eq('status', status);
+  if (priority)        q = q.eq('priority', priority);
 
   const { data, error } = await q;
   if (error) return Response.json({ error: error.message }, { status: 500 });
