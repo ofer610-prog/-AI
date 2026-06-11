@@ -4,7 +4,7 @@ import { validatePin, getPinFromRequest, getOrgId } from '@/lib/pinAuth';
 export const dynamic = 'force-dynamic';
 
 const MATTER_SELECT = `
-  id, title, type, stage, status,
+  id, title, type, stage, status, responsible_lawyer_id,
   property_address, parcel, delivery_date,
   other_lawyer, broker, agreed_fee, fee_text, collected_amount, balance_amount,
   payment_status, mortgage, capital_gains, committee_status, municipality_status,
