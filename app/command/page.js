@@ -90,7 +90,7 @@ export default function CommandCenter() {
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-20">
       {/* Header */}
-      <header className="bg-slate-900 text-white sticky top-0 z-30">
+      <header className="bg-slate-900 text-white sticky top-12 z-30">
         <div className="max-w-[1500px] mx-auto px-5 py-4 flex flex-wrap items-center gap-3">
           <Link href="/dashboard" className="text-slate-400 hover:text-white text-sm">← תפריט</Link>
           <h1 className="text-xl font-bold">🎯 מרכז שליטה</h1>
@@ -100,8 +100,10 @@ export default function CommandCenter() {
             className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-xl font-medium">
             {aiLoading ? '🤖 מנתח…' : '🤖 מה דורש טיפול היום?'}
           </button>
+          <Link href="/finance" className="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-xl">💰 כספים</Link>
+          <Link href="/finance/invoices" className="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-xl">🧾 חשבוניות</Link>
           <Link href="/expenses" className="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-xl">💸 הוצאות</Link>
-          <Link href="/cases" className="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-xl">📁 תיקים</Link>
+          <Link href="/staff" className="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-xl">👥 עובדים</Link>
         </div>
       </header>
 

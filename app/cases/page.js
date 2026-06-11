@@ -1626,7 +1626,7 @@ export default function CasesPage() {
       )}
 
       {/* ── Header ── */}
-      <div className="bg-white border-b px-4 py-3 sticky top-0 z-30 shadow-sm">
+      <div className="bg-white border-b px-4 py-3 sticky top-12 z-30 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <a href="/dashboard"
             className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">

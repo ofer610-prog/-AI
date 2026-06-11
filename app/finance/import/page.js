@@ -58,7 +58,7 @@ export default function ImportInvoicesPage() {
   return (
     <div dir="rtl" className="min-h-screen bg-cream-50">
       {/* Header */}
-      <header className="border-b border-sky-100 bg-white sticky top-0 z-30">
+      <header className="border-b border-sky-100 bg-white sticky top-12 z-30">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-baseline gap-3">
             <Link href="/finance" className="text-slate-400 hover:text-slate-700 text-sm ml-2">← כספים</Link>

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +10,7 @@ export const dynamic = 'force-dynamic';
  * actionable recommendations (collections, stuck tasks, tax prep, risks).
  */
 export async function POST(request) {
-  const authSb = await createClient();
-  const { data: { user } } = await authSb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireAdmin())) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   if (!process.env.GEMINI_API_KEY) {
     return Response.json({ error: 'AI not configured' }, { status: 503 });

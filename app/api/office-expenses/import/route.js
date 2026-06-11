@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,14 +19,9 @@ const SECTION_MARKERS = { 'עלויות משרדיות': 'office', 'עופר': '
 const SKIP_PREFIXES = ['סכום ביניים', 'סהכ', 'סה"כ', 'הוצאות בפועל'];
 
 export async function POST(request) {
-  const authSb = await createClient();
-  const { data: { user } } = await authSb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
+  const profile = await requireAdmin();
+  if (!profile) return Response.json({ error: 'Forbidden' }, { status: 403 });
   const service = createServiceClient();
-  const { data: profile } = await service
-    .from('profiles').select('organization_id').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
   const orgId = profile.organization_id;
 
   const formData = await request.formData().catch(() => null);

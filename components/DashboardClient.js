@@ -10,6 +10,7 @@ import {
   RefreshCw, XCircle, CheckCircle, Calendar, DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
+import PinGate from '@/components/PinGate';
 import {
   fmt, fmtMoney, daysBetween, today, getDeadlines, agingBucket, forecastTaxes,
   getGreeting, MATTER_TYPES, MATTER_STATUS, ROLE_LABELS, DEFAULT_RATES,
@@ -21,6 +22,12 @@ export default function DashboardClient({
 }) {
   const [tab, setTab] = useState('cockpit');
   const [chatOpen, setChatOpen] = useState(false);
+
+  // Allow deep-linking to a tab: /dashboard?tab=my_collection
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t) setTab(t);
+  }, []);
   const router = useRouter();
   const supabase = createClient();
 
@@ -48,35 +55,29 @@ export default function DashboardClient({
   const isAdmin = profile.role === 'admin' || profile.role === 'accountant';
   const isLawyer = isAdmin || profile.role === 'lawyer';
 
+  // External pages live in the global AppNav; only in-dashboard sections here.
+  // Financial tabs are admin-only AND PIN-gated when opened.
   const tabs = [
-    isAdmin && { id: 'command_link', label: '🎯 מרכז שליטה', href: '/command' },
     { id: 'cockpit',       label: 'קוקפיט' },
     isAdmin && { id: 'gmail', label: `📧 מייל${gmailPending.length > 0 ? ` (${gmailPending.length})` : ''}` },
     { id: 'clients',       label: 'לקוחות' },
     { id: 'timesheet',     label: 'שעתון' },
     isLawyer && { id: 'my_collection', label: '💳 גבייה שלי' },
-    isAdmin && { id: 'income',    label: 'הכנסות' },
-    isAdmin && { id: 'expense',   label: 'הוצאות' },
-    isAdmin && { id: 'invoices',  label: 'חשבוניות' },
-    isAdmin && { id: 'collection', label: 'גבייה' },
-    isAdmin && { id: 'forecast',  label: 'תחזיות מס' },
+    isAdmin && { id: 'income',    label: '🔐 הכנסות' },
+    isAdmin && { id: 'expense',   label: '🔐 הוצאות' },
+    isAdmin && { id: 'invoices',  label: '🔐 חשבוניות' },
+    isAdmin && { id: 'collection', label: '🔐 גבייה' },
+    isAdmin && { id: 'forecast',  label: '🔐 תחזיות מס' },
     isAdmin && { id: 'team',      label: 'צוות' },
     { id: 'deadlines',     label: 'דדליינים' },
     isAdmin && { id: 'settings',  label: 'הגדרות' },
-    isAdmin && { id: 'finance_link', label: '💰 כספים', href: '/finance' },
-    { id: 'calendar_link', label: '📅 לוח שנה', href: '/calendar' },
-    { id: 'my_schedule',   label: '🗓️ הלוז שלי', href: '/my-schedule' },
-    { id: 'cases_link',    label: '📁 תיקים', href: '/cases' },
-    { id: 'tasks_link',    label: '✅ משימות', href: '/tasks' },
-    { id: 'expense_docs_link', label: '🧾 חשבוניות הוצאות', href: '/expense-docs' },
-    isAdmin && { id: 'office_expenses_link', label: '💸 מעקב הוצאות', href: '/expenses' },
-    { id: 'time_link', label: '⏱ שעות עבודה', href: '/time' },
-    isAdmin && { id: 'staff_link', label: '👥 ניהול עובדים', href: '/staff' },
   ].filter(Boolean);
+
+  const gated = (content) => <PinGate title="הנהלת חשבונות וגבייה">{content}</PinGate>;
 
   return (
     <div dir="rtl" className="min-h-screen bg-cream-50">
-      <header className="border-b border-sky-100 bg-white sticky top-0 z-30">
+      <header className="border-b border-sky-100 bg-white sticky top-12 z-30">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-baseline gap-3">
             <h1 style={{ fontFamily: "'Frank Ruhl Libre', serif" }} className="text-2xl font-bold">
@@ -113,11 +114,11 @@ export default function DashboardClient({
         {tab === 'clients' && <ClientsPanel clients={clients} matters={matters} invoices={invoices} onRefresh={() => router.refresh()} canEdit={isLawyer} />}
         {tab === 'matters' && <MattersPanel matters={matters} clients={clients} team={team} onRefresh={() => router.refresh()} canEdit={isLawyer} />}
         {tab === 'timesheet' && <TimesheetPanel timesheet={timesheet} matters={matters} team={team} clients={clients} profile={profile} onRefresh={() => router.refresh()} />}
-        {tab === 'income' && <IncomeExpensePanel type="income" data={income} clients={clients} matters={matters} vatRate={organization.vat_rate} onRefresh={() => router.refresh()} />}
-        {tab === 'expense' && <IncomeExpensePanel type="expense" data={expense} clients={clients} matters={matters} vatRate={organization.vat_rate} onRefresh={() => router.refresh()} />}
-        {tab === 'invoices' && <InvoicesPanel invoices={invoices} clients={clients} matters={matters} onRefresh={() => router.refresh()} />}
-        {tab === 'collection' && <CollectionPanel invoices={invoices} clients={clients} onRefresh={() => router.refresh()} />}
-        {tab === 'forecast' && <ForecastPanel forecast={forecast} totals={totals} settings={organization} />}
+        {tab === 'income' && gated(<IncomeExpensePanel type="income" data={income} clients={clients} matters={matters} vatRate={organization.vat_rate} onRefresh={() => router.refresh()} />)}
+        {tab === 'expense' && gated(<IncomeExpensePanel type="expense" data={expense} clients={clients} matters={matters} vatRate={organization.vat_rate} onRefresh={() => router.refresh()} />)}
+        {tab === 'invoices' && gated(<InvoicesPanel invoices={invoices} clients={clients} matters={matters} onRefresh={() => router.refresh()} />)}
+        {tab === 'collection' && gated(<CollectionPanel invoices={invoices} clients={clients} onRefresh={() => router.refresh()} />)}
+        {tab === 'forecast' && gated(<ForecastPanel forecast={forecast} totals={totals} settings={organization} />)}
         {tab === 'team' && <TeamPanel team={team} onRefresh={() => router.refresh()} />}
         {tab === 'deadlines' && <DeadlinesPanel deadlines={deadlines} />}
         {tab === 'settings' && <SettingsPanel organization={organization} onRefresh={() => router.refresh()} />}
