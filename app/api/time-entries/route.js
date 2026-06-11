@@ -18,9 +18,11 @@ export async function GET(request) {
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const date = searchParams.get('date'); // YYYY-MM-DD
-  const matterId = searchParams.get('matter_id');
-  const mine = searchParams.get('mine') !== 'false'; // default true
+  const date       = searchParams.get('date');        // YYYY-MM-DD
+  const matterId   = searchParams.get('matter_id');
+  const userId     = searchParams.get('user_id');     // show specific user's hours
+  const thisMonth  = searchParams.get('this_month');  // 'true' → current calendar month
+  const mine       = !userId && searchParams.get('mine') !== 'false'; // default true unless user_id given
 
   const sb = createServiceClient();
   let q = sb
@@ -29,7 +31,15 @@ export async function GET(request) {
     .eq('organization_id', profile.organization_id)
     .order('started_at', { ascending: false });
 
-  if (mine) q = q.eq('user_id', profile.id);
+  if (mine)   q = q.eq('user_id', profile.id);
+  if (userId) q = q.eq('user_id', userId);
+
+  if (thisMonth === 'true') {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    q = q.gte('started_at', monthStart).lte('started_at', monthEnd);
+  }
   if (date) {
     q = q.gte('started_at', `${date}T00:00:00+00:00`)
          .lte('started_at', `${date}T23:59:59+00:00`);
