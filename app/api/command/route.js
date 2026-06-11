@@ -33,6 +33,7 @@ export async function GET() {
     { data: invoices },
     { data: expenses },
     { data: events },
+    { data: timeEntries },
   ] = await Promise.all([
     sb.from('profiles').select('id, full_name, role').eq('organization_id', orgId).eq('is_active', true),
     sb.from('tasks')
@@ -52,6 +53,11 @@ export async function GET() {
       .eq('organization_id', orgId)
       .gte('start_time', new Date().toISOString()).lte('start_time', weekAhead)
       .order('start_time').limit(20),
+    sb.from('time_entries')
+      .select('user_id, started_at, ended_at')
+      .eq('organization_id', orgId)
+      .gte('started_at', `${today}T00:00:00+00:00`)
+      .not('ended_at', 'is', null),
   ]);
 
   // ── Per-lawyer workload ──
@@ -65,6 +71,11 @@ export async function GET() {
     const deliveriesSoon = myCases.filter((m) =>
       m.delivery_date && m.delivery_date >= today &&
       m.delivery_date <= new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+    const myTimeEntries = (timeEntries || []).filter((e) => e.user_id === l.id);
+    const todayMinutes = myTimeEntries.reduce((s, e) => {
+      if (!e.ended_at) return s;
+      return s + Math.floor((new Date(e.ended_at) - new Date(e.started_at)) / 60000);
+    }, 0);
     return {
       id: l.id, name: l.full_name, role: l.role,
       open_tasks: myTasks.length,
@@ -74,6 +85,7 @@ export async function GET() {
       stages,
       to_collect: Math.round(toCollect),
       deliveries_14d: deliveriesSoon.map((m) => ({ id: m.id, title: m.title, date: m.delivery_date })),
+      today_minutes: todayMinutes,
     };
   });
 

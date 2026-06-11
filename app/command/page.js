@@ -177,6 +177,9 @@ export default function CommandCenter() {
                     <Stat n={l.active_cases} label="תיקים" />
                     <Stat n={l.open_tasks} label="משימות" warn={l.overdue_tasks > 0} />
                     <Stat n={fmtMoney(l.to_collect)} label="לגבייה" small warn={l.to_collect > 20000} />
+                    {l.today_minutes > 0 && (
+                      <Stat n={`${Math.floor(l.today_minutes/60)}:${String(l.today_minutes%60).padStart(2,'0')}`} label="שעות היום" />
+                    )}
                   </div>
 
                   {Object.keys(l.stages).length > 0 && (
@@ -231,6 +234,31 @@ export default function CommandCenter() {
               ))}
               {data.collections.top.length === 0 && (
                 <div className="p-6 text-center text-sm text-emerald-600">🎉 אין יתרות פתוחות</div>
+              )}
+            </div>
+          </section>
+
+          {/* ── Time tracking today ── */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 bg-teal-700 text-white font-bold flex items-center justify-between">
+              <span>⏱ שעות עבודה — היום</span>
+              <Link href="/time" className="text-xs bg-teal-600 hover:bg-teal-500 px-3 py-1 rounded-lg">דוח מלא</Link>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {data.lawyers.filter(l => l.today_minutes > 0).length === 0 ? (
+                <div className="p-5 text-center text-sm text-slate-400">לא נרשמו שעות עבודה היום</div>
+              ) : (
+                data.lawyers.filter(l => l.today_minutes > 0).sort((a,b) => b.today_minutes - a.today_minutes).map(l => (
+                  <div key={l.id} className="px-5 py-2.5 flex items-center gap-3">
+                    <div className="flex-1 text-sm font-medium text-slate-800">{l.name}</div>
+                    <div className="font-mono text-sm font-bold text-teal-700">
+                      {Math.floor(l.today_minutes/60)}:{String(l.today_minutes%60).padStart(2,'0')}
+                    </div>
+                    <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div className="bg-teal-500 h-2 rounded-full" style={{ width: `${Math.min(100, l.today_minutes/480*100)}%` }} />
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </section>
