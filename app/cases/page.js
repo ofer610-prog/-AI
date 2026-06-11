@@ -194,7 +194,7 @@ function PinScreen({ onUnlock, onClose }) {
 
 // ─── Editable Cell ────────────────────────────────────────────────────────────
 
-function EditableCell({ value, onSave, type = 'text', options, placeholder = '', currency = false, colType, editable = true }) {
+function EditableCell({ value, onSave, type = 'text', options, placeholder = '', currency = false, colType, editable = true, displayLabel }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal]         = useState(value ?? '');
   const inputRef = useRef(null);
@@ -232,7 +232,7 @@ function EditableCell({ value, onSave, type = 'text', options, placeholder = '',
     );
   }
 
-  const display = options ? labelOf(options, value) : (value ?? '');
+  const display = displayLabel ?? (options ? labelOf(options, value) : (value ?? ''));
   const shown   = currency && display !== '' ? fmtMoney(display) : display;
 
   if (!editable) {
@@ -652,9 +652,20 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
       );
     }
     if (col.kind === 'lawyer') {
+      const lawyerName = (Array.isArray(m.profiles) ? m.profiles[0]?.full_name : m.profiles?.full_name)
+        || lawyers.find(l => l.id === m.responsible_lawyer_id)?.full_name
+        || '';
+      const lawyerId = m.responsible_lawyer_id;
       return (
-        <EditableCell editable={unlocked} value={m.profiles?.id || m.responsible_lawyer_id}
-          onSave={v => saveField(m.id, 'responsible_lawyer_id', v)} options={lawyerOpts}/>
+        <div className="flex items-center gap-1">
+          <EditableCell editable={unlocked} value={lawyerId}
+            displayLabel={lawyerName}
+            onSave={v => saveField(m.id, 'responsible_lawyer_id', v)} options={lawyerOpts}/>
+          {lawyerId && lawyerName && (
+            <a href={`/lawyer/${lawyerId}`} target="_blank" rel="noreferrer"
+              className="text-sky-500 hover:text-sky-700 text-xs flex-shrink-0" title={`עמוד ${lawyerName}`}>↗</a>
+          )}
+        </div>
       );
     }
     if (col.kind === 'stage') {
