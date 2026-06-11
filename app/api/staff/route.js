@@ -95,6 +95,48 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const action = body.action;
 
+  // Create a new employee (lawyer / paralegal / intern / accountant / admin)
+  if (!action || action === 'create') {
+    const fullName = (body.full_name || '').trim();
+    if (!fullName) return Response.json({ error: 'שם העובד חובה' }, { status: 400 });
+
+    const role = ['lawyer', 'paralegal', 'intern', 'accountant', 'admin'].includes(body.role)
+      ? body.role : 'lawyer';
+
+    // A profile row requires a matching auth.users row (FK profiles_id_fkey).
+    // Generate a placeholder login; the employee can be invited / reset later.
+    const slug = Math.random().toString(36).slice(2, 8);
+    const email = (body.email || '').trim() || `staff-${slug}@lawfirm.local`;
+
+    const { data: created, error: authErr } = await sb.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      password: `Temp-${slug}-${Date.now()}`,
+      user_metadata: { full_name: fullName },
+    });
+    if (authErr || !created?.user) {
+      return Response.json({ error: authErr?.message || 'שגיאה ביצירת משתמש' }, { status: 500 });
+    }
+
+    const { data: profile, error: profErr } = await sb.from('profiles').insert({
+      id: created.user.id,
+      organization_id: orgId,
+      full_name: fullName,
+      email,
+      phone: body.phone || null,
+      role,
+      is_active: true,
+    }).select('id, full_name, email, phone, role, is_active').single();
+
+    if (profErr) {
+      // Roll back the orphaned auth user
+      await sb.auth.admin.deleteUser(created.user.id).catch(() => {});
+      return Response.json({ error: profErr.message }, { status: 500 });
+    }
+
+    return Response.json({ lawyer: profile }, { status: 201 });
+  }
+
   // Manual digest trigger for one or all attorneys
   if (action === 'send-digest') {
     const pin = process.env.CASES_ACCESS_PIN;
