@@ -2,6 +2,7 @@ import './globals.css';
 import NotificationBell from '@/components/NotificationBell';
 import TimeTracker from '@/components/TimeTracker';
 import AppNav from '@/components/AppNav';
+import LawyerSidebar from '@/components/LawyerSidebar';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -22,6 +23,7 @@ export default function RootLayout({ children }) {
       <body className="text-slate-800 antialiased">
         <AppNav />
         {children}
+        <LawyerSidebar />
         <NotificationBell />
         <TimeTracker />
       </body>

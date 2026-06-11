@@ -192,7 +192,7 @@ function TasksTab({ tasks, lawyerId }) {
 
   async function markDone(task) {
     const newStatus = task.status === 'done' ? 'open' : 'done';
-    const completed_at = newStatus === 'completed' ? new Date().toISOString() : null;
+    const completed_at = newStatus === 'done' ? new Date().toISOString() : null;
     setLocalTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, status: newStatus, completed_at } : t))
     );
