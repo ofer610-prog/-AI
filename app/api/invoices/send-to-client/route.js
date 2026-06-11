@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin, forbidden } from '@/lib/adminAuth';
 import {
   sendWhatsappToPhone,
   sendEmail,
@@ -13,6 +14,7 @@ export async function POST(request) {
     const authSb = await createClient();
     const { data: { user } } = await authSb.auth.getUser();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!(await requireAdmin())) return forbidden();
 
     const { data: userProfile } = await authSb
       .from('profiles').select('organization_id').eq('id', user.id).single();

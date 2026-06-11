@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ async function me() {
 
 /** GET /api/office-expenses?year=2026 — full matrix for the year */
 export async function GET(request) {
-  const profile = await me();
+  const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
@@ -41,7 +42,7 @@ export async function GET(request) {
  * Body: { section, item_name, year, month, amount, notes?, sort_order? }
  */
 export async function POST(request) {
-  const profile = await me();
+  const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
@@ -70,7 +71,7 @@ export async function POST(request) {
 
 /** DELETE /api/office-expenses?item=NAME&section=office&year=2026 — remove a whole row */
 export async function DELETE(request) {
-  const profile = await me();
+  const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);

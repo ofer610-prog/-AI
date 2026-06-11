@@ -128,7 +128,7 @@ export default function MySchedulePage() {
   return (
     <div dir="rtl" className="min-h-screen bg-cream-50">
       {/* Header */}
-      <header className="border-b border-sky-100 bg-white sticky top-0 z-30">
+      <header className="border-b border-sky-100 bg-white sticky top-12 z-30">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 text-sm">← לוח בקרה</Link>

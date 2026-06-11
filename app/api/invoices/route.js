@@ -1,9 +1,10 @@
 import { createServiceClient, getSessionUser } from '@/lib/supabase/server';
+import { requireAdmin, forbidden } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
-  if (!(await getSessionUser())) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireAdmin())) return forbidden();
   const supabase = createServiceClient();
   const { searchParams } = new URL(request.url);
 
@@ -59,7 +60,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  if (!(await getSessionUser())) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireAdmin())) return forbidden();
   const supabase = createServiceClient();
   const body = await request.json();
 

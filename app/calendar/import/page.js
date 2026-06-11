@@ -61,7 +61,7 @@ export default function CalendarImportPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-cream-50">
-      <header className="border-b border-sky-100 bg-white sticky top-0 z-30">
+      <header className="border-b border-sky-100 bg-white sticky top-12 z-30">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
           <Link href="/calendar" className="text-slate-400 hover:text-slate-700 text-sm">← לוח שנה</Link>
           <FileSpreadsheet className="w-5 h-5 text-emerald-600" />

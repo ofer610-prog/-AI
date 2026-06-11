@@ -124,7 +124,7 @@ export default function ExpensesPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-20">
-      <header className="bg-slate-900 text-white sticky top-0 z-30">
+      <header className="bg-slate-900 text-white sticky top-12 z-30">
         <div className="max-w-[1500px] mx-auto px-5 py-4 flex flex-wrap items-center gap-3">
           <Link href="/command" className="text-slate-400 hover:text-white text-sm">← מרכז שליטה</Link>
           <h1 className="text-xl font-bold">💸 מעקב הוצאות</h1>

@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,14 +12,9 @@ export const dynamic = 'force-dynamic';
  *  - upcoming deliveries / events this week
  */
 export async function GET() {
-  const authSb = await createClient();
-  const { data: { user } } = await authSb.auth.getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
+  const profile = await requireAdmin();
+  if (!profile) return Response.json({ error: 'Forbidden' }, { status: 403 });
   const sb = createServiceClient();
-  const { data: profile } = await sb
-    .from('profiles').select('organization_id').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
   const orgId = profile.organization_id;
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });

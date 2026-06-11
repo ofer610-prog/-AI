@@ -18,6 +18,12 @@ export async function GET(request) {
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false });
 
+  // Employees may attach expense receipts but see only their own uploads —
+  // aggregated accounting data is reserved for admin/accountant.
+  if (!['admin', 'accountant'].includes(profile.role)) {
+    q = q.eq('uploaded_by', user.id);
+  }
+
   if (month) q = q.eq('month', month);
 
   const { data, error } = await q;

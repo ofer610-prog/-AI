@@ -73,15 +73,33 @@ export default async function DashboardPage() {
     serviceSupabase.from('gmail_processed').select('*').eq('organization_id', orgId).eq('status', 'pending-review').order('processed_at', { ascending: false }).limit(50),
   ]);
 
+  // Non-admin employees never receive accounting data — only the invoices
+  // of clients on their own matters (needed for "my collection").
+  const isAdminRole = ['admin', 'accountant'].includes(resolvedProfile.role);
+  let safeIncome = income || [];
+  let safeExpense = expense || [];
+  let safeInvoices = invoices || [];
+  if (!isAdminRole) {
+    safeIncome = [];
+    safeExpense = [];
+    const myClientIds = new Set(
+      (matters || [])
+        .filter((m) => m.responsible_lawyer_id === resolvedProfile.id)
+        .map((m) => m.client_id)
+        .filter(Boolean)
+    );
+    safeInvoices = safeInvoices.filter((inv) => myClientIds.has(inv.client_id));
+  }
+
   return (
     <DashboardClient
       profile={resolvedProfile}
       organization={org}
       clients={clients || []}
       matters={matters || []}
-      income={income || []}
-      expense={expense || []}
-      invoices={invoices || []}
+      income={safeIncome}
+      expense={safeExpense}
+      invoices={safeInvoices}
       timesheet={timesheet || []}
       team={team || []}
       alerts={alerts || []}
