@@ -28,9 +28,13 @@ const STATUS_FILTERS = [
 
 export default function InvoicesPage() {
   const [invoices, setInvoices]     = useState([]);
+  const [lawyers, setLawyers]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch]         = useState('');
+  const [lawyerFilter, setLawyerFilter] = useState('');
+  const [fromDate, setFromDate]     = useState('');
+  const [toDate, setToDate]         = useState('');
   const [deleting, setDeleting]     = useState(null);
   const [sendTarget, setSendTarget] = useState(null); // invoice being sent
 
@@ -40,12 +44,16 @@ export default function InvoicesPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
       if (search)       params.set('search', search);
+      if (lawyerFilter) params.set('lawyer_id', lawyerFilter);
+      if (fromDate)     params.set('from', fromDate);
+      if (toDate)       params.set('to', toDate);
       const res = await fetch(`/api/invoices?${params}`);
       const data = await res.json();
       setInvoices(data.invoices || []);
+      if (data.lawyers?.length) setLawyers(data.lawyers);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [statusFilter, search]);
+  }, [statusFilter, search, lawyerFilter, fromDate, toDate]);
 
   useEffect(() => {
     const t = setTimeout(() => loadInvoices(), 300);
@@ -104,9 +112,43 @@ export default function InvoicesPage() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="חפש לפי לקוח או מספר חשבונית..."
+              placeholder="חפש לפי לקוח, מספר חשבונית או תיאור..."
               className="w-full pr-9 pl-3 py-2 border border-sky-200 rounded-md text-sm focus:outline-none focus:border-sky-600" />
           </div>
+        </div>
+
+        {/* Advanced filters */}
+        <div className="flex flex-wrap gap-3 items-center bg-white border border-sky-100 rounded-xl px-4 py-3">
+          <span className="text-xs font-semibold text-slate-500">סינון מתקדם:</span>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">עו"ד מטפל</label>
+            <select value={lawyerFilter} onChange={e => setLawyerFilter(e.target.value)}
+              className="border border-sky-200 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-sky-600">
+              <option value="">— הכל —</option>
+              {lawyers.map(l => <option key={l.id} value={l.id}>{l.full_name}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">מתאריך</label>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+              className="border border-sky-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-sky-600" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">עד תאריך</label>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+              className="border border-sky-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-sky-600" />
+          </div>
+          {(lawyerFilter || fromDate || toDate || statusFilter || search) && (
+            <button onClick={() => { setLawyerFilter(''); setFromDate(''); setToDate(''); setStatusFilter(''); setSearch(''); }}
+              className="text-xs text-red-500 hover:text-red-700 underline mr-auto">
+              ✕ נקה סינון
+            </button>
+          )}
+          {!loading && (
+            <span className="text-xs text-slate-400 mr-auto">
+              {invoices.length} תוצאות · {fmtMoney(invoices.reduce((s, i) => s + Number(i.amount || 0), 0))}
+            </span>
+          )}
         </div>
 
         {/* Table */}
@@ -121,7 +163,7 @@ export default function InvoicesPage() {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-sky-100">
                 <tr>
-                  <Th>#</Th><Th>לקוח</Th><Th>תיק</Th>
+                  <Th>#</Th><Th>לקוח</Th><Th>בעבור</Th><Th>תיק / עו"ד</Th>
                   <Th>הנפקה</Th><Th>פירעון</Th><Th>סטטוס</Th>
                   <Th align="left">סכום</Th><Th align="left">פעולות</Th>
                 </tr>
@@ -134,7 +176,15 @@ export default function InvoicesPage() {
                     <tr key={inv.id} className={`border-b border-sky-50 ${isOverdue ? 'bg-red-50/20' : 'hover:bg-sky-50/50'}`}>
                       <Td className="text-slate-500 font-mono text-xs">{inv.invoice_number || inv.number}</Td>
                       <Td className={`font-medium ${isOverdue ? 'text-red-800' : ''}`}>{inv.client_name}</Td>
-                      <Td className="text-slate-500 text-xs">{inv.matters?.title || '—'}</Td>
+                      <Td className="text-slate-600 text-xs max-w-[260px]">
+                        <span className="line-clamp-2" title={inv.notes || ''}>{inv.notes || '—'}</span>
+                      </Td>
+                      <Td className="text-slate-500 text-xs">
+                        {inv.matters?.title || '—'}
+                        {inv.matters?.responsible_lawyer_id && (
+                          <div className="text-sky-600">{lawyers.find(l => l.id === inv.matters.responsible_lawyer_id)?.full_name || ''}</div>
+                        )}
+                      </Td>
                       <Td className="text-slate-500">{fmt(inv.issue_date)}</Td>
                       <Td className={isOverdue ? 'text-red-700 font-semibold' : ''}>{fmt(inv.due_date)}</Td>
                       <Td>

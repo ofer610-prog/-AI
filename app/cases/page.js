@@ -287,10 +287,10 @@ function NewMatterModal({ category, lawyers, onSave, onClose }) {
     onSave(json.matter);
   }
 
-  const Field = ({ label, kids }) => (
+  const Field = ({ label, children }) => (
     <div>
       <label className="text-xs text-gray-500 block mb-1">{label}</label>
-      {kids}
+      {children}
     </div>
   );
   const inp = (k, type = 'text', placeholder = '') => (
@@ -601,11 +601,11 @@ const RE_COLS = [
   { key: 'responsible_lawyer_id', label: 'עו"ד מטפל',     w: 100, kind: 'lawyer' },
   { key: 'stage',                 label: 'שלב',           w: 120, kind: 'stage' },
   { key: 'parcel',                label: 'גוש/חלקה',      w: 100, kind: 'field' },
-  { key: 'property_address',      label: 'כתובת הנכס',    w: 160, kind: 'field' },
-  { key: 'description',           label: 'הערות',         w: 200, kind: 'field' },
+  { key: 'property_address',      label: 'כתובת הנכס',    w: 220, kind: 'field' },
+  { key: 'description',           label: 'הערות',         w: 280, kind: 'field' },
   { key: 'delivery_date',         label: 'תאריך מסירה',   w: 110, kind: 'date' },
   { key: 'days_left',             label: 'ימים',          w: 65,  kind: 'days_left' },
-  { key: 'fee_text',              label: 'שכ"ט',          w: 100, kind: 'field' },
+  { key: 'fee_text',              label: 'שכ"ט',          w: 150, kind: 'field' },
   { key: 'payment_status',        label: 'סטטוס תשלום',   w: 110, kind: 'paystat' },
   { key: 'mortgage',              label: 'משכנתא',        w: 80,  kind: 'field' },
   { key: 'capital_gains',         label: 'מס שבח',        w: 75,  kind: 'field' },
@@ -628,11 +628,11 @@ const OTHER_COLS = [
   { key: 'referral_source',       label: 'מקור הפניה',     w: 130, kind: 'field' },
   { key: 'open_date',             label: 'תאריך פתיחה',    w: 120, kind: 'date' },
   { key: 'target_date',           label: 'תאריך יעד',      w: 120, kind: 'date' },
-  { key: 'fee_text',              label: 'שכ"ט',           w: 100, kind: 'field' },
+  { key: 'fee_text',              label: 'שכ"ט',           w: 150, kind: 'field' },
   { key: 'collected_amount',      label: 'נגבה',           w: 90,  kind: 'money' },
   { key: 'balance_amount',        label: 'יתרה',           w: 90,  kind: 'money' },
   { key: 'payment_status',        label: 'סטטוס תשלום',    w: 120, kind: 'paystat' },
-  { key: 'description',           label: 'הערות',          w: 220, kind: 'field' },
+  { key: 'description',           label: 'הערות',          w: 280, kind: 'field' },
 ];
 
 // ─── Matters Table ────────────────────────────────────────────────────────────
