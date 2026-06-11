@@ -59,16 +59,24 @@ export default function AppNav() {
           </Link>
         ))}
         {isAdmin && (
-          <Link
-            href="/command"
-            className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors mr-auto border ${
-              isActive('/command') || isActive('/finance') || isActive('/expenses')
-                ? 'bg-amber-500 border-amber-400 text-slate-900 font-bold'
-                : 'border-amber-500/60 text-amber-300 hover:bg-amber-500 hover:text-slate-900'
-            }`}
-          >
-            🔐 ניהול משרד
-          </Link>
+          <div className="flex gap-1 mr-auto">
+            <Link href="/collection"
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
+                isActive('/collection')
+                  ? 'bg-rose-500 border-rose-400 text-white font-bold'
+                  : 'border-rose-500/60 text-rose-300 hover:bg-rose-500 hover:text-white'
+              }`}>
+              💰 גבייה
+            </Link>
+            <Link href="/command"
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
+                isActive('/command') || isActive('/finance') || isActive('/expenses')
+                  ? 'bg-amber-500 border-amber-400 text-slate-900 font-bold'
+                  : 'border-amber-500/60 text-amber-300 hover:bg-amber-500 hover:text-slate-900'
+              }`}>
+              🔐 ניהול משרד
+            </Link>
+          </div>
         )}
       </div>
     </nav>
