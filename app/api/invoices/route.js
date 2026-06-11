@@ -16,9 +16,13 @@ export async function GET(request) {
 
   if (!org) return Response.json({ error: 'No organization' }, { status: 404 });
 
+  const lawyerId = searchParams.get('lawyer_id');
+
   let query = supabase
     .from('invoices')
-    .select('*, clients(name), matters(title)')
+    .select(lawyerId
+      ? '*, clients(name, phone, email), matters!inner(title, responsible_lawyer_id)'
+      : '*, clients(name, phone, email), matters(title, responsible_lawyer_id)')
     .eq('organization_id', org.id)
     .order('issue_date', { ascending: false });
 
@@ -26,12 +30,32 @@ export async function GET(request) {
   if (status) query = query.eq('status', status);
 
   const search = searchParams.get('search');
-  if (search) query = query.or(`number.ilike.%${search}%,client_name.ilike.%${search}%`);
+  if (search) {
+    const safe = search.replace(/[%,()]/g, '');
+    query = query.or(`number.ilike.%${safe}%,client_name.ilike.%${safe}%,notes.ilike.%${safe}%`);
+  }
 
-  const { data, error } = await query;
+  const from = searchParams.get('from');
+  if (from) query = query.gte('issue_date', from);
+  const to = searchParams.get('to');
+  if (to) query = query.lte('issue_date', to);
+
+  if (lawyerId) query = query.eq('matters.responsible_lawyer_id', lawyerId);
+
+  const minAmount = searchParams.get('min_amount');
+  if (minAmount) query = query.gte('amount', Number(minAmount));
+
+  const [{ data, error }, { data: lawyers }] = await Promise.all([
+    query,
+    supabase.from('profiles')
+      .select('id, full_name')
+      .eq('organization_id', org.id)
+      .eq('is_active', true)
+      .order('full_name'),
+  ]);
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  return Response.json({ invoices: data || [] });
+  return Response.json({ invoices: data || [], lawyers: lawyers || [] });
 }
 
 export async function POST(request) {
