@@ -15,10 +15,12 @@ export async function POST(request) {
 
   const sb = createServiceClient();
 
-  // Get Gmail token
+  // Get Gmail token + office card(s)
   const { data: org } = await sb.from('organizations')
-    .select('gmail_connected, gmail_refresh_token, gmail_email')
+    .select('gmail_connected, gmail_refresh_token, gmail_email, office_card_last4')
     .eq('id', profile.organization_id).single();
+
+  const officeCards = org?.office_card_last4 || [];
 
   if (!org?.gmail_connected || !org?.gmail_refresh_token) {
     return Response.json({ error: 'Gmail לא מחובר — חבר Gmail בהגדרות המשרד', connected: false }, { status: 400 });
@@ -57,52 +59,77 @@ export async function POST(request) {
   const importedIds = new Set((existing || []).map(d => d.gmail_message_id));
 
   const suggestions = [];
+  let skippedClient = 0;
+
+  // Decode a Gmail base64url body part to UTF-8 text
+  const decodePart = (data) => Buffer.from((data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+  const getFullText = (payload) => {
+    let text = '';
+    const walk = (p) => {
+      if (!p) return;
+      if ((p.mimeType === 'text/html' || p.mimeType === 'text/plain') && p.body?.data) text += decodePart(p.body.data) + ' ';
+      (p.parts || []).forEach(walk);
+    };
+    walk(payload);
+    return text;
+  };
 
   for (const msg of messages.slice(0, 30)) {
     if (importedIds.has(msg.id)) continue;
 
     try {
-      const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata',
-        metadataHeaders: ['Subject', 'From', 'Date'] });
+      // Government payment receipts (נסח טאבו / אגרות) need the full body to read
+      // the amount AND the paying card. Other emails: metadata is enough.
+      const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'full' });
 
       const headers = detail.data.payload?.headers || [];
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
       const from    = headers.find(h => h.name === 'From')?.value || '';
       const date    = headers.find(h => h.name === 'Date')?.value || '';
+      const fromLow = from.toLowerCase();
 
-      // Try to match vendor name from expense matrix
-      const subjectLow = subject.toLowerCase();
-      const fromLow    = from.toLowerCase();
-      let matchedVendor = '';
-      for (const v of vendors) {
-        if (subjectLow.includes(v.toLowerCase()) || fromLow.includes(v.toLowerCase())) {
-          matchedVendor = v; break;
+      const isGovPayment = fromLow.includes('egovpayments') || fromLow.includes('ecom.gov.il')
+        || subject.includes('שירותי הפנייה') || subject.includes('אישור תשלום');
+
+      let amount = null, cardLast4 = null, payer = 'office', isOffice = true, description = '', matchedVendor = null;
+
+      if (isGovPayment) {
+        const body = getFullText(detail.data.payload);
+        // Total paid: "סה"כ שולם: 18.00 ₪" or "מחיר: 18.00 ₪"
+        const amtM = body.match(/סה["”]?כ\s*שולם[:\s<\/bu>]*([\d,]+\.?\d*)/i)
+          || body.match(/מחיר[:\s<\/b>]*([\d,]+\.?\d*)\s*₪/);
+        if (amtM) amount = parseFloat(amtM[1].replace(/,/g, ''));
+        // Card: "4 ספרות אחרונות ... : 9434"
+        const cardM = body.match(/4 ספרות אחרונות[^:]*:\s*<\/b>\s*(\d{4})/) || body.match(/(\d{4})(?=[^\d]{0,40}אישור מחברת האשראי)/);
+        if (cardM) cardLast4 = cardM[1];
+        // Description: "תיאור התשלום: נסח מלא"
+        const descM = body.match(/תיאור התשלום[:\s<\/b>]*([^<\n]{1,40})/);
+        description = descM ? descM[1].trim() : 'תשלום ממשלתי';
+        matchedVendor = 'אגרות טאבו';
+        // Classify by card
+        isOffice = cardLast4 ? officeCards.includes(cardLast4) : true;
+        payer = isOffice ? 'office' : 'client';
+        if (!isOffice) { skippedClient++; continue; } // skip client-paid entirely
+      } else {
+        const subjectLow = subject.toLowerCase();
+        for (const v of vendors) {
+          if (subjectLow.includes(v.toLowerCase()) || fromLow.includes(v.toLowerCase())) { matchedVendor = v; break; }
         }
+        const amountMatch = subject.match(/[\d,]+\.?\d*\s*(?:₪|nis|ils|שח)/i) || subject.match(/(?:₪|nis)\s*[\d,]+\.?\d*/i);
+        if (amountMatch) amount = parseFloat(amountMatch[0].replace(/[^\d.]/g, ''));
       }
 
-      // Try to extract amount from subject
-      const amountMatch = subject.match(/[\d,]+\.?\d*\s*(?:₪|nis|ils|שח)/i)
-        || subject.match(/(?:₪|nis)\s*[\d,]+\.?\d*/i)
-        || subject.match(/(\d+\.?\d*)\s*(?:שח)/i);
-      const amount = amountMatch
-        ? parseFloat(amountMatch[0].replace(/[^\d.]/g, ''))
-        : null;
-
-      // Parse date
       let docDate = null;
       try { docDate = new Date(date).toISOString().slice(0, 10); } catch {}
 
       suggestions.push({
-        gmail_id: msg.id,
-        subject,
-        from,
-        date: docDate,
-        amount,
-        matched_vendor: matchedVendor || null,
+        gmail_id: msg.id, subject, from, date: docDate,
+        amount, matched_vendor: matchedVendor, description,
+        card_last4: cardLast4, payer, is_gov_payment: isGovPayment,
         snippet: detail.data.snippet || '',
       });
     } catch { /* skip malformed */ }
   }
 
-  return Response.json({ suggestions, scanned: messages.length, connected: true });
+  return Response.json({ suggestions, scanned: messages.length, skipped_client: skippedClient, office_cards: officeCards, connected: true });
 }
