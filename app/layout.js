@@ -3,6 +3,7 @@ import NotificationBell from '@/components/NotificationBell';
 import TimeTracker from '@/components/TimeTracker';
 import AppNav from '@/components/AppNav';
 import LawyerSidebar from '@/components/LawyerSidebar';
+import DocsConnectFloating from '@/components/DocsConnectFloating';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -26,6 +27,7 @@ export default function RootLayout({ children }) {
         <LawyerSidebar />
         <NotificationBell />
         <TimeTracker />
+        <DocsConnectFloating />
       </body>
     </html>
   );
