@@ -18,6 +18,9 @@ export const dynamic = 'force-dynamic';
 const SECTION_MARKERS = { 'עלויות משרדיות': 'office', 'עופר': 'personal' };
 const SKIP_PREFIXES = ['סכום ביניים', 'סהכ', 'סה"כ', 'הוצאות בפועל'];
 
+// Items that are known AI/digital tools → go in 'ai' section
+const AI_ITEM_KEYWORDS = ['claude', 'chatgpt', 'gpt', 'openai', 'midjourney', 'בינה', 'ai', 'copilot', 'gemini', 'anthropic'];
+
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Forbidden' }, { status: 403 });
@@ -64,22 +67,31 @@ export async function POST(request) {
     const textInMonths = row.slice(1, 13).filter((c) => typeof c === 'string' && c.trim());
     const notes = [...textInMonths, ...noteCells].join(' | ') || null;
 
-    let hadAmount = false;
+    // Detect AI tools → assign to 'ai' section
+    const nameLow = name.toLowerCase();
+    const itemSection = AI_ITEM_KEYWORDS.some(k => nameLow.includes(k)) ? 'ai' : section;
+
+    // Count months with amounts to detect recurring
+    const monthAmounts = [];
     for (let m = 1; m <= 12; m++) {
       const v = row[m];
-      if (typeof v === 'number' && !isNaN(v) && v !== 0) {
-        hadAmount = true;
-        upserts.push({
-          organization_id: orgId, section, item_name: name,
-          year, month: m, amount: v, notes, sort_order: i,
-        });
-      }
+      if (typeof v === 'number' && !isNaN(v) && v !== 0) monthAmounts.push({ m, v });
+    }
+    const isRecurring = monthAmounts.length >= 3; // 3+ months = recurring
+
+    let hadAmount = false;
+    for (const { m, v } of monthAmounts) {
+      hadAmount = true;
+      upserts.push({
+        organization_id: orgId, section: itemSection, item_name: name,
+        year, month: m, amount: v, notes, sort_order: i, is_recurring: isRecurring,
+      });
     }
     // Keep the item visible even if no amounts yet (placeholder row in month 1, amount 0)
     if (!hadAmount) {
       upserts.push({
-        organization_id: orgId, section, item_name: name,
-        year, month: 1, amount: 0, notes, sort_order: i,
+        organization_id: orgId, section: itemSection, item_name: name,
+        year, month: 1, amount: 0, notes, sort_order: i, is_recurring: false,
       });
     }
     imported++;

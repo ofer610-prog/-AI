@@ -68,6 +68,14 @@ export default function AppNav() {
               }`}>
               💰 גבייה
             </Link>
+            <Link href="/expenses"
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
+                isActive('/expenses')
+                  ? 'bg-emerald-500 border-emerald-400 text-white font-bold'
+                  : 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-500 hover:text-white'
+              }`}>
+              💸 הוצאות
+            </Link>
             <Link href="/tax"
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
                 isActive('/tax')

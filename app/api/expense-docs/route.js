@@ -47,6 +47,8 @@ export async function POST(request) {
   const dateStr = doc_date || new Date().toISOString().slice(0, 10);
   const month   = dateStr.slice(0, 7);
 
+  const { expense_item, expense_section, expense_year, expense_month_num, gmail_message_id } = body;
+
   const { data, error } = await sb.from('expense_documents').insert({
     organization_id: profile.organization_id,
     uploaded_by:     user.id,
@@ -57,6 +59,11 @@ export async function POST(request) {
     category:    category    || 'general',
     doc_date:    dateStr,
     month,
+    expense_item:      expense_item      || null,
+    expense_section:   expense_section   || null,
+    expense_year:      expense_year      ? Number(expense_year)      : null,
+    expense_month_num: expense_month_num ? Number(expense_month_num) : null,
+    gmail_message_id:  gmail_message_id  || null,
   }).select('*, profiles!uploaded_by(full_name)').single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
