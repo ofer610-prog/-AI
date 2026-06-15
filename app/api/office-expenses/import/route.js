@@ -21,6 +21,38 @@ const SKIP_PREFIXES = ['סכום ביניים', 'סהכ', 'סה"כ', 'הוצאו
 // Items that are known AI/digital tools → go in 'ai' section
 const AI_ITEM_KEYWORDS = ['claude', 'chatgpt', 'gpt', 'openai', 'midjourney', 'בינה', 'ai', 'copilot', 'gemini', 'anthropic'];
 
+// Fixed monthly expenses from the office Excel. These should trigger missing-invoice alerts.
+const MONTHLY_KEYWORDS = [
+  '019', 'מובייל', 'גולן', 'סלקום', 'נט וישן', 'אינטרנט',
+  'google', 'גוגל', 'קלוד', 'claude', 'openai', 'chatgpt', 'בינה',
+  'שכירות', 'אופיס', 'office', 'טלפון', 'תקשורת'
+];
+
+// Expenses that may appear repeatedly but are not fixed monthly invoices.
+const NON_MONTHLY_KEYWORDS = [
+  'אגרות טאבו', 'טאבו', 'רשם המשכונות', 'רמ״י', 'רמי',
+  'ארנונה', 'חשמל', 'מים', 'ביטוח', 'רישון רכב', 'רישיון רכב',
+  'דלק', 'דואר', 'סופר', 'פנגו', 'כביש 6', 'מנהרות', 'נוטריון'
+];
+
+function hasConsecutiveMonths(monthAmounts, needed = 3) {
+  const months = monthAmounts.map(x => x.m).sort((a, b) => a - b);
+  let streak = 1;
+  for (let i = 1; i < months.length; i++) {
+    if (months[i] === months[i - 1] + 1) streak++;
+    else streak = 1;
+    if (streak >= needed) return true;
+  }
+  return false;
+}
+
+function detectRecurring(name, monthAmounts) {
+  const low = String(name || '').toLowerCase();
+  if (NON_MONTHLY_KEYWORDS.some(k => low.includes(k.toLowerCase()))) return false;
+  if (MONTHLY_KEYWORDS.some(k => low.includes(k.toLowerCase()))) return true;
+  return hasConsecutiveMonths(monthAmounts, 3);
+}
+
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Forbidden' }, { status: 403 });
@@ -71,13 +103,14 @@ export async function POST(request) {
     const nameLow = name.toLowerCase();
     const itemSection = AI_ITEM_KEYWORDS.some(k => nameLow.includes(k)) ? 'ai' : section;
 
-    // Count months with amounts to detect recurring
     const monthAmounts = [];
     for (let m = 1; m <= 12; m++) {
       const v = row[m];
       if (typeof v === 'number' && !isNaN(v) && v !== 0) monthAmounts.push({ m, v });
     }
-    const isRecurring = monthAmounts.length >= 3; // 3+ months = recurring
+
+    // Important: recurring means fixed monthly invoice, not merely repeated yearly/bi-monthly payments.
+    const isRecurring = detectRecurring(name, monthAmounts);
 
     let hadAmount = false;
     for (const { m, v } of monthAmounts) {
@@ -87,22 +120,23 @@ export async function POST(request) {
         year, month: m, amount: v, notes, sort_order: i, is_recurring: isRecurring,
       });
     }
+
     // Keep the item visible even if no amounts yet (placeholder row in month 1, amount 0)
     if (!hadAmount) {
       upserts.push({
         organization_id: orgId, section: itemSection, item_name: name,
-        year, month: 1, amount: 0, notes, sort_order: i, is_recurring: false,
+        year, month: 1, amount: 0, notes, sort_order: i, is_recurring: isRecurring,
       });
     }
     imported++;
   }
 
-  // Batch upsert
   for (let i = 0; i < upserts.length; i += 100) {
     const { error } = await service.from('office_expenses')
       .upsert(upserts.slice(i, i + 100), { onConflict: 'organization_id,section,item_name,year,month' });
     if (error) return Response.json({ error: error.message, imported: 0 }, { status: 500 });
   }
 
-  return Response.json({ ok: true, items: imported, cells: upserts.length, skipped, year });
+  const recurringItems = [...new Set(upserts.filter(x => x.is_recurring).map(x => x.item_name))].length;
+  return Response.json({ ok: true, items: imported, cells: upserts.length, recurringItems, skipped, year });
 }
