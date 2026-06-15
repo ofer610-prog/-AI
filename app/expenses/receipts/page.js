@@ -62,6 +62,9 @@ export default function ReceiptsPage() {
             {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <div className="flex-1" />
+          <a href="/api/google/connect" className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-sm">
+            🔐 חבר Google מחדש
+          </a>
           <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">
             {syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}
           </button>
@@ -69,9 +72,14 @@ export default function ReceiptsPage() {
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
+        <div className="rounded-2xl p-4 border bg-amber-50 border-amber-200 text-amber-900 text-sm">
+          לשמירת קבצי החשבוניות בדרייב יש ללחוץ פעם אחת על <b>חבר Google מחדש</b> ולאשר את ההרשאה החדשה. לאחר מכן ללחוץ <b>סרוק וייבא</b>.
+        </div>
+
         {result && (
           <div className={`rounded-2xl p-4 border ${result.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
             {result.error ? result.error : `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. דולגו ${result.skipped?.length || 0}.`}
+            {result.driveWarnings?.length ? <div className="mt-2 text-sm">חלק מהקבצים לא נשמרו בדרייב — כנראה שצריך לחבר Google מחדש.</div> : null}
           </div>
         )}
 
