@@ -23,7 +23,7 @@ export async function GET(request) {
 
   const sb = createServiceClient();
   const { data, error } = await sb.from('office_expenses')
-    .select('id, section, item_name, year, month, amount, notes, sort_order')
+    .select('id, section, item_name, year, month, amount, notes, sort_order, is_recurring, is_itemized')
     .eq('organization_id', profile.organization_id)
     .eq('year', year)
     .order('sort_order', { ascending: true, nullsFirst: false })
@@ -34,14 +34,44 @@ export async function GET(request) {
   const { data: org } = await sb.from('organizations')
     .select('accountant_email').eq('id', profile.organization_id).single();
 
-  // Invoice docs linked to specific expense rows (for invoice status indicators)
+  // Invoice docs linked to specific expense rows (for invoice status indicators
+  // and itemized line items)
   const { data: docs } = await sb.from('expense_documents')
-    .select('id, file_url, file_name, file_type, amount, vendor, doc_date, status, expense_item, expense_section, expense_year, expense_month_num, gmail_message_id')
+    .select('id, file_url, file_name, file_type, amount, vendor, description, doc_date, status, expense_item, expense_section, expense_year, expense_month_num, gmail_message_id')
     .eq('organization_id', profile.organization_id)
     .eq('expense_year', year)
     .not('expense_item', 'is', null);
 
   return Response.json({ entries: data || [], docs: docs || [], year, accountant_email: org?.accountant_email || '' });
+}
+
+/**
+ * PATCH /api/office-expenses — toggle row-level flags for ALL months of an item.
+ * Body: { section, item_name, year, is_recurring?, is_itemized? }
+ */
+export async function PATCH(request) {
+  const profile = await requireAdmin();
+  if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await request.json().catch(() => ({}));
+  const { section, item_name, year } = body;
+  if (!section || !item_name || !year) {
+    return Response.json({ error: 'section, item_name, year required' }, { status: 400 });
+  }
+
+  const updates = {};
+  if (body.is_recurring !== undefined) updates.is_recurring = !!body.is_recurring;
+  if (body.is_itemized  !== undefined) updates.is_itemized  = !!body.is_itemized;
+  if (!Object.keys(updates).length) return Response.json({ error: 'no flags to update' }, { status: 400 });
+
+  const sb = createServiceClient();
+  const { error } = await sb.from('office_expenses')
+    .update(updates)
+    .eq('organization_id', profile.organization_id)
+    .eq('section', section).eq('item_name', item_name).eq('year', Number(year));
+
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ ok: true });
 }
 
 /**

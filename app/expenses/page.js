@@ -34,8 +34,21 @@ export default function ExpensesPage() {
 
   // Invoice panel
   const [invoicePanel, setInvoicePanel] = useState(null); // {section, item, month}
+  const [itemizedPanel, setItemizedPanel] = useState(null); // {section, item, month}
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const invoiceFileRef = useRef(null);
+
+  // Toggle a row-level flag (is_recurring / is_itemized) for the whole item
+  const toggleFlag = async (section, item, flag, value) => {
+    setEntries(prev => prev.map(e =>
+      (e.section === section && e.item_name === item) ? { ...e, [flag]: value } : e
+    ));
+    await fetch('/api/office-expenses', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ section, item_name: item, year, [flag]: value }),
+    }).catch(() => {});
+  };
 
   // Gmail scanner
   const [scanning, setScanning]         = useState(false);
@@ -67,10 +80,11 @@ export default function ExpensesPage() {
     for (const e of entries) {
       m[e.section] = m[e.section] || {};
       const item = m[e.section][e.item_name] = m[e.section][e.item_name]
-        || { months: {}, notes: e.notes, sort: e.sort_order ?? 9999, is_recurring: e.is_recurring };
+        || { months: {}, notes: e.notes, sort: e.sort_order ?? 9999, is_recurring: e.is_recurring, is_itemized: e.is_itemized };
       item.months[e.month] = Number(e.amount) || 0;
       if (e.notes && !item.notes) item.notes = e.notes;
       if (e.is_recurring) item.is_recurring = true;
+      if (e.is_itemized) item.is_itemized = true;
     }
     return m;
   }, [entries]);
@@ -87,30 +101,29 @@ export default function ExpensesPage() {
     return map;
   }, [docs]);
 
-  // Missing invoices for current month
-  const missingInvoices = useMemo(() => {
-    const missing = [];
+  // "Requires attention" — ONLY fixed monthly recurring expenses (electricity,
+  // property tax, rent, internet, subscriptions). Variable / one-off / annual
+  // items (אגרות טאבו, סופר, ביטוח) never nag here.
+  const needsAttention = useMemo(() => {
+    const list = [];
     const allSections = getAllSections();
     for (const sec of allSections) {
       const rows = sectionRowsFor(sec.key);
       for (const [name, it] of rows) {
+        if (!it.is_recurring) continue; // only fixed-monthly are tracked
         const amount = it.months[curMonth] || 0;
         if (amount <= 0) {
-          // Check if recurring (had amount in previous months) but missing this month
-          const hasPrevious = Object.entries(it.months).some(([m, v]) => Number(m) < curMonth && v > 0);
-          if (hasPrevious || it.is_recurring) {
-            missing.push({ section: sec.key, sectionLabel: sec.label, item: name, amount: 0, type: 'missing_amount' });
-          }
+          list.push({ section: sec.key, sectionLabel: sec.label, item: name, amount: 0, type: 'missing_amount' });
           continue;
         }
         const key = `${sec.key}|${name}|${curMonth}`;
         const hasDocs = (docsMap[key] || []).length > 0;
         if (!hasDocs) {
-          missing.push({ section: sec.key, sectionLabel: sec.label, item: name, amount, type: 'missing_invoice' });
+          list.push({ section: sec.key, sectionLabel: sec.label, item: name, amount, type: 'missing_invoice' });
         }
       }
     }
-    return missing;
+    return list;
   }, [matrix, docsMap, curMonth]);
 
   // All sections (builtin + custom)
@@ -350,21 +363,22 @@ export default function ExpensesPage() {
           <div className="text-center text-slate-400 py-20 animate-pulse">טוען…</div>
         ) : (
           <>
-            {/* ── Missing invoices alert ── */}
-            {missingInvoices.length > 0 && (
+            {/* ── Requires attention — fixed monthly recurring only ── */}
+            {needsAttention.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="font-bold text-amber-800 flex items-center gap-2">
                     <span className="text-lg">⚠️</span>
-                    {missingInvoices.length} פריטים דורשים טיפול — {MONTHS_FULL[curMonth - 1]} {year}
+                    {needsAttention.length} הוצאות קבועות דורשות טיפול — {MONTHS_FULL[curMonth - 1]} {year}
                   </h2>
                   <button onClick={scanGmail} disabled={scanning}
                     className="text-xs bg-sky-600 text-white px-3 py-1.5 rounded-lg hover:bg-sky-500 disabled:opacity-50">
                     {scanning ? 'סורק…' : '📧 סרוק מיילים לחשבוניות'}
                   </button>
                 </div>
+                <p className="text-xs text-amber-600 mb-3">מוצגות רק הוצאות חודשיות קבועות (חשמל, ארנונה, שכירות, אינטרנט, מנויים) שטרם הוזנו או חסרה להן חשבונית.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {missingInvoices.slice(0, 12).map((m, i) => (
+                  {needsAttention.map((m, i) => (
                     <div key={i} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
                       m.type === 'missing_invoice' ? 'bg-red-50 border border-red-200' : 'bg-amber-100 border border-amber-200'
                     }`}>
@@ -372,21 +386,14 @@ export default function ExpensesPage() {
                       <span className="font-medium">{m.item}</span>
                       {m.amount > 0 && <span className="text-slate-500">₪{fmtMoney(m.amount)}</span>}
                       <span className="text-xs text-slate-400 mr-auto">
-                        {m.type === 'missing_invoice' ? 'חסרה חשבונית' : 'חסר סכום החודש'}
+                        {m.type === 'missing_invoice' ? 'חסרה חשבונית' : 'טרם שולם/הוזן החודש'}
                       </span>
-                      {m.type === 'missing_invoice' && (
-                        <button onClick={() => setInvoicePanel({ section: m.section, item: m.item, month: curMonth })}
-                          className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200">
-                          + העלה
-                        </button>
-                      )}
+                      <button onClick={() => setInvoicePanel({ section: m.section, item: m.item, month: curMonth })}
+                        className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded hover:bg-amber-300">
+                        {m.type === 'missing_invoice' ? '+ העלה' : '+ הזן'}
+                      </button>
                     </div>
                   ))}
-                  {missingInvoices.length > 12 && (
-                    <div className="text-xs text-amber-600 col-span-2 text-center">
-                      ועוד {missingInvoices.length - 12} פריטים נוספים…
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -437,8 +444,8 @@ export default function ExpensesPage() {
               <SumCard label={`סה"כ ${year}`} value={`₪${fmtMoney(grandTotal) || 0}`} />
               <SumCard label={`${MONTHS_FULL[curMonth - 1]}`} value={`₪${fmtMoney(grandMonth(curMonth)) || 0}`} />
               <SumCard label="ממוצע חודשי" value={`₪${fmtMoney(grandTotal / completedMonths) || 0}`} />
-              <SumCard label="חסרות חשבוניות" value={missingInvoices.filter(m => m.type === 'missing_invoice').length}
-                highlight={missingInvoices.filter(m => m.type === 'missing_invoice').length > 0} />
+              <SumCard label="קבועות דורשות טיפול" value={needsAttention.length}
+                highlight={needsAttention.length > 0} />
             </div>
 
             {/* ── Expense sections ── */}
@@ -447,9 +454,8 @@ export default function ExpensesPage() {
                 sec={sec} matrix={matrix} docsMap={docsMap} year={year} curMonth={curMonth}
                 newItem={newItem} setNewItem={setNewItem}
                 addItem={addItem} deleteItem={deleteItem} saveCell={saveCell}
-                invoicePanel={invoicePanel} setInvoicePanel={setInvoicePanel}
-                uploadInvoiceFile={uploadInvoiceFile} uploadingInvoice={uploadingInvoice}
-                invoiceFileRef={invoiceFileRef} unlinkDoc={unlinkDoc}
+                setInvoicePanel={setInvoicePanel} setItemizedPanel={setItemizedPanel}
+                toggleFlag={toggleFlag}
                 colTotal={colTotal} rowTotal={rowTotal}
               />
             ))}
@@ -488,6 +494,15 @@ export default function ExpensesPage() {
           onClose={() => setInvoicePanel(null)}
         />
       )}
+
+      {/* ── Itemized line-items modal (אגרות טאבו וכד') ── */}
+      {itemizedPanel && (
+        <ItemizedModal
+          section={itemizedPanel.section} item={itemizedPanel.item} month={itemizedPanel.month} year={year}
+          onClose={() => setItemizedPanel(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }
@@ -495,8 +510,7 @@ export default function ExpensesPage() {
 // ─── Section component ─────────────────────────────────────────────────────
 
 function ExpenseSection({ sec, matrix, docsMap, year, curMonth, newItem, setNewItem, addItem, deleteItem,
-  saveCell, invoicePanel, setInvoicePanel, uploadInvoiceFile, uploadingInvoice, invoiceFileRef, unlinkDoc,
-  colTotal, rowTotal }) {
+  saveCell, setInvoicePanel, setItemizedPanel, toggleFlag, colTotal, rowTotal }) {
 
   const rows = Object.entries(matrix[sec.key] || {}).sort((a, b) => (a[1].sort ?? 9999) - (b[1].sort ?? 9999));
 
@@ -542,8 +556,13 @@ function ExpenseSection({ sec, matrix, docsMap, year, curMonth, newItem, setNewI
             {rows.map(([name, it], idx) => (
               <tr key={name} className={`border-b border-slate-100 ${idx % 2 ? 'bg-slate-50/60' : 'bg-white'} hover:bg-blue-50/30`}>
                 <td className="px-3 py-1 sticky right-0 bg-inherit font-medium text-slate-700 text-xs whitespace-nowrap" title={it.notes || ''}>
-                  {it.is_recurring && <span className="text-blue-400 text-xs ml-1" title="הוצאה קבועה">🔁</span>}
-                  {name}
+                  <button onClick={() => toggleFlag(sec.key, name, 'is_recurring', !it.is_recurring)}
+                    className={`text-xs ml-1 ${it.is_recurring ? 'opacity-100' : 'opacity-20 hover:opacity-60'}`}
+                    title={it.is_recurring ? 'הוצאה קבועה — נכללת בהתראות (לחץ לביטול)' : 'סמן כהוצאה חודשית קבועה'}>🔁</button>
+                  <button onClick={() => toggleFlag(sec.key, name, 'is_itemized', !it.is_itemized)}
+                    className={`text-xs ml-1 ${it.is_itemized ? 'opacity-100' : 'opacity-20 hover:opacity-60'}`}
+                    title={it.is_itemized ? 'הוצאה מצטברת — ריבוי חשבוניות (לחץ לביטול)' : 'סמן כהוצאה מצטברת (כמו אגרות טאבו)'}>📑</button>
+                  <span className="mr-1">{name}</span>
                 </td>
                 {MONTHS.map((_, mi) => {
                   const mo = mi + 1;
@@ -552,14 +571,31 @@ function ExpenseSection({ sec, matrix, docsMap, year, curMonth, newItem, setNewI
                   const cellDocs = docsMap[key] || [];
                   const isCurrentMonth = mo === curMonth;
 
+                  // ── Itemized row (e.g. אגרות טאבו): cell = sum + count, opens line-item panel ──
+                  if (it.is_itemized) {
+                    return (
+                      <td key={mi} className={`px-0.5 py-0.5 text-center ${isCurrentMonth ? 'bg-amber-50/50' : ''}`}>
+                        <button onClick={() => setItemizedPanel({ section: sec.key, item: name, month: mo })}
+                          className={`w-full px-1 py-1 rounded text-xs hover:bg-amber-100 ${amount ? 'text-slate-800 font-medium' : 'text-slate-200'}`}
+                          title={cellDocs.length ? `${cellDocs.length} חשבוניות` : 'הוסף חשבוניות'}>
+                          {amount ? fmtMoney(amount) : '+'}
+                          {cellDocs.length > 0 && <span className="block text-[10px] text-amber-600">({cellDocs.length})</span>}
+                        </button>
+                      </td>
+                    );
+                  }
+
                   let invoiceIcon = null;
                   if (amount > 0) {
                     if (cellDocs.length > 0) {
                       invoiceIcon = <span className="text-green-500 cursor-pointer text-xs" title={`${cellDocs.length} חשבונית${cellDocs.length > 1 ? 'ות' : ''}`}
                         onClick={() => setInvoicePanel({ section: sec.key, item: name, month: mo })}>📎</span>;
-                    } else {
+                    } else if (it.is_recurring) {
                       invoiceIcon = <span className="text-red-400 cursor-pointer text-xs" title="חסרה חשבונית — לחץ להעלאה"
                         onClick={() => setInvoicePanel({ section: sec.key, item: name, month: mo })}>⚠️</span>;
+                    } else {
+                      invoiceIcon = <span className="text-slate-300 cursor-pointer text-xs hover:text-slate-500" title="צרף חשבונית"
+                        onClick={() => setInvoicePanel({ section: sec.key, item: name, month: mo })}>📎</span>;
                     }
                   } else if (isCurrentMonth) {
                     invoiceIcon = <span className="text-slate-200 cursor-pointer text-xs hover:text-slate-400"
@@ -609,6 +645,176 @@ function ExpenseSection({ sec, matrix, docsMap, year, curMonth, newItem, setNewI
         </table>
       </div>
     </section>
+  );
+}
+
+// ─── Itemized Modal (line items, e.g. אגרות טאבו) ────────────────────────────
+
+function ItemizedModal({ section, item, month, year, onClose, onChanged }) {
+  const [lines, setLines] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [clientTotal, setClientTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ amount: '', description: '', vendor: '', payer: 'office', doc_date: `${year}-${String(month).padStart(2, '0')}-01` });
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef(null);
+
+  const loadLines = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/expenses/items?section=${section}&item=${encodeURIComponent(item)}&year=${year}&month=${month}`);
+      const d = await res.json();
+      setLines(d.items || []);
+      setTotal(d.officeTotal ?? d.total ?? 0);
+      setClientTotal(d.clientTotal || 0);
+    } catch {}
+    setLoading(false);
+  }, [section, item, year, month]);
+
+  // Flip a line between office-paid and client-paid
+  const togglePayer = async (line) => {
+    const next = (line.payer || 'office') === 'office' ? 'client' : 'office';
+    setLines(prev => prev.map(l => l.id === line.id ? { ...l, payer: next } : l));
+    await fetch('/api/expenses/items', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: line.id, payer: next }),
+    }).catch(() => {});
+    await loadLines();
+    onChanged?.();
+  };
+
+  useEffect(() => { loadLines(); }, [loadLines]);
+
+  const addLine = async () => {
+    if (!form.amount && !form.description) return;
+    setSaving(true);
+    try {
+      await fetch('/api/expenses/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section, item, year, month, ...form }),
+      });
+      setForm({ amount: '', description: '', vendor: '', doc_date: `${year}-${String(month).padStart(2, '0')}-01` });
+      await loadLines();
+      onChanged?.();
+    } catch {}
+    setSaving(false);
+  };
+
+  const removeLine = async (id) => {
+    setLines(prev => prev.filter(l => l.id !== id));
+    await fetch(`/api/expenses/items?id=${id}`, { method: 'DELETE' }).catch(() => {});
+    await loadLines();
+    onChanged?.();
+  };
+
+  // Upload a file → attach as a new line (amount entered separately or 0)
+  const uploadFileLine = async (file) => {
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/expense-docs/upload', { method: 'POST', body: fd });
+      if (up.ok) {
+        const { url, name, type } = await up.json();
+        await fetch('/api/expenses/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ section, item, year, month, amount: form.amount || 0,
+            description: form.description || name, file_url: url, file_name: name, file_type: type }),
+        });
+        setForm({ amount: '', description: '', vendor: '', doc_date: `${year}-${String(month).padStart(2, '0')}-01` });
+        await loadLines();
+        onChanged?.();
+      }
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onClick={onClose}>
+      <div dir="rtl" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-bold text-lg text-slate-800">📑 {item} — {MONTHS_FULL[month - 1]} {year}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+        </div>
+        <div className="flex gap-3 mb-4 text-sm">
+          <span className="bg-slate-100 rounded-lg px-3 py-1.5">
+            הוצאת המשרד: <b className="text-slate-800">₪{fmtMoney(total) || 0}</b>
+          </span>
+          {clientTotal > 0 && (
+            <span className="bg-blue-50 text-blue-700 rounded-lg px-3 py-1.5">
+              שולם ע"י לקוח: ₪{fmtMoney(clientTotal)} <span className="text-xs">(לא נספר)</span>
+            </span>
+          )}
+          <span className="text-slate-400 px-1 py-1.5">{lines.length} חשבוניות</span>
+        </div>
+
+        {/* Lines list */}
+        <div className="flex-1 overflow-y-auto space-y-2 mb-4 min-h-[80px]">
+          {loading ? (
+            <div className="text-center text-slate-400 py-6 animate-pulse text-sm">טוען…</div>
+          ) : lines.length === 0 ? (
+            <div className="text-center text-slate-400 py-6 text-sm">עדיין אין חשבוניות — הוסף למטה או סרוק מהמייל</div>
+          ) : lines.map(l => {
+            const isClient = l.payer === 'client';
+            return (
+            <div key={l.id} className={`flex items-center gap-2 rounded-lg p-2.5 border ${isClient ? 'bg-blue-50/60 border-blue-100' : 'bg-slate-50'}`}>
+              <span className="text-lg">{l.gmail_message_id ? '📧' : l.file_url ? '📄' : '🧾'}</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium truncate ${isClient ? 'text-blue-700' : 'text-slate-800'}`}>{l.description || l.vendor || 'חשבונית'}</p>
+                <p className="text-xs text-slate-400">{l.vendor || ''} {l.doc_date ? `· ${l.doc_date}` : ''}</p>
+              </div>
+              <button onClick={() => togglePayer(l)}
+                className={`text-[11px] px-2 py-1 rounded-full font-medium whitespace-nowrap ${isClient ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}
+                title="לחץ להחלפה בין משרד ללקוח">
+                {isClient ? '💳 לקוח' : '🏢 משרד'}
+              </button>
+              <span className={`font-bold text-sm ${isClient ? 'text-blue-400 line-through' : 'text-slate-800'}`}>₪{fmtMoney(l.amount)}</span>
+              {l.file_url && !String(l.file_url).startsWith('gmail:') && (
+                <a href={l.file_url} target="_blank" rel="noreferrer" className="text-sky-600 text-xs">פתח</a>
+              )}
+              <button onClick={() => removeLine(l.id)} className="text-slate-300 hover:text-red-500 text-xs">✕</button>
+            </div>
+          );})}
+        </div>
+
+        {/* Add line form */}
+        <div className="border-t pt-3 space-y-2">
+          <div className="flex gap-2">
+            <input type="text" inputMode="decimal" value={form.amount}
+              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+              placeholder="סכום ₪" className="border rounded-lg px-3 py-2 text-sm w-24" />
+            <input type="text" value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="תיאור (גוש/חלקה/תיק)" className="border rounded-lg px-3 py-2 text-sm flex-1" />
+          </div>
+          <div className="flex gap-2 text-xs">
+            <span className="text-slate-500 py-1">מי שילם?</span>
+            <button onClick={() => setForm(f => ({ ...f, payer: 'office' }))}
+              className={`px-3 py-1 rounded-full font-medium ${form.payer === 'office' ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300' : 'bg-slate-100 text-slate-500'}`}>
+              🏢 המשרד (נסח טאבו וכד')
+            </button>
+            <button onClick={() => setForm(f => ({ ...f, payer: 'client' }))}
+              className={`px-3 py-1 rounded-full font-medium ${form.payer === 'client' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300' : 'bg-slate-100 text-slate-500'}`}>
+              💳 הלקוח (כרטיס הלקוח)
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={addLine} disabled={saving}
+              className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-semibold">
+              {saving ? '⏳' : '+ הוסף שורה'}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadFileLine(f); e.target.value = ''; }} />
+            <button onClick={() => fileRef.current?.click()} disabled={saving}
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-semibold">
+              📎 קובץ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
