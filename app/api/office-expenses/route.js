@@ -34,7 +34,14 @@ export async function GET(request) {
   const { data: org } = await sb.from('organizations')
     .select('accountant_email').eq('id', profile.organization_id).single();
 
-  return Response.json({ entries: data || [], year, accountant_email: org?.accountant_email || '' });
+  // Invoice docs linked to specific expense rows (for invoice status indicators)
+  const { data: docs } = await sb.from('expense_documents')
+    .select('id, file_url, file_name, file_type, amount, vendor, doc_date, status, expense_item, expense_section, expense_year, expense_month_num, gmail_message_id')
+    .eq('organization_id', profile.organization_id)
+    .eq('expense_year', year)
+    .not('expense_item', 'is', null);
+
+  return Response.json({ entries: data || [], docs: docs || [], year, accountant_email: org?.accountant_email || '' });
 }
 
 /**
@@ -62,6 +69,7 @@ export async function POST(request) {
       amount: Number(body.amount) || 0,
       notes: body.notes || null,
       sort_order: body.sort_order ?? null,
+      is_recurring: body.is_recurring ?? false,
     }, { onConflict: 'organization_id,section,item_name,year,month' })
     .select('id').single();
 
