@@ -1,5 +1,5 @@
 import { exchangeCodeForTokens, getOAuthClient } from '@/lib/gmail';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { google } from 'googleapis';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +49,8 @@ export async function GET(request) {
     };
     if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
 
-    await supabase
+    const sb = createServiceClient();
+    await sb
       .from('organizations')
       .update(updates)
       .eq('id', profile.organization_id);
