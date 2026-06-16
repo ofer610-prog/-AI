@@ -19,6 +19,12 @@ function verifyState(stateParam) {
   } catch { return null; }
 }
 
+function back(request, params = {}) {
+  const target = new URL('/expenses/receipts', request.url);
+  Object.entries(params).forEach(([k, v]) => target.searchParams.set(k, String(v)));
+  return Response.redirect(target, 302);
+}
+
 export async function GET(request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -29,13 +35,12 @@ export async function GET(request) {
 
   if (error) {
     console.error('OAuth callback: Google error:', error);
-    return Response.redirect(new URL(`/dashboard?gmail_error=${error}`, request.url));
+    return back(request, { gmail_error: error });
   }
   if (!code) {
-    return Response.redirect(new URL('/dashboard?gmail_error=no_code', request.url));
+    return back(request, { gmail_error: 'no_code' });
   }
 
-  // Resolve org_id: from signed state (mobile-safe) OR from session cookies (desktop fallback)
   let orgId = null;
   const stateData = verifyState(stateParam);
   if (stateData?.org_id) {
@@ -48,7 +53,7 @@ export async function GET(request) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.error('OAuth callback: no user in session and no state');
-        return Response.redirect(new URL('/dashboard?gmail_error=session_lost', request.url));
+        return back(request, { gmail_error: 'session_lost' });
       }
       const { data: profile } = await supabase
         .from('profiles').select('organization_id').eq('id', user.id).single();
@@ -59,7 +64,7 @@ export async function GET(request) {
   }
 
   if (!orgId) {
-    return Response.redirect(new URL('/dashboard?gmail_error=no_org', request.url));
+    return back(request, { gmail_error: 'no_org' });
   }
 
   try {
@@ -86,13 +91,13 @@ export async function GET(request) {
 
     if (updateError) {
       console.error('OAuth callback: org update failed:', updateError);
-      return Response.redirect(new URL(`/dashboard?gmail_error=${encodeURIComponent(updateError.message)}`, request.url));
+      return back(request, { gmail_error: updateError.message });
     }
 
     console.log('OAuth callback: success for org', orgId, '| email:', gmailEmail, '| has_refresh:', !!tokens.refresh_token);
-    return Response.redirect(new URL('/expenses?connected=1', request.url));
+    return back(request, { connected: '1' });
   } catch (e) {
     console.error('OAuth callback error:', e.message);
-    return Response.redirect(new URL(`/dashboard?gmail_error=${encodeURIComponent(e.message)}`, request.url));
+    return back(request, { gmail_error: e.message });
   }
 }
