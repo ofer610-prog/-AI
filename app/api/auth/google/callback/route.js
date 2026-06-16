@@ -47,14 +47,24 @@ export async function GET(request) {
       gmail_connected: true,
       gmail_email: gmailEmail,
     };
-    if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
+    if (tokens.refresh_token) {
+      updates.gmail_refresh_token = tokens.refresh_token;
+    } else {
+      console.warn('OAuth callback: no refresh_token in response — user may need to revoke and re-auth');
+    }
 
     const sb = createServiceClient();
-    await sb
+    const { error: updateError } = await sb
       .from('organizations')
       .update(updates)
       .eq('id', profile.organization_id);
 
+    if (updateError) {
+      console.error('OAuth callback: org update failed', updateError);
+      return Response.redirect(new URL(`/dashboard?gmail_error=${encodeURIComponent(updateError.message)}`, request.url));
+    }
+
+    console.log('OAuth callback: saved gmail tokens for org', profile.organization_id, 'has_refresh:', !!tokens.refresh_token);
     return Response.redirect(new URL('/expenses?connected=1', request.url));
   } catch (e) {
     console.error('OAuth callback error:', e);
