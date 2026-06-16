@@ -1,7 +1,5 @@
-import { getAuthUrl } from '@/lib/gmail';
-
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  return Response.redirect(getAuthUrl(), 302);
+export async function GET(request) {
+  return Response.redirect(new URL('/api/auth/google/connect', request.url), 302);
 }
