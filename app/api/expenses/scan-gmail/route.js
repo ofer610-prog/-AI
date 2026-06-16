@@ -15,7 +15,6 @@ export async function POST(request) {
 
   const sb = createServiceClient();
 
-  // Get Gmail token + office card(s)
   const { data: org } = await sb.from('organizations')
     .select('gmail_connected, gmail_refresh_token, gmail_email, office_card_last4')
     .eq('id', profile.organization_id).single();
@@ -23,10 +22,13 @@ export async function POST(request) {
   const officeCards = org?.office_card_last4 || [];
 
   if (!org?.gmail_connected || !org?.gmail_refresh_token) {
-    return Response.json({ error: 'Gmail לא מחובר — חבר Gmail בהגדרות המשרד', connected: false }, { status: 400 });
+    return Response.json({
+      error: 'Gmail לא מחובר — יש לבצע חיבור Google חד־פעמי ואז להפעיל שוב סריקה',
+      connected: false,
+      connect_url: '/api/auth/google/connect?return_to=/expenses/receipts',
+    }, { status: 400 });
   }
 
-  // Get known expense items (for vendor matching)
   const { data: items } = await sb.from('office_expenses')
     .select('item_name')
     .eq('organization_id', profile.organization_id);
@@ -35,7 +37,6 @@ export async function POST(request) {
 
   const gmail = getGmailClient(org.gmail_refresh_token);
 
-  // Build search: last 60 days, invoices/receipts in Hebrew or English
   const since = new Date(Date.now() - 60 * 86400000);
   const sinceUnix = Math.floor(since.getTime() / 1000);
 
@@ -51,7 +52,6 @@ export async function POST(request) {
     return Response.json({ error: `שגיאת Gmail: ${e.message}` }, { status: 500 });
   }
 
-  // Already-imported gmail IDs (to skip)
   const { data: existing } = await sb.from('expense_documents')
     .select('gmail_message_id')
     .eq('organization_id', profile.organization_id)
@@ -61,7 +61,6 @@ export async function POST(request) {
   const suggestions = [];
   let skippedClient = 0;
 
-  // Decode a Gmail base64url body part to UTF-8 text
   const decodePart = (data) => Buffer.from((data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
   const getFullText = (payload) => {
     let text = '';
@@ -78,8 +77,6 @@ export async function POST(request) {
     if (importedIds.has(msg.id)) continue;
 
     try {
-      // Government payment receipts (נסח טאבו / אגרות) need the full body to read
-      // the amount AND the paying card. Other emails: metadata is enough.
       const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'full' });
 
       const headers = detail.data.payload?.headers || [];
@@ -95,21 +92,17 @@ export async function POST(request) {
 
       if (isGovPayment) {
         const body = getFullText(detail.data.payload);
-        // Total paid: "סה"כ שולם: 18.00 ₪" or "מחיר: 18.00 ₪"
         const amtM = body.match(/סה["”]?כ\s*שולם[:\s<\/bu>]*([\d,]+\.?\d*)/i)
           || body.match(/מחיר[:\s<\/b>]*([\d,]+\.?\d*)\s*₪/);
         if (amtM) amount = parseFloat(amtM[1].replace(/,/g, ''));
-        // Card: "4 ספרות אחרונות ... : 9434"
         const cardM = body.match(/4 ספרות אחרונות[^:]*:\s*<\/b>\s*(\d{4})/) || body.match(/(\d{4})(?=[^\d]{0,40}אישור מחברת האשראי)/);
         if (cardM) cardLast4 = cardM[1];
-        // Description: "תיאור התשלום: נסח מלא"
         const descM = body.match(/תיאור התשלום[:\s<\/b>]*([^<\n]{1,40})/);
         description = descM ? descM[1].trim() : 'תשלום ממשלתי';
         matchedVendor = 'אגרות טאבו';
-        // Classify by card
         isOffice = cardLast4 ? officeCards.includes(cardLast4) : true;
         payer = isOffice ? 'office' : 'client';
-        if (!isOffice) { skippedClient++; continue; } // skip client-paid entirely
+        if (!isOffice) { skippedClient++; continue; }
       } else {
         const subjectLow = subject.toLowerCase();
         for (const v of vendors) {
@@ -128,7 +121,7 @@ export async function POST(request) {
         card_last4: cardLast4, payer, is_gov_payment: isGovPayment,
         snippet: detail.data.snippet || '',
       });
-    } catch { /* skip malformed */ }
+    } catch { }
   }
 
   return Response.json({ suggestions, scanned: messages.length, skipped_client: skippedClient, office_cards: officeCards, connected: true });
