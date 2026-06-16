@@ -18,12 +18,15 @@ export async function GET(request) {
 
   if (!profile?.organization_id) return new Response('No organization', { status: 400 });
 
-  const returnTo = new URL(request.url).searchParams.get('return_to') || '/expenses/receipts';
+  const url = new URL(request.url);
+  const returnTo = url.searchParams.get('return_to') || '/expenses/receipts';
+  const retry = Number(url.searchParams.get('retry') || 0);
 
   const payload = Buffer.from(JSON.stringify({
     org_id: profile.organization_id,
     user_id: user.id,
     return_to: returnTo,
+    retry,
     ts: Date.now(),
   })).toString('base64url');
 
