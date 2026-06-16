@@ -10,7 +10,10 @@ export async function GET(request) {
   const code = url.searchParams.get('code');
   const error = url.searchParams.get('error');
 
+  console.log('OAuth callback received:', { has_code: !!code, error, url: url.toString().slice(0, 200) });
+
   if (error) {
+    console.error('OAuth callback: Google returned error:', error);
     return Response.redirect(new URL(`/dashboard?gmail_error=${error}`, request.url));
   }
 
