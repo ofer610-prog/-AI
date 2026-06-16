@@ -71,7 +71,7 @@ async function tryUploadAttachmentToDrive({ org, gmailId, row, docDate, vendor, 
 
   const driveFile = await uploadBufferToDrive({
     refreshToken: org.gmail_refresh_token,
-    folderId: process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID || DEFAULT_EXPENSES_DRIVE_FOLDER_ID,
+    folderId: org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID || DEFAULT_EXPENSES_DRIVE_FOLDER_ID,
     buffer,
     fileName: cleanName,
     mimeType: attachment.mimeType || 'application/pdf',
@@ -90,7 +90,7 @@ export async function POST(request) {
 
   const sb = createServiceClient();
   const { data: org } = await sb.from('organizations')
-    .select('gmail_connected, gmail_refresh_token, gmail_email')
+    .select('gmail_connected, gmail_refresh_token, gmail_email, drive_expenses_folder_id')
     .eq('id', profile.organization_id).single();
 
   const imported = [];

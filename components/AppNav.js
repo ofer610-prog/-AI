@@ -76,6 +76,14 @@ export default function AppNav() {
               }`}>
               💸 הוצאות
             </Link>
+            <Link href="/credit-charges"
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
+                isActive('/credit-charges')
+                  ? 'bg-purple-500 border-purple-400 text-white font-bold'
+                  : 'border-purple-500/60 text-purple-300 hover:bg-purple-500 hover:text-white'
+              }`}>
+              💳 חיובי אשראי
+            </Link>
             <Link href="/tax"
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
                 isActive('/tax')

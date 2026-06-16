@@ -55,6 +55,7 @@ export default function ExpensesPage() {
   const [gmailSuggestions, setGmailSuggestions] = useState([]);
   const [showGmailPanel, setShowGmailPanel] = useState(false);
   const [gmailError, setGmailError]     = useState('');
+  const [gmailNotConnected, setGmailNotConnected] = useState(false);
 
   const fileRef = useRef(null);
   const curMonth = new Date().getMonth() + 1;
@@ -217,11 +218,14 @@ export default function ExpensesPage() {
   };
 
   const scanGmail = async () => {
-    setScanning(true); setGmailError('');
+    setScanning(true); setGmailError(''); setGmailNotConnected(false);
     try {
       const res = await fetch('/api/expenses/scan-gmail', { method: 'POST' });
       const d = await res.json();
-      if (!res.ok) { setGmailError(d.error || 'שגיאה'); setScanning(false); return; }
+      if (!res.ok) {
+        if (d.connected === false) setGmailNotConnected(true);
+        setGmailError(d.error || 'שגיאה'); setScanning(false); return;
+      }
       setGmailSuggestions(d.suggestions || []);
       setShowGmailPanel(true);
     } catch { setGmailError('שגיאת רשת'); }
@@ -436,7 +440,15 @@ export default function ExpensesPage() {
               </div>
             )}
             {gmailError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">{gmailError}</div>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm flex items-center justify-between gap-3 flex-wrap">
+                <span>{gmailError}</span>
+                {gmailNotConnected && (
+                  <a href="/api/auth/google/connect"
+                    className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap">
+                    🔗 חבר את Gmail של המשרד
+                  </a>
+                )}
+              </div>
             )}
 
             {/* ── KPI strip ── */}
