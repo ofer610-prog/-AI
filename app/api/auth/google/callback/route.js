@@ -76,14 +76,26 @@ export async function GET(request) {
     const userInfo = await oauth2.userinfo.get();
     const gmailEmail = userInfo.data.email;
 
-    const updates = { gmail_connected: true, gmail_email: gmailEmail };
-    if (tokens.refresh_token) {
-      updates.gmail_refresh_token = tokens.refresh_token;
-    } else {
-      console.warn('OAuth callback: no refresh_token returned by Google');
+    const sb = createServiceClient();
+    const { data: existing } = await sb
+      .from('organizations')
+      .select('gmail_refresh_token')
+      .eq('id', orgId)
+      .single();
+
+    if (!tokens.refresh_token && !existing?.gmail_refresh_token) {
+      console.warn('OAuth callback: no persistent token returned');
+      if (!stateData?.retry && tokens.access_token) {
+        try { await oauth2Client.revokeToken(tokens.access_token); } catch (e) { console.warn('OAuth callback: revoke failed:', e.message); }
+        return Response.redirect(new URL('/api/auth/google/connect?return_to=/expenses/receipts&retry=1', request.url), 302);
+      }
+      await sb.from('organizations').update({ gmail_connected: false, gmail_email: gmailEmail }).eq('id', orgId);
+      return back(request, { gmail_error: 'no_refresh_token' });
     }
 
-    const sb = createServiceClient();
+    const updates = { gmail_connected: true, gmail_email: gmailEmail };
+    if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
+
     const { error: updateError } = await sb
       .from('organizations')
       .update(updates)
@@ -94,7 +106,7 @@ export async function GET(request) {
       return back(request, { gmail_error: updateError.message });
     }
 
-    console.log('OAuth callback: success for org', orgId, '| email:', gmailEmail, '| has_refresh:', !!tokens.refresh_token);
+    console.log('OAuth callback: success for org', orgId, '| email:', gmailEmail, '| has_refresh:', !!(tokens.refresh_token || existing?.gmail_refresh_token));
     return back(request, { connected: '1' });
   } catch (e) {
     console.error('OAuth callback error:', e.message);
