@@ -60,11 +60,21 @@ export async function GET(request) {
     const tokens = await exchangeCodeForTokens(code);
     console.log('GOOGLE_OAUTH_DEBUG tokens', JSON.stringify({ hasAccess: !!tokens.access_token, hasRefresh: !!tokens.refresh_token, scope: tokens.scope || null }));
 
-    const oauth2Client = getOAuthClient();
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-    const gmailEmail = userInfo.data.email || null;
+    // Best-effort: read the connected Gmail address via the Gmail profile
+    // endpoint (works with gmail.readonly, which we already have). This must
+    // NOT block token storage — oauth2.userinfo.get() would throw here because
+    // we never request the userinfo/openid scope, which was the root cause of
+    // the callback always failing into the catch block.
+    let gmailEmail = null;
+    try {
+      const oauth2Client = getOAuthClient();
+      oauth2Client.setCredentials(tokens);
+      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+      const prof = await gmail.users.getProfile({ userId: 'me' });
+      gmailEmail = prof.data.emailAddress || null;
+    } catch (e) {
+      console.warn('GOOGLE_OAUTH_DEBUG email_lookup_failed', e.message);
+    }
 
     const sb = createServiceClient();
     const { data: existing, error: existingError } = await sb
@@ -74,13 +84,16 @@ export async function GET(request) {
       .single();
     console.log('GOOGLE_OAUTH_DEBUG existing', JSON.stringify({ existingError: existingError?.message || null, hadRefresh: !!existing?.gmail_refresh_token }));
 
+    // Google only returns a refresh_token on first consent. If we get none AND
+    // have none stored, the connection is unusable — surface a clear error.
     if (!tokens.refresh_token && !existing?.gmail_refresh_token) {
       console.warn('GOOGLE_OAUTH_DEBUG missing_refresh_token');
       await sb.from('organizations').update({ gmail_connected: false, gmail_email: gmailEmail }).eq('id', orgId);
       return back(request, { gmail_error: 'no_refresh_token' });
     }
 
-    const updates = { gmail_connected: true, gmail_email: gmailEmail };
+    const updates = { gmail_connected: true };
+    if (gmailEmail) updates.gmail_email = gmailEmail;
     if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
 
     const { data: updated, error: updateError } = await sb
