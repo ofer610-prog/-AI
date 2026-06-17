@@ -324,6 +324,10 @@ export default function ExpensesPage() {
             className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm px-4 py-2 rounded-xl flex items-center gap-2">
             {scanning ? '⏳ סורק…' : '📧 סרוק מיילים'}
           </button>
+          <a href="/api/auth/google/connect"
+            className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded-xl whitespace-nowrap">
+            🔗 חבר Gmail
+          </a>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={uploadExcel} className="hidden" />
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-sm px-4 py-2 rounded-xl">
