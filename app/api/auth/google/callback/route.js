@@ -65,18 +65,28 @@ export async function GET(request) {
   try {
     const tokens = await exchangeCodeForTokens(code);
 
-    const oauth2Client = getOAuthClient();
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-    const gmailEmail = userInfo.data.email;
-
-    const updates = { gmail_connected: true, gmail_email: gmailEmail };
-    if (tokens.refresh_token) {
-      updates.gmail_refresh_token = tokens.refresh_token;
-    } else {
+    if (!tokens.refresh_token) {
       console.warn('OAuth callback: no refresh_token returned by Google');
     }
+
+    // Best-effort: read the connected Gmail address via the Gmail profile
+    // endpoint (works with gmail.readonly, which we already have). This must
+    // NOT block token storage — oauth2.userinfo.get() would throw here because
+    // we never request the userinfo/openid scope.
+    let gmailEmail = null;
+    try {
+      const oauth2Client = getOAuthClient();
+      oauth2Client.setCredentials(tokens);
+      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+      const prof = await gmail.users.getProfile({ userId: 'me' });
+      gmailEmail = prof.data.emailAddress || null;
+    } catch (e) {
+      console.warn('OAuth callback: could not read gmail address:', e.message);
+    }
+
+    const updates = { gmail_connected: true };
+    if (gmailEmail) updates.gmail_email = gmailEmail;
+    if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
 
     const sb = createServiceClient();
     const { error: updateError } = await sb
