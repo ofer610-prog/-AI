@@ -18,6 +18,7 @@ export async function GET() {
 
   return Response.json({
     ok: true,
+    diagnostic_version: 'google-oauth-debug-1',
     gmail_connected: !!org?.gmail_connected,
     has_refresh_token: !!org?.gmail_refresh_token,
     gmail_email: org?.gmail_email || null,
