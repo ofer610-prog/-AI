@@ -30,65 +30,52 @@ export async function GET(request) {
   const code = url.searchParams.get('code');
   const error = url.searchParams.get('error');
   const stateParam = url.searchParams.get('state');
-
-  console.log('OAuth callback:', { has_code: !!code, error, has_state: !!stateParam });
-
-  if (error) {
-    console.error('OAuth callback: Google error:', error);
-    return back(request, { gmail_error: error });
-  }
-  if (!code) {
-    return back(request, { gmail_error: 'no_code' });
-  }
-
-  let orgId = null;
   const stateData = verifyState(stateParam);
-  if (stateData?.org_id) {
-    orgId = stateData.org_id;
-    console.log('OAuth callback: org_id from state:', orgId);
-  } else {
-    console.warn('OAuth callback: no valid state, falling back to session');
+
+  console.log('GOOGLE_OAUTH_DEBUG callback_start', JSON.stringify({ hasCode: !!code, googleError: error || null, hasState: !!stateParam, validState: !!stateData }));
+
+  if (error) return back(request, { gmail_error: error });
+  if (!code) return back(request, { gmail_error: 'no_code' });
+
+  let orgId = stateData?.org_id || null;
+
+  if (!orgId) {
     try {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('OAuth callback: no user in session and no state');
-        return back(request, { gmail_error: 'session_lost' });
-      }
-      const { data: profile } = await supabase
+      console.log('GOOGLE_OAUTH_DEBUG session_fallback', JSON.stringify({ hasUser: !!user }));
+      if (!user) return back(request, { gmail_error: 'session_lost' });
+      const { data: profile, error: profileError } = await supabase
         .from('profiles').select('organization_id').eq('id', user.id).single();
+      console.log('GOOGLE_OAUTH_DEBUG profile', JSON.stringify({ hasProfile: !!profile, profileError: profileError?.message || null, hasOrg: !!profile?.organization_id }));
       orgId = profile?.organization_id;
     } catch (e) {
-      console.error('OAuth callback: session fallback failed:', e.message);
+      console.error('GOOGLE_OAUTH_DEBUG session_fallback_error', e.message);
     }
   }
 
-  if (!orgId) {
-    return back(request, { gmail_error: 'no_org' });
-  }
+  if (!orgId) return back(request, { gmail_error: 'no_org' });
 
   try {
     const tokens = await exchangeCodeForTokens(code);
+    console.log('GOOGLE_OAUTH_DEBUG tokens', JSON.stringify({ hasAccess: !!tokens.access_token, hasRefresh: !!tokens.refresh_token, scope: tokens.scope || null }));
 
     const oauth2Client = getOAuthClient();
     oauth2Client.setCredentials(tokens);
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
-    const gmailEmail = userInfo.data.email;
+    const gmailEmail = userInfo.data.email || null;
 
     const sb = createServiceClient();
-    const { data: existing } = await sb
+    const { data: existing, error: existingError } = await sb
       .from('organizations')
       .select('gmail_refresh_token')
       .eq('id', orgId)
       .single();
+    console.log('GOOGLE_OAUTH_DEBUG existing', JSON.stringify({ existingError: existingError?.message || null, hadRefresh: !!existing?.gmail_refresh_token }));
 
     if (!tokens.refresh_token && !existing?.gmail_refresh_token) {
-      console.warn('OAuth callback: no persistent token returned');
-      if (!stateData?.retry && tokens.access_token) {
-        try { await oauth2Client.revokeToken(tokens.access_token); } catch (e) { console.warn('OAuth callback: revoke failed:', e.message); }
-        return Response.redirect(new URL('/api/auth/google/connect?return_to=/expenses/receipts&retry=1', request.url), 302);
-      }
+      console.warn('GOOGLE_OAUTH_DEBUG missing_refresh_token');
       await sb.from('organizations').update({ gmail_connected: false, gmail_email: gmailEmail }).eq('id', orgId);
       return back(request, { gmail_error: 'no_refresh_token' });
     }
@@ -96,20 +83,19 @@ export async function GET(request) {
     const updates = { gmail_connected: true, gmail_email: gmailEmail };
     if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
 
-    const { error: updateError } = await sb
+    const { data: updated, error: updateError } = await sb
       .from('organizations')
       .update(updates)
-      .eq('id', orgId);
+      .eq('id', orgId)
+      .select('id, gmail_connected, gmail_email, gmail_refresh_token')
+      .single();
 
-    if (updateError) {
-      console.error('OAuth callback: org update failed:', updateError);
-      return back(request, { gmail_error: updateError.message });
-    }
+    console.log('GOOGLE_OAUTH_DEBUG update_result', JSON.stringify({ updateError: updateError?.message || null, savedConnected: !!updated?.gmail_connected, savedEmail: updated?.gmail_email || null, savedRefresh: !!updated?.gmail_refresh_token }));
 
-    console.log('OAuth callback: success for org', orgId, '| email:', gmailEmail, '| has_refresh:', !!(tokens.refresh_token || existing?.gmail_refresh_token));
+    if (updateError) return back(request, { gmail_error: updateError.message });
     return back(request, { connected: '1' });
   } catch (e) {
-    console.error('OAuth callback error:', e.message);
+    console.error('GOOGLE_OAUTH_DEBUG callback_error', e.message);
     return back(request, { gmail_error: e.message });
   }
 }
