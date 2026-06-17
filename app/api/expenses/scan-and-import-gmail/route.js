@@ -18,6 +18,7 @@ export async function POST(request) {
 
   const suggestions = Array.isArray(scan.suggestions) ? scan.suggestions : [];
   if (!suggestions.length) {
+    console.log('SCAN_AND_IMPORT no_suggestions', JSON.stringify({ scanned: scan.scanned || 0 }));
     return Response.json({ ok: true, scanned: scan.scanned || 0, imported: [], skipped: [], errors: [], message: 'לא נמצאו קבלות חדשות לייבוא' });
   }
 
@@ -29,10 +30,12 @@ export async function POST(request) {
   const imported = await importRes.json().catch(() => ({}));
   if (!importRes.ok) return Response.json(imported, { status: importRes.status });
 
-  return Response.json({
+  const finalResult = {
     ok: true,
     scanned: scan.scanned || suggestions.length,
     suggestions: suggestions.length,
     ...imported,
-  });
+  };
+  console.log('SCAN_AND_IMPORT result', JSON.stringify({ scanned: finalResult.scanned, suggestions: finalResult.suggestions, imported: finalResult.imported?.length, skipped: finalResult.skipped?.length, errors: finalResult.errors?.length, driveWarnings: finalResult.driveWarnings?.length }));
+  return Response.json(finalResult);
 }

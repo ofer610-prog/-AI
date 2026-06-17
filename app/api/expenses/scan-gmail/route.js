@@ -48,7 +48,9 @@ export async function POST(request) {
   try {
     const res = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
     messages = res.data.messages || [];
+    console.log('SCAN_GMAIL found_messages', messages.length, 'query', query.slice(0, 80));
   } catch (e) {
+    console.error('SCAN_GMAIL list_error', e.message);
     return Response.json({ error: `שגיאת Gmail: ${e.message}` }, { status: 500 });
   }
 
@@ -124,5 +126,6 @@ export async function POST(request) {
     } catch { }
   }
 
+  console.log('SCAN_GMAIL result', JSON.stringify({ scanned: messages.length, suggestions: suggestions.length, skipped_client: skippedClient }));
   return Response.json({ suggestions, scanned: messages.length, skipped_client: skippedClient, office_cards: officeCards, connected: true });
 }
