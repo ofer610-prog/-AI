@@ -82,6 +82,18 @@ export default function ReceiptsPage() {
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
   const [reviewItem, setReviewItem] = useState(null);
+  const [connectStatus, setConnectStatus] = useState(null); // 'ok' | 'error:...'
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('connected') === '1') {
+      setConnectStatus('ok');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (p.get('gmail_error')) {
+      setConnectStatus('error:' + p.get('gmail_error'));
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -171,6 +183,18 @@ export default function ReceiptsPage() {
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
+        {connectStatus === 'ok' && (
+          <div className="rounded-2xl p-4 border bg-emerald-50 border-emerald-200 text-emerald-800">
+            ✅ Gmail חובר בהצלחה! עכשיו לחץ <b>סרוק וייבא</b> כדי לייבא חשבוניות.
+          </div>
+        )}
+        {connectStatus?.startsWith('error:') && (
+          <div className="rounded-2xl p-4 border bg-red-50 border-red-200 text-red-700">
+            ❌ שגיאה בחיבור Gmail: {connectStatus.replace('error:', '')}
+            <a href="/api/auth/google/connect?return_to=/expenses/receipts&retry=1" className="mr-3 underline font-semibold">נסה שוב</a>
+          </div>
+        )}
+
         {result && (
           <div className={`rounded-2xl p-4 border ${result.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
             {result.error

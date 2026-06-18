@@ -4,6 +4,7 @@ import { getGmailClient, getEmailDetails, getAttachmentData } from '@/lib/gmail'
 import { DEFAULT_EXPENSES_DRIVE_FOLDER_ID, safeDriveFileName, uploadBufferToDrive } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 async function recomputeCell(sb, orgId, section, item, year, month) {
   const { data } = await sb.from('expense_documents')
