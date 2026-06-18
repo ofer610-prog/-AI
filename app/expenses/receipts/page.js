@@ -9,11 +9,14 @@ const money = n => Number(n || 0).toLocaleString('he-IL', { maximumFractionDigit
 export default function ReceiptsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [docs, setDocs] = useState([]);
+  const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState(null);
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
+  const [preview, setPreview] = useState(null);
+  const [edit, setEdit] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -22,6 +25,7 @@ export default function ReceiptsPage() {
       if (res.status === 401) { window.location.href = '/login'; return; }
       const data = await res.json();
       setDocs(data.docs || []);
+      setEntries(data.entries || []);
     } catch {}
     setLoading(false);
   }, [year]);
@@ -29,28 +33,40 @@ export default function ReceiptsPage() {
   useEffect(() => { load(); }, [load]);
 
   const sync = async () => {
-    setSyncing(true);
-    setResult(null);
+    setSyncing(true); setResult(null);
     try {
       const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST' });
       const data = await res.json();
-      setResult(data);
-      await load();
+      setResult(data); await load();
     } catch { setResult({ error: 'שגיאת רשת' }); }
     setSyncing(false);
   };
 
+  const topics = useMemo(() => [...new Set(entries.map(e => e.item_name).filter(Boolean))].sort(), [entries]);
   const rows = useMemo(() => {
     const query = q.trim().toLowerCase();
     return docs.filter(d => {
       if (m !== 'all' && Number(d.expense_month_num) !== Number(m)) return false;
       if (!query) return true;
-      return [d.vendor, d.file_name, d.description, d.expense_item].filter(Boolean).join(' ').toLowerCase().includes(query);
-    }).sort((a, b) => String(b.doc_date || '').localeCompare(String(a.doc_date || '')));
+      return [d.vendor, d.file_name, d.description, d.expense_item, d.status].filter(Boolean).join(' ').toLowerCase().includes(query);
+    }).sort((a, b) => (a.status === 'needs_review' ? -1 : b.status === 'needs_review' ? 1 : String(b.doc_date || '').localeCompare(String(a.doc_date || ''))));
   }, [docs, q, m]);
 
-  const total = rows.reduce((s, d) => s + Number(d.amount || 0), 0);
+  const pending = rows.filter(d => d.status === 'needs_review').length;
+  const total = rows.filter(d => d.status !== 'needs_review').reduce((s, d) => s + Number(d.amount || 0), 0);
   const linked = rows.filter(d => d.file_url).length;
+
+  const rejectDoc = async (doc) => {
+    if (!confirm('להסיר את החשבונית מהרשימה?')) return;
+    await fetch('/api/expenses/review-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, action: 'reject' }) });
+    await load();
+  };
+
+  const approveDoc = async () => {
+    if (!edit?.expense_item) { alert('יש לבחור תת נושא'); return; }
+    await fetch('/api/expenses/review-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...edit, action: 'approve' }) });
+    setEdit(null); await load();
+  };
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-16">
@@ -62,77 +78,59 @@ export default function ReceiptsPage() {
             {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <div className="flex-1" />
-          <a href="/api/google/connect" className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-sm">
-            🔐 חבר Google מחדש
-          </a>
-          <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">
-            {syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}
-          </button>
+          <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">{syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}</button>
         </div>
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
-        <div className="rounded-2xl p-4 border bg-amber-50 border-amber-200 text-amber-900 text-sm">
-          לשמירת קבצי החשבוניות בדרייב יש ללחוץ פעם אחת על <b>חבר Google מחדש</b> ולאשר את ההרשאה החדשה. לאחר מכן ללחוץ <b>סרוק וייבא</b>.
-        </div>
+        {pending > 0 && <div className="rounded-2xl p-4 border bg-orange-100 border-orange-300 text-orange-900 font-bold">⚠️ {pending} חשבוניות ממתינות לסיווג מנהל. הן לא נספרות כהוצאה רגילה עד אישור.</div>}
+        {result && <div className={`rounded-2xl p-4 border ${result.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{result.error ? result.error : `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`}</div>}
 
-        {result && (
-          <div className={`rounded-2xl p-4 border ${result.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
-            {result.error ? result.error : `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. דולגו ${result.skipped?.length || 0}.`}
-            {result.driveWarnings?.length ? <div className="mt-2 text-sm">חלק מהקבצים לא נשמרו בדרייב — כנראה שצריך לחבר Google מחדש.</div> : null}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card title="מסמכים" value={rows.length} />
-          <Card title="סה״כ" value={`₪${money(total)}`} />
+          <Card title="ממתינים" value={pending} warn={pending > 0} />
+          <Card title="סה״כ מאושרות" value={`₪${money(total)}`} />
           <Card title="עם קישור" value={linked} />
         </div>
 
         <section className="bg-white rounded-2xl border border-slate-200 p-4">
           <div className="flex flex-wrap gap-3 items-center mb-4">
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש ספק / נושא / הערה" className="border rounded-xl px-3 py-2 text-sm w-72" />
-            <select value={m} onChange={e => setM(e.target.value)} className="border rounded-xl px-3 py-2 text-sm">
-              <option value="all">כל החודשים</option>
-              {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
-            </select>
+            <select value={m} onChange={e => setM(e.target.value)} className="border rounded-xl px-3 py-2 text-sm"><option value="all">כל החודשים</option>{MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}</select>
           </div>
-
           {loading ? <div className="py-12 text-center text-slate-400">טוען…</div> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-600">
-                    <th className="text-right p-2 border-b">תאריך</th>
-                    <th className="text-right p-2 border-b">ספק</th>
-                    <th className="text-right p-2 border-b">נושא</th>
-                    <th className="text-right p-2 border-b">חודש</th>
-                    <th className="text-left p-2 border-b">סכום</th>
-                    <th className="text-right p-2 border-b">קובץ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(d => (
-                    <tr key={d.id} className="hover:bg-slate-50">
-                      <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
-                      <td className="p-2 border-b font-medium">{d.vendor || '—'}</td>
-                      <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[520px]">{d.description || ''}</div></td>
-                      <td className="p-2 border-b whitespace-nowrap">{MONTHS[(d.expense_month_num || 1) - 1] || '—'}</td>
-                      <td className="p-2 border-b text-left font-semibold whitespace-nowrap">₪{money(d.amount)}</td>
-                      <td className="p-2 border-b whitespace-nowrap">{d.file_url ? <a href={d.file_url} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">פתח</a> : <span className="text-red-500">חסר</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
+                <thead><tr className="bg-slate-100 text-slate-600"><th className="text-right p-2 border-b">סטטוס</th><th className="text-right p-2 border-b">תאריך</th><th className="text-right p-2 border-b">ספק</th><th className="text-right p-2 border-b">נושא</th><th className="text-left p-2 border-b">סכום</th><th className="text-right p-2 border-b">פעולות</th></tr></thead>
+                <tbody>{rows.map(d => <tr key={d.id} className={d.status === 'needs_review' ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500' : 'hover:bg-slate-50'}>
+                  <td className="p-2 border-b whitespace-nowrap">{d.status === 'needs_review' ? <span className="text-orange-700 font-bold">ממתין לסיווג</span> : <span className="text-emerald-700">מאושר</span>}</td>
+                  <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
+                  <td className="p-2 border-b font-medium">{d.vendor || '—'}</td>
+                  <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[520px]">{d.description || ''}</div></td>
+                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">₪{money(d.amount)}</td>
+                  <td className="p-2 border-b whitespace-nowrap flex gap-2">
+                    <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200">צפייה</button>
+                    {d.status === 'needs_review' && <button onClick={() => setEdit({ id: d.id, vendor: d.vendor || '', amount: d.amount || '', doc_date: d.doc_date || new Date().toISOString().slice(0,10), expense_item: '', expense_section: 'office' })} className="px-2 py-1 rounded-lg bg-orange-500 text-white">סווג</button>}
+                    <button onClick={() => rejectDoc(d)} className="px-2 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100">הסר</button>
+                  </td>
+                </tr>)}</tbody>
               </table>
               {!rows.length && <div className="py-10 text-center text-slate-400">אין מסמכים להצגה.</div>}
-            </div>
-          )}
+            </div>)}
         </section>
       </main>
+
+      {preview && <Modal title="צפייה מהירה" onClose={() => setPreview(null)}><div className="space-y-3"><div className="font-bold">{preview.file_name}</div><iframe src={preview.file_url} className="w-full h-[70vh] border rounded-xl" /><a href={preview.file_url} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח בכרטיסייה חדשה</a></div></Modal>}
+      {edit && <Modal title="סיווג ואישור חשבונית" onClose={() => setEdit(null)}><div className="grid gap-3">
+        <label className="text-sm">תת נושא<select value={edit.expense_item} onChange={e => setEdit({ ...edit, expense_item: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1"><option value="">בחר תת נושא</option>{topics.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+        <label className="text-sm">ספק<input value={edit.vendor} onChange={e => setEdit({ ...edit, vendor: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label>
+        <label className="text-sm">סכום<input value={edit.amount} onChange={e => setEdit({ ...edit, amount: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label>
+        <label className="text-sm">תאריך<input type="date" value={edit.doc_date} onChange={e => setEdit({ ...edit, doc_date: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label>
+        <button onClick={approveDoc} className="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold">אשר ושמור</button>
+      </div></Modal>}
     </div>
   );
 }
 
-function Card({ title, value }) {
-  return <div className="rounded-2xl border bg-white border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">{title}</div><div className="text-2xl font-bold text-slate-800">{value}</div></div>;
-}
+function Card({ title, value, warn }) { return <div className={`rounded-2xl border bg-white ${warn ? 'border-orange-300' : 'border-slate-200'} p-4`}><div className="text-xs text-slate-500 mb-1">{title}</div><div className={`text-2xl font-bold ${warn ? 'text-orange-600' : 'text-slate-800'}`}>{value}</div></div>; }
+function Modal({ title, children, onClose }) { return <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4"><div dir="rtl" className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-5"><div className="flex items-center mb-4"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose} className="mr-auto text-slate-500 hover:text-black">✕</button></div>{children}</div></div>; }
