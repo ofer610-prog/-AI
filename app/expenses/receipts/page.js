@@ -13,12 +13,6 @@ function driveFileId(url) {
   m = s.match(/[?&]id=([^&]+)/);
   return m?.[1] || null;
 }
-function isGmail(url) { return String(url || '').includes('mail.google.com'); }
-function previewUrl(url) {
-  const id = driveFileId(url);
-  if (id) return `https://drive.google.com/file/d/${id}/preview`;
-  return url;
-}
 
 export default function ReceiptsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
@@ -87,7 +81,7 @@ export default function ReceiptsPage() {
       const res = await fetch(`/api/expense-docs/folder?id=${encodeURIComponent(doc.id)}`);
       const data = await res.json();
       if (data.folder_url) window.open(data.folder_url, '_blank', 'noopener,noreferrer');
-      else alert(data.error || 'לא נמצאה תיקייה');
+      else alert(data.error || 'לא נמצאה תיקייה. ייתכן שהחשבונית עדיין לא נשמרה בדרייב.');
     } catch { alert('לא ניתן לפתוח תיקייה'); }
   };
 
@@ -144,7 +138,7 @@ export default function ReceiptsPage() {
         </section>
       </main>
 
-      {preview && <Modal title="צפייה מהירה" onClose={() => setPreview(null)}><div className="space-y-3"><div className="font-bold">{preview.file_name}</div>{isGmail(preview.file_url) ? <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-900">לא ניתן להציג Gmail בתוך האתר. ניתן לפתוח את המייל בכרטיסייה חדשה.</div> : <iframe src={previewUrl(preview.file_url)} className="w-full h-[70vh] border rounded-xl" />}<div className="flex gap-3"><a href={preview.file_url} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח קובץ/מייל</a>{driveFileId(preview.file_url) && <button onClick={() => openFolder(preview)} className="text-indigo-700 underline">פתח תיקייה בדרייב</button>}</div></div></Modal>}
+      {preview && <Modal title="צפייה מהירה" onClose={() => setPreview(null)}><div className="space-y-3"><div className="font-bold">{preview.file_name}</div><iframe src={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} className="w-full h-[70vh] border rounded-xl bg-white" /><div className="flex gap-3"><a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח צפייה בכרטיסייה חדשה</a>{preview.file_url && <a href={preview.file_url} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח מקור</a>}{driveFileId(preview.file_url) && <button onClick={() => openFolder(preview)} className="text-indigo-700 underline">פתח תיקייה בדרייב</button>}</div></div></Modal>}
       {edit && <Modal title="סיווג ואישור חשבונית" onClose={() => setEdit(null)}><div className="grid gap-3"><label className="text-sm">תת נושא<select value={edit.expense_item} onChange={e => setEdit({ ...edit, expense_item: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1"><option value="">בחר תת נושא</option>{topics.map(t => <option key={t} value={t}>{t}</option>)}</select></label><label className="text-sm">ספק<input value={edit.vendor} onChange={e => setEdit({ ...edit, vendor: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><label className="text-sm">סכום<input value={edit.amount} onChange={e => setEdit({ ...edit, amount: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><label className="text-sm">תאריך<input type="date" value={edit.doc_date} onChange={e => setEdit({ ...edit, doc_date: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><button onClick={approveDoc} className="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold">אשר ושמור</button></div></Modal>}
     </div>
   );
