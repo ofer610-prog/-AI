@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import { getGmailClient, getEmailDetails, getAttachmentData } from '@/lib/gmail';
-import { DEFAULT_EXPENSES_DRIVE_FOLDER_ID, safeDriveFileName, uploadBufferToDrive } from '@/lib/drive';
+import { safeDriveFileName, uploadToMonthFolder } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -70,12 +70,15 @@ async function tryUploadAttachmentToDrive({ org, gmailId, row, docDate, vendor, 
     row.payment_confirmation ? `אסמכתא ${row.payment_confirmation}` : null,
   ]) + (String(attachment.filename || '').toLowerCase().endsWith('.pdf') ? '.pdf' : ` - ${attachment.filename || 'invoice'}`);
 
-  const driveFile = await uploadBufferToDrive({
+  const d = docDate ? new Date(docDate) : new Date();
+  const driveFile = await uploadToMonthFolder({
     refreshToken: org.gmail_refresh_token,
-    folderId: org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID || DEFAULT_EXPENSES_DRIVE_FOLDER_ID,
+    rootFolderId: org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID,
     buffer,
     fileName: cleanName,
     mimeType: attachment.mimeType || 'application/pdf',
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
   });
 
   return { url: driveFile.webViewLink, fileName: driveFile.name, note: null };

@@ -1,7 +1,7 @@
 import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getGmailClient, classifyEmail } from '@/lib/gmail';
-import { DEFAULT_EXPENSES_DRIVE_FOLDER_ID, safeDriveFileName, uploadBufferToDrive } from '@/lib/drive';
+import { safeDriveFileName, uploadToMonthFolder } from '@/lib/drive';
 import { getEmailDetails, getAttachmentData } from '@/lib/gmail';
 
 export const dynamic = 'force-dynamic';
@@ -182,10 +182,12 @@ async function saveSuggestion(sb, org, row) {
       if (buffer.length) {
         const cleanName = safeDriveFileName([docDate, row.matched_vendor || row.description, row.amount ? `${row.amount} שח` : null])
           + (String(att.filename || '').toLowerCase().endsWith('.pdf') ? '.pdf' : ` - ${att.filename || 'invoice'}`);
-        const driveFile = await uploadBufferToDrive({
+        const d = docDate ? new Date(docDate) : new Date();
+        const driveFile = await uploadToMonthFolder({
           refreshToken: org.gmail_refresh_token,
-          folderId: org.drive_expenses_folder_id || DEFAULT_EXPENSES_DRIVE_FOLDER_ID,
+          rootFolderId: org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID,
           buffer, fileName: cleanName, mimeType: att.mimeType || 'application/pdf',
+          year: d.getFullYear(), month: d.getMonth() + 1,
         });
         fileUrl = driveFile.webViewLink || gmailLink;
         fileName = driveFile.name || fileName;
