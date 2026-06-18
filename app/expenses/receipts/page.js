@@ -173,9 +173,6 @@ export default function ReceiptsPage() {
               ⚠️ {reviewItems.length} ממתינים לסיווג
             </span>
           )}
-          <a href="/api/auth/google/connect?return_to=/expenses/receipts" className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-sm">
-            🔐 חבר Google מחדש
-          </a>
           <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">
             {syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}
           </button>
