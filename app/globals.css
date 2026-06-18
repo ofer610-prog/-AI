@@ -28,7 +28,8 @@
   }
 }
 
-/* Hide the obsolete Google OAuth route button. The active connection UI is the status light component. */
-a[href="/api/google/connect"] {
+/* The active Google connection UI is the status light component. Hide direct connect buttons. */
+a[href="/api/google/connect"],
+a[href="/api/auth/google/connect"] {
   display: none !important;
 }
