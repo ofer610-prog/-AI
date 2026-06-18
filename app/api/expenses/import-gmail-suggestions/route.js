@@ -142,6 +142,7 @@ export async function POST(request) {
       `קישור למייל: ${gmailLink}`,
     ].filter(Boolean).join('\n');
 
+    const isNeedsReview = !!(row.needs_review);
     const { data, error } = await sb.from('expense_documents').insert({
       organization_id: profile.organization_id,
       uploaded_by: profile.id,
@@ -151,12 +152,12 @@ export async function POST(request) {
       category: row.category || 'general',
       doc_date: docDate,
       month: docDate.slice(0, 7),
-      status: 'linked',
+      status: isNeedsReview ? 'needs_review' : 'linked',
       file_url: fileUrl,
       file_name: fileName,
       file_type: fileUrl === gmailLink ? 'gmail_receipt' : 'drive_receipt',
-      expense_item: item,
-      expense_section: section,
+      expense_item: isNeedsReview ? null : item,
+      expense_section: isNeedsReview ? null : section,
       expense_year: year,
       expense_month_num: month,
       gmail_message_id: gmailId,
@@ -164,8 +165,8 @@ export async function POST(request) {
     }).select('id').single();
 
     if (error) { errors.push({ gmail_id: gmailId, error: error.message }); continue; }
-    await recomputeCell(sb, profile.organization_id, section, item, year, month);
-    imported.push({ id: data.id, gmail_id: gmailId, item, amount: Number(row.amount || 0), date: docDate, file_url: fileUrl, saved_to_drive: fileUrl !== gmailLink });
+    if (!isNeedsReview) await recomputeCell(sb, profile.organization_id, section, item, year, month);
+    imported.push({ id: data.id, gmail_id: gmailId, item, amount: Number(row.amount || 0), date: docDate, file_url: fileUrl, saved_to_drive: fileUrl !== gmailLink, needs_review: isNeedsReview });
   }
 
   return Response.json({ imported, skipped, errors, driveWarnings, drive_folder_id: DEFAULT_EXPENSES_DRIVE_FOLDER_ID });

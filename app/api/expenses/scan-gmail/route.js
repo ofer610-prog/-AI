@@ -1,14 +1,10 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
-import { getGmailClient } from '@/lib/gmail';
+import { getGmailClient, classifyEmail } from '@/lib/gmail';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-/**
- * POST /api/expenses/scan-gmail
- * Scans Gmail for invoice/receipt emails matching known expense vendors.
- * Returns: { suggestions: [{ subject, from, date, amount, vendor, gmail_id }] }
- */
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -48,7 +44,7 @@ export async function POST(request) {
   try {
     const res = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
     messages = res.data.messages || [];
-    console.log('SCAN_GMAIL found_messages', messages.length, 'query', query.slice(0, 80));
+    console.log('SCAN_GMAIL found_messages', messages.length);
   } catch (e) {
     console.error('SCAN_GMAIL list_error', e.message);
     return Response.json({ error: `שגיאת Gmail: ${e.message}` }, { status: 500 });
@@ -62,6 +58,7 @@ export async function POST(request) {
 
   const suggestions = [];
   let skippedClient = 0;
+  let skippedIrrelevant = 0;
 
   const decodePart = (data) => Buffer.from((data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
   const getFullText = (payload) => {
@@ -75,7 +72,8 @@ export async function POST(request) {
     return text;
   };
 
-  for (const msg of messages.slice(0, 30)) {
+  // Process max 20 emails to stay within Vercel timeout
+  for (const msg of messages.slice(0, 20)) {
     if (importedIds.has(msg.id)) continue;
 
     try {
@@ -87,45 +85,85 @@ export async function POST(request) {
       const date    = headers.find(h => h.name === 'Date')?.value || '';
       const fromLow = from.toLowerCase();
 
+      let docDate = null;
+      try { docDate = new Date(date).toISOString().slice(0, 10); } catch {}
+
       const isGovPayment = fromLow.includes('egovpayments') || fromLow.includes('ecom.gov.il')
         || subject.includes('שירותי הפנייה') || subject.includes('אישור תשלום');
 
-      let amount = null, cardLast4 = null, payer = 'office', isOffice = true, description = '', matchedVendor = null;
-
       if (isGovPayment) {
+        // Reliable regex extraction for government payments
         const body = getFullText(detail.data.payload);
-        const amtM = body.match(/סה["”]?כ\s*שולם[:\s<\/bu>]*([\d,]+\.?\d*)/i)
-          || body.match(/מחיר[:\s<\/b>]*([\d,]+\.?\d*)\s*₪/);
+        let amount = null, cardLast4 = null, description = '';
+        const amtM = body.match(/סה[""]?כ\s*שולם[:\s<\/bu>]*([\d,]+\.?\d*)/i) || body.match(/מחיר[:\s<\/b>]*([\d,]+\.?\d*)\s*₪/);
         if (amtM) amount = parseFloat(amtM[1].replace(/,/g, ''));
         const cardM = body.match(/4 ספרות אחרונות[^:]*:\s*<\/b>\s*(\d{4})/) || body.match(/(\d{4})(?=[^\d]{0,40}אישור מחברת האשראי)/);
         if (cardM) cardLast4 = cardM[1];
         const descM = body.match(/תיאור התשלום[:\s<\/b>]*([^<\n]{1,40})/);
         description = descM ? descM[1].trim() : 'תשלום ממשלתי';
-        matchedVendor = 'אגרות טאבו';
-        isOffice = cardLast4 ? officeCards.includes(cardLast4) : true;
-        payer = isOffice ? 'office' : 'client';
+        const isOffice = cardLast4 ? officeCards.includes(cardLast4) : true;
         if (!isOffice) { skippedClient++; continue; }
-      } else {
-        const subjectLow = subject.toLowerCase();
-        for (const v of vendors) {
-          if (subjectLow.includes(v.toLowerCase()) || fromLow.includes(v.toLowerCase())) { matchedVendor = v; break; }
-        }
-        const amountMatch = subject.match(/[\d,]+\.?\d*\s*(?:₪|nis|ils|שח)/i) || subject.match(/(?:₪|nis)\s*[\d,]+\.?\d*/i);
-        if (amountMatch) amount = parseFloat(amountMatch[0].replace(/[^\d.]/g, ''));
+        suggestions.push({
+          gmail_id: msg.id, subject, from, date: docDate,
+          amount, matched_vendor: 'אגרות טאבו', description,
+          card_last4: cardLast4, payer: 'office', is_gov_payment: true,
+          snippet: detail.data.snippet || '',
+          needs_review: false,
+        });
+        continue;
       }
 
-      let docDate = null;
-      try { docDate = new Date(date).toISOString().slice(0, 10); } catch {}
+      // AI classification for all other financial emails
+      const body = getFullText(detail.data.payload).slice(0, 10000);
+      let aiResult = null;
+      try {
+        aiResult = await classifyEmail({ id: msg.id, subject, from, date, body });
+      } catch (e) {
+        console.warn('SCAN_GMAIL ai_failed', msg.id, e.message?.slice(0, 80));
+      }
+
+      // Skip emails AI says are irrelevant (newsletters, spam, etc.)
+      if (aiResult && !aiResult.is_relevant) { skippedIrrelevant++; continue; }
+
+      // Determine if this needs manual review
+      const needsReview = !aiResult
+        || aiResult.confidence === 'low'
+        || aiResult.classification === 'other'
+        || aiResult.classification === 'whatsapp-export';
+
+      // Try to match known vendor from subject/sender, or use AI's from_party
+      const subjectLow = subject.toLowerCase();
+      const matchedVendor = vendors.find(v => subjectLow.includes(v.toLowerCase()) || fromLow.includes(v.toLowerCase()))
+        || (aiResult?.from_party && aiResult.from_party !== 'לא ידוע' ? aiResult.from_party : null);
+
+      const aiDate = aiResult?.date || null;
+      const finalDate = docDate || aiDate;
 
       suggestions.push({
-        gmail_id: msg.id, subject, from, date: docDate,
-        amount, matched_vendor: matchedVendor, description,
-        card_last4: cardLast4, payer, is_gov_payment: isGovPayment,
+        gmail_id: msg.id, subject, from,
+        date: finalDate,
+        amount: aiResult?.amount || null,
+        matched_vendor: matchedVendor,
+        description: aiResult?.description || subject,
+        card_last4: null, payer: 'office', is_gov_payment: false,
         snippet: detail.data.snippet || '',
+        needs_review: needsReview,
+        ai_classification: aiResult?.classification || 'unknown',
+        ai_confidence: aiResult?.confidence || 'low',
+        ai_direction: aiResult?.direction || 'neutral',
       });
-    } catch { }
+    } catch (e) {
+      console.warn('SCAN_GMAIL email_error', msg.id, e.message?.slice(0, 80));
+    }
   }
 
-  console.log('SCAN_GMAIL result', JSON.stringify({ scanned: messages.length, suggestions: suggestions.length, skipped_client: skippedClient }));
-  return Response.json({ suggestions, scanned: messages.length, skipped_client: skippedClient, office_cards: officeCards, connected: true });
+  const needsReviewCount = suggestions.filter(s => s.needs_review).length;
+  console.log('SCAN_GMAIL result', JSON.stringify({
+    scanned: messages.length,
+    suggestions: suggestions.length,
+    needs_review: needsReviewCount,
+    skipped_client: skippedClient,
+    skipped_irrelevant: skippedIrrelevant,
+  }));
+  return Response.json({ suggestions, scanned: messages.length, skipped_client: skippedClient, skipped_irrelevant: skippedIrrelevant, connected: true });
 }
