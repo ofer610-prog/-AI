@@ -77,6 +77,7 @@ export default function ReceiptsPage() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [reorganizing, setReorganizing] = useState(false);
   const [result, setResult] = useState(null);
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
@@ -117,6 +118,18 @@ export default function ReceiptsPage() {
       setResult(data); await load();
     } catch { setResult({ error: 'שגיאת רשת' }); }
     setSyncing(false);
+  };
+
+  const reorganize = async () => {
+    if (!confirm('לארגן את כל החשבוניות בדרייב לתיקיות לפי נושא? הפעולה תעדכן את קישורי הקבצים.')) return;
+    setReorganizing(true); setResult(null);
+    try {
+      const res = await fetch('/api/expenses/reorganize-drive', { method: 'POST' });
+      const data = await res.json();
+      setResult({ _reorganize: true, ...data });
+      await load();
+    } catch { setResult({ error: 'שגיאת רשת בארגון מחדש' }); }
+    setReorganizing(false);
   };
 
   const topics = useMemo(() => [...new Set(entries.map(e => e.item_name).filter(Boolean))].sort(), [entries]);
@@ -201,6 +214,9 @@ export default function ReceiptsPage() {
           >
             📁 {m !== 'all' ? `${MONTHS[Number(m) - 1]} ${year}` : `דרייב ${year}`}
           </button>
+          <button onClick={reorganize} disabled={reorganizing} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-3 py-2 rounded-xl text-sm">
+            {reorganizing ? '⏳ מארגן…' : '🗂 ארגן בדרייב'}
+          </button>
           <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">
             {syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}
           </button>
@@ -228,9 +244,10 @@ export default function ReceiptsPage() {
 
         {result && (
           <div className={`rounded-2xl p-4 border ${result.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
-            {result.error
-              ? result.error
-              : `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`}
+            {result.error ? result.error
+              : result._reorganize
+                ? `🗂 ארגון מחדש: הועלו לדרייב ${result.uploaded}, הוזזו ${result.moved}, דולגו ${result.skipped}, שגיאות ${result.errors}${result.duplicates ? `, כפולים שנמצאו ${result.duplicates}` : ''}.`
+                : `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`}
           </div>
         )}
 
