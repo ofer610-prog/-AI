@@ -34,7 +34,7 @@ function parseGovPayment(body) {
   return { amount, cardLast4, description };
 }
 
-async function tryUploadToDrive({ gmail, gmailId, refreshToken, org, docDate, vendor, description, amount }) {
+async function tryUploadToDrive({ gmail, gmailId, refreshToken, org, docDate, vendor, description, amount, topic }) {
   try {
     const details = await getEmailDetails(gmail, gmailId);
     const att = (details.attachments || []).find(
@@ -61,6 +61,7 @@ async function tryUploadToDrive({ gmail, gmailId, refreshToken, org, docDate, ve
       mimeType: att.mimeType || 'application/pdf',
       year,
       month,
+      topic: topic || null,
     });
   } catch {
     return null;
@@ -169,14 +170,12 @@ export async function POST(request) {
       const finalDate = docDate || ai?.date || null;
       const amount = ai?.amount || null;
 
-      // Attempt Drive upload for high-confidence matches
-      let driveFile = null;
-      if (!needsReview) {
-        driveFile = await tryUploadToDrive({
-          gmail, gmailId: msg.id, refreshToken: org.gmail_refresh_token, org,
-          docDate: finalDate, vendor: matchedVendor, description: ai?.description, amount,
-        });
-      }
+      // Upload to Drive: classified → topic folder, unclassified → "לא מסווג"
+      const driveFile = await tryUploadToDrive({
+        gmail, gmailId: msg.id, refreshToken: org.gmail_refresh_token, org,
+        docDate: finalDate, vendor: matchedVendor, description: ai?.description, amount,
+        topic: needsReview ? 'לא מסווג' : (matchedVendor || null),
+      });
 
       suggestions.push({
         gmail_id: msg.id, subject, from,
