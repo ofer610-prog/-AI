@@ -92,13 +92,13 @@ export async function POST(request) {
     .select('item_name').eq('organization_id', profile.organization_id);
   const vendors = [...new Set((items || []).map(i => i.item_name.trim()))];
 
-  const since = new Date(Date.now() - 60 * 86400000);
+  const since = new Date(Date.now() - 90 * 86400000);
   const sinceUnix = Math.floor(since.getTime() / 1000);
-  const query = `after:${sinceUnix} (חשבונית OR חשבון OR קבלה OR תשלום OR חיוב OR ספק OR invoice OR receipt OR billing OR payment OR has:attachment filename:(pdf OR jpg))`;
+  const query = `after:${sinceUnix} (חשבונית OR חשבון OR קבלה OR תשלום OR חיוב OR ספק OR אגרה OR invoice OR receipt OR billing OR payment OR has:attachment filename:(pdf OR jpg))`;
 
   let messages = [];
   try {
-    const res = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
+    const res = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 100 });
     messages = res.data.messages || [];
   } catch (e) {
     return Response.json({ error: `שגיאת Gmail: ${e.message}` }, { status: 500 });
@@ -113,7 +113,7 @@ export async function POST(request) {
   const suggestions = [];
   let skippedDuplicate = 0, skippedIrrelevant = 0, skippedPersonal = 0;
 
-  for (const msg of messages.slice(0, 20)) {
+  for (const msg of messages.slice(0, 50)) {
     if (importedIds.has(msg.id)) { skippedDuplicate++; continue; }
 
     try {
@@ -128,7 +128,21 @@ export async function POST(request) {
       try { docDate = new Date(date).toISOString().slice(0, 10); } catch {}
 
       const gmailLink = `https://mail.google.com/mail/#all/${msg.id}`;
-      const isGov = fromLow.includes('egovpayments') || fromLow.includes('ecom.gov.il')
+      // Known senders → direct vendor mapping (no AI needed)
+      const KNOWN_SENDERS = [
+        { match: 'egovpayments', vendor: 'אגרות טאבו', isGov: true },
+        { match: 'ecom.gov.il', vendor: 'אגרות טאבו', isGov: true },
+        { match: 'mekarkein@justice.gov.il', vendor: 'אגרות טאבו', isGov: true },
+        { match: 'onecity.co.il', vendor: 'ועדה לתכנון ובניה', isGov: false },
+        { match: 'milgam.co.il', vendor: 'עיריית מעלות תרשיחא', isGov: false },
+        { match: 'maltar.co.il', vendor: 'ועדה לתכנון ובניה', isGov: false },
+        { match: 'mail.anthropic.com', vendor: 'Anthropic', isGov: false },
+        { match: 'googleplay-noreply', vendor: 'Google', isGov: false },
+      ];
+      const knownSender = KNOWN_SENDERS.find(s => fromLow.includes(s.match));
+
+      const isGov = knownSender?.isGov
+        || fromLow.includes('egovpayments') || fromLow.includes('ecom.gov.il')
         || subject.includes('שירותי הפנייה') || subject.includes('אישור תשלום');
 
       if (isGov) {
@@ -139,6 +153,7 @@ export async function POST(request) {
         const driveFile = await tryUploadToDrive({
           gmail, gmailId: msg.id, refreshToken: org.gmail_refresh_token, org,
           docDate, vendor: 'אגרות טאבו', description, amount,
+          topic: 'אגרות טאבו',
         });
 
         suggestions.push({
@@ -157,15 +172,16 @@ export async function POST(request) {
 
       const body = getEmailBody(detail.data.payload).slice(0, 10000);
       let ai = null;
-      try { ai = await classifyEmail({ id: msg.id, subject, from, date, body }); } catch {}
+      if (!knownSender) {
+        try { ai = await classifyEmail({ id: msg.id, subject, from, date, body }); } catch {}
+        if (ai && !ai.is_relevant) { skippedIrrelevant++; continue; }
+      }
 
-      if (ai && !ai.is_relevant) { skippedIrrelevant++; continue; }
-
-      const needsReview = !ai || ai.confidence === 'low' || ai.classification === 'other';
+      const needsReview = !knownSender && (!ai || ai.confidence === 'low' || ai.classification === 'other');
       const subjectLow = subject.toLowerCase();
-      const matchedVendor = vendors.find(v =>
-        subjectLow.includes(v.toLowerCase()) || fromLow.includes(v.toLowerCase())
-      ) || (ai?.from_party && ai.from_party !== 'לא ידוע' ? ai.from_party : null);
+      const matchedVendor = knownSender?.vendor
+        || vendors.find(v => subjectLow.includes(v.toLowerCase()) || fromLow.includes(v.toLowerCase()))
+        || (ai?.from_party && ai.from_party !== 'לא ידוע' ? ai.from_party : null);
 
       const finalDate = docDate || ai?.date || null;
       const amount = ai?.amount || null;

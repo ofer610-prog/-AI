@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import { getGmailClient, getEmailDetails, getAttachmentData } from '@/lib/gmail';
-import { safeDriveFileName, uploadToMonthFolder } from '@/lib/drive';
+import { safeDriveFileName, uploadToMonthFolder, DEFAULT_EXPENSES_DRIVE_FOLDER_ID } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -79,6 +79,7 @@ async function tryUploadAttachmentToDrive({ org, gmailId, row, docDate, vendor, 
     mimeType: attachment.mimeType || 'application/pdf',
     year: d.getFullYear(),
     month: d.getMonth() + 1,
+    topic: item || null,
   });
 
   return { url: driveFile.webViewLink, fileName: driveFile.name, note: null };
