@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/adminAuth';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getDriveClient, getOrCreateFolder, extractDriveFileId } from '@/lib/drive';
+import { getDriveClient, getOrCreateFolder, extractDriveFileId, DEFAULT_EXPENSES_DRIVE_FOLDER_ID } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ async function getOrgAndDrive(sb, orgId) {
     .eq('id', orgId).single();
   if (!org?.gmail_refresh_token) throw new Error('Google לא מחובר');
   const drive = getDriveClient(org.gmail_refresh_token);
-  const root = org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID;
+  const root = org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID || DEFAULT_EXPENSES_DRIVE_FOLDER_ID;
   return { org, drive, root };
 }
 
