@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -22,18 +22,19 @@ export default function ReceiptsPage() {
   const [docs, setDocs] = useState([]);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [organizing, setOrganizing] = useState(false);
+  const [scanState, setScanState] = useState('idle');
+  const [lastScan, setLastScan] = useState('');
   const [result, setResult] = useState(null);
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
   const [preview, setPreview] = useState(null);
   const [edit, setEdit] = useState(null);
+  const startedRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/office-expenses?year=${year}`);
+      const res = await fetch(`/api/office-expenses?year=${year}`, { cache: 'no-store' });
       if (res.status === 401) { window.location.href = '/login'; return; }
       const data = await res.json();
       setDocs(data.docs || []);
@@ -42,28 +43,28 @@ export default function ReceiptsPage() {
     setLoading(false);
   }, [year]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const sync = async () => {
-    setSyncing(true); setResult(null);
+  const autoScan = useCallback(async () => {
+    setScanState('running');
+    setResult(null);
     try {
-      const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST' });
-      const data = await res.json();
-      setResult(data); await load();
-    } catch { setResult({ error: 'שגיאת רשת' }); }
-    setSyncing(false);
-  };
-
-  const organizeDrive = async () => {
-    setOrganizing(true); setResult(null);
-    try {
-      const res = await fetch('/api/expenses/reorganize-drive', { method: 'POST' });
-      const data = await res.json();
-      setResult({ ...data, reorganize: true });
+      const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST', cache: 'no-store', keepalive: true });
+      const data = await res.json().catch(() => ({}));
+      setResult(data);
+      setScanState(res.ok ? 'done' : 'error');
+      setLastScan(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
       await load();
-    } catch { setResult({ error: 'שגיאה בארגון תיקיות בדרייב' }); }
-    setOrganizing(false);
-  };
+    } catch {
+      setScanState('error');
+      setResult({ error: 'הסריקה הופעלה אך לא ניתן היה להציג תוצאה. המערכת תנסה שוב בסריקה הקבועה.' });
+    }
+  }, [load]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    autoScan();
+  }, [autoScan]);
 
   const topics = useMemo(() => [...new Set(entries.map(e => e.item_name).filter(Boolean))].sort(), [entries]);
   const rows = useMemo(() => {
@@ -100,9 +101,9 @@ export default function ReceiptsPage() {
     } catch { alert('לא ניתן לפתוח תיקייה'); }
   };
 
-  const resultText = result?.error ? result.error : result?.reorganize
-    ? `סידור דרייב הושלם: הועברו ${result.moved?.length || 0}, נשמרו ${result.saved?.length || 0}, כפילויות ${result.duplicates?.length || 0}, שגיאות ${result.failed?.length || 0}.`
-    : `נסרקו ${result?.scanned || 0}. יובאו ${result?.imported?.length || 0}. ממתינות לסיווג ${result?.pending_review?.length || 0}.`;
+  const scanLabel = scanState === 'running' ? '⏳ סורק חשבוניות…' : scanState === 'done' ? '✅ הסריקה הסתיימה' : scanState === 'error' ? '⚠️ שגיאת סריקה' : '✅ מוכן';
+  const scanClass = scanState === 'running' ? 'bg-red-600 text-white' : scanState === 'done' || scanState === 'idle' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white';
+  const resultText = result?.error ? result.error : result ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.` : '';
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-16">
@@ -114,14 +115,13 @@ export default function ReceiptsPage() {
             {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <div className="flex-1" />
-          <button onClick={organizeDrive} disabled={organizing} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">{organizing ? '⏳ מארגן…' : '📁 סדר תיקיות וכפילויות'}</button>
-          <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">{syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}</button>
+          <div className={`rounded-2xl px-4 py-2 text-sm font-bold shadow ${scanClass}`}>{scanLabel}{lastScan ? ` · ${lastScan}` : ''}</div>
         </div>
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
         {pending > 0 && <div className="rounded-2xl p-4 border bg-orange-100 border-orange-300 text-orange-900 font-bold">⚠️ {pending} חשבוניות ממתינות לסיווג מנהל. הן לא נספרות כהוצאה רגילה עד אישור.</div>}
-        {result && <div className={`rounded-2xl p-4 border ${result.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{resultText}{result.duplicates_folder?.url && <a href={result.duplicates_folder.url} target="_blank" rel="noreferrer" className="block mt-2 underline font-bold">פתח תיקיית כפילויות לבדיקה</a>}</div>}
+        {resultText && <div className={`rounded-2xl p-4 border ${result?.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{resultText}</div>}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card title="מסמכים" value={rows.length} />
