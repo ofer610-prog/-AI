@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { saveGmailReceiptToDrive } from '@/lib/expenseDriveSave';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function POST(request) {
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: profile } = await sb.from('profiles').select('organization_id,role').eq('id', user.id).single();
+  const { data: profile } = await sb.from('profiles').select('id,organization_id,role').eq('id', user.id).single();
   if (!['admin','accountant'].includes(profile?.role)) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
@@ -44,6 +45,44 @@ export async function POST(request) {
     const item = body.expense_item || body.item;
     if (!item) return Response.json({ error: 'יש לבחור תת נושא לפני אישור' }, { status: 400 });
     const section = body.expense_section || 'office';
+
+    const { data: oldDoc } = await sb.from('expense_documents')
+      .select('id,file_url,file_name,gmail_message_id,description')
+      .eq('id', id)
+      .eq('organization_id', profile.organization_id)
+      .single();
+
+    let fileUrl = oldDoc?.file_url || null;
+    let fileName = oldDoc?.file_name || null;
+    let fileType = undefined;
+    let driveNote = null;
+
+    if (oldDoc?.gmail_message_id) {
+      try {
+        const { data: org } = await sb.from('organizations')
+          .select('gmail_refresh_token,drive_expenses_folder_id')
+          .eq('id', profile.organization_id)
+          .single();
+        const saved = await saveGmailReceiptToDrive({
+          org,
+          gmailId: oldDoc.gmail_message_id,
+          row: { subject: oldDoc.file_name, description: oldDoc.description, amount: body.amount },
+          docDate,
+          year,
+          month: monthNum,
+          topic: item,
+          vendor: body.vendor || item,
+        });
+        if (saved.url) {
+          fileUrl = saved.url;
+          fileName = saved.fileName || fileName;
+          fileType = saved.source === 'gmail_body' ? 'drive_email_body' : 'drive_receipt';
+        } else if (saved.note) driveNote = saved.note;
+      } catch (e) {
+        driveNote = `לא נשמר בדרייב: ${e.message}`;
+      }
+    }
+
     const updates = {
       status: 'linked',
       expense_item: item,
@@ -56,6 +95,10 @@ export async function POST(request) {
       amount: body.amount === undefined ? 0 : Number(body.amount || 0),
       category: body.category || 'general',
       accountant_notes: body.accountant_notes || null,
+      ...(fileUrl ? { file_url: fileUrl } : {}),
+      ...(fileName ? { file_name: fileName } : {}),
+      ...(fileType ? { file_type: fileType } : {}),
+      ...(driveNote ? { description: [oldDoc?.description, driveNote].filter(Boolean).join('\n') } : {}),
     };
     const { data, error } = await sb.from('expense_documents').update(updates).eq('id', id).eq('organization_id', profile.organization_id).select().single();
     if (error) return Response.json({ error: error.message }, { status: 500 });
