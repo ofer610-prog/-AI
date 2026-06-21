@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 async function savePendingReview(sb, profile, row) {
   const gmailId = row.gmail_id || row.gmail_message_id;
@@ -46,6 +47,16 @@ async function savePendingReview(sb, profile, row) {
   return { id: data.id, gmail_id: gmailId, status: 'needs_review' };
 }
 
+async function runDriveReorganize(origin, cookie) {
+  try {
+    const res = await fetch(`${origin}/api/expenses/reorganize-drive`, { method: 'POST', headers: { cookie } });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, ...data };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -57,7 +68,10 @@ export async function POST(request) {
   if (!scanRes.ok) return Response.json(scan, { status: scanRes.status });
 
   const suggestions = Array.isArray(scan.suggestions) ? scan.suggestions : [];
-  if (!suggestions.length) return Response.json({ ok: true, scanned: scan.scanned || 0, imported: [], pending_review: [], skipped: [], errors: [], message: 'לא נמצאו קבלות חדשות לייבוא' });
+  if (!suggestions.length) {
+    const reorganize = await runDriveReorganize(origin, cookie);
+    return Response.json({ ok: true, scanned: scan.scanned || 0, imported: [], pending_review: [], skipped: [], errors: [], message: 'לא נמצאו קבלות חדשות לייבוא', drive_reorganize: reorganize });
+  }
 
   const known = suggestions.filter(x => !!x.matched_vendor);
   const unknown = suggestions.filter(x => !x.matched_vendor);
@@ -81,6 +95,8 @@ export async function POST(request) {
     if (!importRes.ok) return Response.json(imported, { status: importRes.status });
   }
 
+  const reorganize = await runDriveReorganize(origin, cookie);
+
   return Response.json({
     ok: true,
     scanned: scan.scanned || suggestions.length,
@@ -91,5 +107,6 @@ export async function POST(request) {
     driveWarnings: imported.driveWarnings || [],
     pending_review: pending.filter(x => !x.skipped),
     pending_skipped: pending.filter(x => x.skipped),
+    drive_reorganize: reorganize,
   });
 }
