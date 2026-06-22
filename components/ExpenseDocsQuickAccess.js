@@ -7,6 +7,14 @@ function currentYear() {
   return new Date().getFullYear();
 }
 
+function threeMonthsStart() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 2);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function money(n) {
   return Number(n || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 });
 }
@@ -21,6 +29,24 @@ function driveFileId(url) {
   if (m?.[1]) return m[1];
   m = s.match(/[?&]id=([^&]+)/);
   return m?.[1] || null;
+}
+
+function drivePreviewUrl(url) {
+  const id = driveFileId(url);
+  return id ? `https://drive.google.com/file/d/${id}/preview` : '';
+}
+
+function isInLastThreeMonths(doc) {
+  if (!doc?.doc_date) return true;
+  const d = new Date(doc.doc_date);
+  if (Number.isNaN(d.getTime())) return true;
+  return d >= threeMonthsStart();
+}
+
+function directViewUrl(doc) {
+  const drivePreview = drivePreviewUrl(doc?.file_url);
+  if (drivePreview) return drivePreview;
+  return `/api/expense-docs/preview?id=${encodeURIComponent(doc.id)}`;
 }
 
 export default function ExpenseDocsQuickAccess() {
@@ -45,19 +71,25 @@ export default function ExpenseDocsQuickAccess() {
     let cancelled = false;
     async function run() {
       setScanState('running');
-      setMessage('המערכת סורקת חשבוניות ברקע…');
+      setMessage('בודק אם יש חשבוניות חדשות…');
       await loadDocs();
       try {
         const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST', cache: 'no-store', keepalive: true });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
+        const imported = data.imported?.length || 0;
+        const pending = data.pending_review?.length || 0;
         setScanState(res.ok ? 'done' : 'error');
-        setMessage(res.ok ? `הסריקה הסתיימה. יובאו ${data.imported?.length || 0}, ממתינות ${data.pending_review?.length || 0}.` : (data.error || 'שגיאת סריקה'));
+        setMessage(res.ok
+          ? (imported || pending
+              ? `הסריקה הסתיימה. יובאו ${imported}, ממתינות ${pending}.`
+              : 'הסריקה הסתיימה. אין חשבוניות חדשות לעדכון.')
+          : (data.error || 'שגיאת סריקה'));
         await loadDocs();
       } catch {
         if (!cancelled) {
           setScanState('error');
-          setMessage('שגיאת סריקה. הנתונים הקיימים עדיין מוצגים.');
+          setMessage('שגיאת סריקה. החשבוניות הקיימות עדיין מוצגות.');
         }
       }
     }
@@ -65,11 +97,11 @@ export default function ExpenseDocsQuickAccess() {
     return () => { cancelled = true; };
   }, [shouldShow]);
 
-  const recent = useMemo(() => {
+  const visibleDocs = useMemo(() => {
     return [...docs]
       .filter(d => d && d.status !== 'removed')
-      .sort((a, b) => String(b.doc_date || '').localeCompare(String(a.doc_date || '')))
-      .slice(0, 12);
+      .filter(isInLastThreeMonths)
+      .sort((a, b) => String(b.doc_date || '').localeCompare(String(a.doc_date || '')));
   }, [docs]);
 
   async function openFolder(doc) {
@@ -96,17 +128,17 @@ export default function ExpenseDocsQuickAccess() {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-3 border-b bg-slate-50">
           <button onClick={() => setOpen(v => !v)} className="text-sm font-bold text-slate-700 hover:text-slate-900">
-            {open ? '▾' : '▸'} פעולות מהירות לחשבוניות
+            {open ? '▾' : '▸'} חשבוניות 3 חודשים אחרונים
           </button>
           <span className={`rounded-xl px-3 py-1 text-xs font-bold ${statusClass}`}>{scanState === 'running' ? '⏳ סורק…' : scanState === 'done' ? '✅ הסתיים' : scanState === 'error' ? '⚠️ שגיאה' : '✅ מוכן'}</span>
           {message && <span className="text-xs text-slate-500">{message}</span>}
-          <span className="mr-auto text-xs text-slate-400">{recent.length} חשבוניות אחרונות מוצגות כאן לגישה מהירה</span>
+          <span className="mr-auto text-xs text-slate-400">{visibleDocs.length} חשבוניות משלושת החודשים האחרונים מוצגות כאן</span>
         </div>
 
         {open && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-100 text-slate-600">
+          <div className="overflow-auto max-h-[70vh]">
+            <table className="w-full text-xs min-w-[760px]">
+              <thead className="bg-slate-100 text-slate-600 sticky top-0 z-10">
                 <tr>
                   <th className="text-right p-2">תאריך</th>
                   <th className="text-right p-2">ספק</th>
@@ -116,21 +148,21 @@ export default function ExpenseDocsQuickAccess() {
                 </tr>
               </thead>
               <tbody>
-                {recent.map(doc => (
+                {visibleDocs.map(doc => (
                   <tr key={doc.id} className={doc.status === 'needs_review' ? 'bg-orange-50' : doc.status === 'duplicate_review' ? 'bg-purple-50' : 'hover:bg-slate-50'}>
                     <td className="p-2 whitespace-nowrap">{doc.doc_date || '—'}</td>
                     <td className="p-2 font-medium">{doc.vendor || '—'}</td>
                     <td className="p-2 max-w-[520px] truncate">{doc.expense_item || doc.file_name || doc.description || 'חשבונית'}</td>
                     <td className="p-2 text-left font-bold whitespace-nowrap">₪{money(doc.amount)}</td>
-                    <td className="p-2 whitespace-nowrap flex gap-2">
-                      <button onClick={() => setPreview(doc)} className="rounded-lg bg-slate-100 hover:bg-slate-200 px-2 py-1">צפייה</button>
+                    <td className="p-2 whitespace-nowrap flex gap-2 flex-wrap">
+                      <button onClick={() => setPreview(doc)} className="rounded-lg bg-slate-100 hover:bg-slate-200 px-2 py-1">צפייה ישירה</button>
                       {gmailUrl(doc) && <a href={gmailUrl(doc)} target="_blank" rel="noreferrer" className="rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 px-2 py-1">גוף המייל</a>}
-                      {doc.file_url && <a href={doc.file_url} target="_blank" rel="noreferrer" className="rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 px-2 py-1">קובץ</a>}
+                      {doc.file_url && <a href={doc.file_url} target="_blank" rel="noreferrer" className="rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 px-2 py-1">חשבונית מקור</a>}
                       {driveFileId(doc.file_url) && <button onClick={() => openFolder(doc)} className="rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1">תיקייה</button>}
                     </td>
                   </tr>
                 ))}
-                {!recent.length && <tr><td colSpan="5" className="text-center text-slate-400 py-5">אין חשבוניות להצגה מהירה כרגע</td></tr>}
+                {!visibleDocs.length && <tr><td colSpan="5" className="text-center text-slate-400 py-5">אין חשבוניות לשלושת החודשים האחרונים</td></tr>}
               </tbody>
             </table>
           </div>
@@ -139,17 +171,17 @@ export default function ExpenseDocsQuickAccess() {
 
       {preview && (
         <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-3">
-              <h2 className="font-bold text-lg">צפייה מהירה</h2>
+              <h2 className="font-bold text-lg">צפייה ישירה בחשבונית</h2>
               <button onClick={() => setPreview(null)} className="mr-auto text-slate-400 hover:text-slate-700">✕</button>
             </div>
             <div className="font-semibold text-sm mb-2 truncate">{preview.file_name || preview.expense_item || preview.vendor}</div>
-            <iframe src={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} className="w-full h-[70vh] border rounded-xl bg-white" />
+            <iframe src={directViewUrl(preview)} className="w-full h-[72vh] border rounded-xl bg-white" />
             <div className="flex flex-wrap gap-3 mt-3 text-sm">
-              <a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} target="_blank" rel="noreferrer" className="underline text-sky-700">פתח צפייה בכרטיסייה חדשה</a>
+              <a href={directViewUrl(preview)} target="_blank" rel="noreferrer" className="underline text-sky-700">פתח צפייה ישירה בכרטיסייה חדשה</a>
               {gmailUrl(preview) && <a href={gmailUrl(preview)} target="_blank" rel="noreferrer" className="underline text-amber-700 font-semibold">פתח גוף המייל</a>}
-              {preview.file_url && <a href={preview.file_url} target="_blank" rel="noreferrer" className="underline text-sky-700">פתח קובץ מקור</a>}
+              {preview.file_url && <a href={preview.file_url} target="_blank" rel="noreferrer" className="underline text-sky-700">פתח חשבונית מקור</a>}
               {driveFileId(preview.file_url) && <button onClick={() => openFolder(preview)} className="underline text-indigo-700">פתח תיקייה בדרייב</button>}
             </div>
           </div>
