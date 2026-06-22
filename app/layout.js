@@ -4,6 +4,7 @@ import TimeTracker from '@/components/TimeTracker';
 import AppNav from '@/components/AppNav';
 import LawyerSidebar from '@/components/LawyerSidebar';
 import GoogleExpenseConnect from '@/components/GoogleExpenseConnect';
+import ExpenseDocsQuickAccess from '@/components/ExpenseDocsQuickAccess';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -23,6 +24,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="text-slate-800 antialiased">
         <AppNav />
+        <ExpenseDocsQuickAccess />
         {children}
         <LawyerSidebar />
         <NotificationBell />
