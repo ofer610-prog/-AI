@@ -4,6 +4,9 @@ import { requireAdmin } from '@/lib/adminAuth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+const AUTO_IMPORT_LIMIT = 4;
+const AUTO_PENDING_LIMIT = 8;
+
 async function savePendingReview(sb, profile, row) {
   const gmailId = row.gmail_id || row.gmail_message_id;
   if (!gmailId) return { skipped: true, reason: 'missing_gmail_id' };
@@ -47,34 +50,34 @@ async function savePendingReview(sb, profile, row) {
   return { id: data.id, gmail_id: gmailId, status: 'needs_review' };
 }
 
-async function runDriveReorganize(origin, cookie) {
-  try {
-    const res = await fetch(`${origin}/api/expenses/reorganize-drive`, { method: 'POST', headers: { cookie } });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, ...data };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
-}
-
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const origin = new URL(request.url).origin;
   const cookie = request.headers.get('cookie') || '';
+
   const scanRes = await fetch(`${origin}/api/expenses/scan-gmail`, { method: 'POST', headers: { cookie } });
   const scan = await scanRes.json().catch(() => ({}));
   if (!scanRes.ok) return Response.json(scan, { status: scanRes.status });
 
   const suggestions = Array.isArray(scan.suggestions) ? scan.suggestions : [];
   if (!suggestions.length) {
-    const reorganize = await runDriveReorganize(origin, cookie);
-    return Response.json({ ok: true, scanned: scan.scanned || 0, imported: [], pending_review: [], skipped: [], errors: [], message: 'לא נמצאו קבלות חדשות לייבוא', drive_reorganize: reorganize });
+    return Response.json({
+      ok: true,
+      scanned: scan.scanned || 0,
+      suggestions: 0,
+      imported: [],
+      pending_review: [],
+      skipped: [],
+      errors: [],
+      message: 'לא נמצאו קבלות חדשות לייבוא',
+      mode: 'fast_page_scan',
+    });
   }
 
-  const known = suggestions.filter(x => !!x.matched_vendor);
-  const unknown = suggestions.filter(x => !x.matched_vendor);
+  const known = suggestions.filter(x => !!x.matched_vendor).slice(0, AUTO_IMPORT_LIMIT);
+  const unknown = suggestions.filter(x => !x.matched_vendor).slice(0, AUTO_PENDING_LIMIT);
 
   const sb = createServiceClient();
   const pending = [];
@@ -92,21 +95,30 @@ export async function POST(request) {
       body: JSON.stringify({ suggestions: known }),
     });
     imported = await importRes.json().catch(() => ({}));
-    if (!importRes.ok) return Response.json(imported, { status: importRes.status });
+    if (!importRes.ok) {
+      return Response.json({
+        ok: false,
+        error: imported.error || 'שגיאת ייבוא חשבוניות',
+        imported: imported.imported || [],
+        pending_review: pending.filter(x => !x.skipped),
+        errors: [...(imported.errors || []), ...pendingErrors],
+        mode: 'fast_page_scan',
+      }, { status: 200 });
+    }
   }
-
-  const reorganize = await runDriveReorganize(origin, cookie);
 
   return Response.json({
     ok: true,
     scanned: scan.scanned || suggestions.length,
     suggestions: suggestions.length,
+    processed_now: known.length + unknown.length,
     imported: imported.imported || [],
     skipped: imported.skipped || [],
     errors: [...(imported.errors || []), ...pendingErrors],
     driveWarnings: imported.driveWarnings || [],
     pending_review: pending.filter(x => !x.skipped),
     pending_skipped: pending.filter(x => x.skipped),
-    drive_reorganize: reorganize,
+    note: suggestions.length > known.length + unknown.length ? 'נמצאו עוד חשבוניות. הן יעובדו בהמשך בסריקות הבאות או ב־Cron היומי.' : null,
+    mode: 'fast_page_scan',
   });
 }
