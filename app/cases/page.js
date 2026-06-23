@@ -530,6 +530,333 @@ function CaseDetailDrawer({ matter, lawyers, tasks, unlocked, saveField, onClose
 
 
 
+// ─── AI Case Extractor ────────────────────────────────────────────────────────
+
+const AI_TYPE_OPTS = [
+  { val: 'sale',         label: 'מכירה' },
+  { val: 'purchase',     label: 'רכישה' },
+  { val: 'rental',       label: 'שכירות' },
+  { val: 'tama38',       label: 'תמ"א 38' },
+  { val: 'pinui',        label: 'פינוי בינוי' },
+  { val: 'inheritance',  label: 'ירושה' },
+  { val: 'registration', label: 'רישום' },
+  { val: 'mortgage',     label: 'משכנתא' },
+  { val: 'litigation',   label: 'ליטיגציה' },
+  { val: 'consulting',   label: 'ייעוץ' },
+  { val: 'other',        label: 'אחר' },
+];
+
+function AIChatPanel({ lawyers, onCaseCreated, onClose }) {
+  const [step, setStep]           = useState('input'); // 'input' | 'loading' | 'preview'
+  const [message, setMessage]     = useState('');
+  const [files, setFiles]         = useState([]);
+  const [extracted, setExtracted] = useState(null);
+  const [form, setForm]           = useState({});
+  const [error, setError]         = useState('');
+  const [saving, setSaving]       = useState(false);
+  const fileRef = useRef(null);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
+
+  function addFiles(fileList) {
+    const arr = Array.from(fileList).slice(0, 6);
+    setFiles(prev => [...prev, ...arr].slice(0, 6));
+  }
+
+  function removeFile(i) {
+    setFiles(prev => prev.filter((_, j) => j !== i));
+  }
+
+  async function analyze() {
+    if (!message.trim() && files.length === 0) {
+      setError('יש להזין הודעה או לצרף מסמך');
+      return;
+    }
+    setError(''); setStep('loading');
+
+    try {
+      const fd = new FormData();
+      fd.append('message', message);
+      files.forEach(f => fd.append('files', f));
+
+      const res  = await fetch('/api/cases/ai-chat', { method: 'POST', body: fd });
+      const json = await res.json();
+
+      if (!res.ok || !json.extracted) {
+        setError(json.error || 'שגיאה בחילוץ נתונים');
+        setStep('input');
+        return;
+      }
+
+      setExtracted(json.extracted);
+      setForm({
+        client_name:      json.extracted.client_name      || '',
+        client_id_number: json.extracted.client_id_number || '',
+        client_phone:     json.extracted.client_phone     || '',
+        client_email:     json.extracted.client_email     || '',
+        property_address: json.extracted.property_address || '',
+        parcel:           json.extracted.parcel           || '',
+        type:             json.extracted.type             || 'sale',
+        stage:            json.extracted.stage            || 'draft',
+        other_lawyer:     json.extracted.other_lawyer     || '',
+        other_party_name: json.extracted.other_party_name || '',
+        broker:           json.extracted.broker           || '',
+        agreed_fee:       json.extracted.agreed_fee       || '',
+        fee_text:         json.extracted.fee_text         || '',
+        delivery_date:    json.extracted.delivery_date    || '',
+        description:      json.extracted.description      || '',
+        case_category:    json.extracted.case_category    || 'realestate',
+        referral_source:  json.extracted.referral_source  || '',
+        mortgage:         json.extracted.mortgage         || '',
+        capital_gains:    json.extracted.capital_gains    || '',
+        responsible_lawyer_id: '',
+      });
+      setStep('preview');
+    } catch {
+      setError('שגיאת רשת'); setStep('input');
+    }
+  }
+
+  async function createCase() {
+    if (!form.client_name?.trim()) { setError('שם הלקוח חובה'); return; }
+    setSaving(true); setError('');
+    const pin = sessionStorage.getItem('cases_pin') || '';
+
+    const body = {
+      ...form,
+      case_category: form.case_category || 'realestate',
+      agreed_fee: form.agreed_fee ? Number(form.agreed_fee) : undefined,
+      pin,
+    };
+
+    const res  = await fetch('/api/matters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cases-pin': pin },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    setSaving(false);
+
+    if (!res.ok) { setError(json.error || 'שגיאה ביצירת תיק'); return; }
+    onCaseCreated(json.matter);
+    onClose();
+  }
+
+  const Inp = ({ k, label, type = 'text', placeholder = '', opts }) => (
+    <div className="grid grid-cols-[130px_1fr] items-start gap-1 py-1.5 border-b border-gray-100">
+      <label className="text-xs text-gray-400 pt-1.5 leading-snug">{label}</label>
+      {opts ? (
+        <select value={form[k] || ''} onChange={e => set(k, e.target.value)}
+          className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue-400 bg-white">
+          <option value="">—</option>
+          {opts.map(o => <option key={o.val ?? o} value={o.val ?? o}>{o.label ?? o}</option>)}
+        </select>
+      ) : (
+        <input value={form[k] || ''} onChange={e => set(k, e.target.value)}
+          type={type} placeholder={placeholder}
+          className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue-400"/>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose}/>
+      <div className="fixed inset-y-0 left-0 w-full max-w-[640px] bg-white shadow-2xl z-50 flex flex-col" dir="rtl">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-gradient-to-l from-blue-600 to-indigo-700 text-white">
+          <span className="text-2xl">🤖</span>
+          <div className="flex-1">
+            <div className="font-bold">עוזר פתיחת תיק חכם</div>
+            <div className="text-xs opacity-80">שלח פרטי עסקה או מסמכים — אמלא את הטופס אוטומטית</div>
+          </div>
+          {step === 'preview' && (
+            <button onClick={() => setStep('input')}
+              className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors">
+              ← ערוך הודעה
+            </button>
+          )}
+          <button onClick={onClose} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {/* Step: Input */}
+        {(step === 'input' || step === 'loading') && (
+          <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
+            {/* Message */}
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1.5">
+                ✍️ תאר את העסקה
+              </label>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={6}
+                placeholder={`דוגמה:\n"מכירת דירה ברח׳ הרצל 12 חיפה, גוש 10500 חלקה 45.\nמוכר: יוסי כהן, ת.ז. 123456789, 050-1234567.\nקונה: דינה לוי.\nמחיר: 2,000,000 ₪. שכ״ט: 1%+מע״מ. מסירה: ינואר 2026."`}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-blue-400"
+              />
+            </div>
+
+            {/* File upload */}
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1.5">
+                📎 צרף מסמכים (אופציונלי)
+              </label>
+              <div
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
+                className="border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer transition-colors">
+                <div className="text-2xl mb-1">📄</div>
+                <div className="text-sm text-gray-500">לחץ או גרור קבצים</div>
+                <div className="text-xs text-gray-400 mt-1">נסח טאבו · צילום ת.ז. · ארנונה · PDF · תמונות</div>
+                <input ref={fileRef} type="file" multiple accept="image/*,.pdf"
+                  className="hidden" onChange={e => addFiles(e.target.files)}/>
+              </div>
+
+              {files.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-1.5 text-sm">
+                      <span className="text-base">{f.type.startsWith('image/') ? '🖼️' : '📄'}</span>
+                      <span className="flex-1 truncate text-gray-700">{f.name}</span>
+                      <span className="text-gray-400 text-xs">{(f.size / 1024).toFixed(0)} KB</span>
+                      <button onClick={() => removeFile(i)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tips */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+              <div className="font-semibold mb-1">💡 מה ניתן לשלוח?</div>
+              <div>• <strong>נסח טאבו</strong> — יחלץ גוש/חלקה, כתובת, בעלים</div>
+              <div>• <strong>תעודת זהות</strong> — יחלץ שם ומספר ת.ז.</div>
+              <div>• <strong>צילום ארנונה</strong> — יחלץ כתובת ושם</div>
+              <div>• <strong>הודעת WhatsApp</strong> — יחלץ את כל הפרטים שצוינו</div>
+            </div>
+
+            {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+            <button onClick={analyze} disabled={step === 'loading'}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold rounded-xl py-3 text-base transition-colors flex items-center justify-center gap-2">
+              {step === 'loading' ? (
+                <>
+                  <span className="animate-spin text-xl">⚙️</span>
+                  <span>מנתח... עד 15 שניות</span>
+                </>
+              ) : (
+                <>🔍 נתח עסקה</>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Step: Preview */}
+        {step === 'preview' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Summary bar */}
+            {extracted?.summary && (
+              <div className="bg-green-50 border-b border-green-200 px-4 py-2 text-sm text-green-800">
+                <span className="font-semibold">✅ זוהה:</span> {extracted.summary}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+              {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+              {/* Rubric: Client */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span>👤</span> פרטי הלקוח
+                </h3>
+                <div className="bg-gray-50 rounded-xl px-3">
+                  <Inp k="client_name"      label="שם הלקוח *"   placeholder="ישראל ישראלי"/>
+                  <Inp k="client_id_number" label="ת.ז. / ח.פ."  placeholder="000000000"/>
+                  <Inp k="client_phone"     label="טלפון"         placeholder="050-0000000"/>
+                  <Inp k="client_email"     label='דוא"ל'         placeholder="email@example.com"/>
+                </div>
+              </section>
+
+              {/* Rubric: Property */}
+              {(form.case_category === 'realestate' || !form.case_category) && (
+                <section>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <span>🏠</span> פרטי הנכס
+                  </h3>
+                  <div className="bg-gray-50 rounded-xl px-3">
+                    <Inp k="property_address" label="כתובת"         placeholder="רחוב, עיר"/>
+                    <Inp k="parcel"           label="גוש/חלקה"      placeholder="גוש 12345 חלקה 67"/>
+                    <Inp k="delivery_date"    label="תאריך מסירה"   type="date"/>
+                  </div>
+                </section>
+              )}
+
+              {/* Rubric: Transaction */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span>⚖️</span> פרטי העסקה
+                </h3>
+                <div className="bg-gray-50 rounded-xl px-3">
+                  <Inp k="case_category" label="קטגוריה" opts={[{ val: 'realestate', label: 'נדל"ן' }, { val: 'other', label: 'תיק אחר' }]}/>
+                  <Inp k="type"  label="סוג עסקה" opts={AI_TYPE_OPTS}/>
+                  <Inp k="stage" label="שלב"       opts={STAGE_OPTIONS}/>
+                  <Inp k="other_party_name" label="שם הצד השני"  placeholder="שם הקונה/מוכר"/>
+                  <Inp k="other_lawyer"     label='עו"ד צד שני'  placeholder="שם עו&quot;ד"/>
+                  <Inp k="broker"           label="מתווך"         placeholder="שם המתווך"/>
+                  <Inp k="referral_source"  label="מקור הפניה"    placeholder=""/>
+                  <Inp k="responsible_lawyer_id" label='עו"ד מטפל' opts={lawyerOpts}/>
+                </div>
+              </section>
+
+              {/* Rubric: Financial */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span>💰</span> פיננסי
+                </h3>
+                <div className="bg-gray-50 rounded-xl px-3">
+                  <Inp k="fee_text"   label='שכ"ט (תיאור)'    placeholder='1%+מע"מ'/>
+                  <Inp k="agreed_fee" label='שכ"ט מוסכם (₪)' type="number" placeholder="0"/>
+                  <Inp k="mortgage"   label="משכנתא"           placeholder="פרטי משכנתא"/>
+                  <Inp k="capital_gains" label="מס שבח"        placeholder="פרטים"/>
+                </div>
+              </section>
+
+              {/* Rubric: Notes */}
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span>📝</span> הערות
+                </h3>
+                <div className="bg-gray-50 rounded-xl px-3 py-2">
+                  <textarea value={form.description || ''}
+                    onChange={e => set('description', e.target.value)}
+                    rows={3} placeholder="פרטים נוספים..."
+                    className="w-full bg-transparent text-sm focus:outline-none resize-none"/>
+                </div>
+              </section>
+            </div>
+
+            {/* Footer actions */}
+            <div className="border-t px-4 py-3 bg-white flex gap-3">
+              <button onClick={createCase} disabled={saving}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl py-3 transition-colors">
+                {saving ? '⏳ יוצר תיק...' : '✅ אשר וצור תיק'}
+              </button>
+              <button onClick={() => setStep('input')}
+                className="px-4 border border-gray-300 rounded-xl text-sm hover:bg-gray-50 text-gray-600">
+                ← ערוך
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function NewMatterModal({ category, lawyers, onSave, onClose }) {
   const isRE = category !== 'other';
   const [form, setForm] = useState({
@@ -1682,6 +2009,7 @@ export default function CasesPage() {
   const [uploading,    setUploading]    = useState(false);
   const [lastUpdated,  setLastUpdated]  = useState(null);
   const [selectedMatter, setSelectedMatter] = useState(null);
+  const [showAIChat,   setShowAIChat]   = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -1906,6 +2234,17 @@ export default function CasesPage() {
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
 
+      {showAIChat && (
+        <AIChatPanel
+          lawyers={lawyers}
+          onCaseCreated={m => {
+            const isRE = m.case_category !== 'other';
+            if (isRE) setReMatters(p => [m, ...p]); else setOtherMatters(p => [m, ...p]);
+            setSelectedMatter(m);
+          }}
+          onClose={() => setShowAIChat(false)}
+        />
+      )}
       {selectedMatter && (
         <CaseDetailDrawer
           matter={selectedMatter}
@@ -1977,8 +2316,22 @@ export default function CasesPage() {
           <div className="flex-1"/>
 
           {/* Action buttons */}
+          {/* AI chat always accessible when on matters tabs */}
+          {isMatters && !unlocked && (
+            <button onClick={() => setShowAIChat(true)}
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              🤖 תיק מצ'ט
+            </button>
+          )}
+
           {unlocked ? (
             <>
+              {isMatters && (
+                <button onClick={() => setShowAIChat(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                  🤖 תיק מצ'ט
+                </button>
+              )}
               {isMatters && (
                 <button onClick={() => setShowNewMatter(true)} disabled={adding}
                   className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1.5 rounded-lg">
