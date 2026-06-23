@@ -7,14 +7,6 @@ function currentYear() {
   return new Date().getFullYear();
 }
 
-function threeMonthsStart() {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 2);
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 function money(n) {
   return Number(n || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 });
 }
@@ -36,13 +28,6 @@ function drivePreviewUrl(url) {
   return id ? `https://drive.google.com/file/d/${id}/preview` : '';
 }
 
-function isInLastThreeMonths(doc) {
-  if (!doc?.doc_date) return true;
-  const d = new Date(doc.doc_date);
-  if (Number.isNaN(d.getTime())) return true;
-  return d >= threeMonthsStart();
-}
-
 function directViewUrl(doc) {
   const drivePreview = drivePreviewUrl(doc?.file_url);
   if (drivePreview) return drivePreview;
@@ -61,46 +46,75 @@ export default function ExpenseDocsQuickAccess() {
 
   async function loadDocs() {
     const res = await fetch(`/api/office-expenses?year=${currentYear()}`, { cache: 'no-store' });
-    if (!res.ok) return;
+    if (!res.ok) return [];
     const data = await res.json().catch(() => ({}));
-    setDocs(Array.isArray(data.docs) ? data.docs : []);
+    const next = Array.isArray(data.docs) ? data.docs : [];
+    setDocs(next);
+    return next;
   }
 
   useEffect(() => {
     if (!shouldShow) return;
     let cancelled = false;
-    async function run() {
+
+    async function runBatches() {
       setScanState('running');
-      setMessage('בודק אם יש חשבוניות חדשות…');
+      setMessage('מתחיל סריקה מלאה בחבילות…');
       await loadDocs();
-      try {
-        const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST', cache: 'no-store', keepalive: true });
-        const data = await res.json().catch(() => ({}));
+
+      let totalImported = 0;
+      let totalPending = 0;
+      let totalProcessed = 0;
+      let lastError = '';
+      const maxRounds = 12;
+
+      for (let round = 1; round <= maxRounds; round++) {
         if (cancelled) return;
-        const imported = data.imported?.length || 0;
-        const pending = data.pending_review?.length || 0;
-        setScanState(res.ok ? 'done' : 'error');
-        setMessage(res.ok
-          ? (imported || pending
-              ? `הסריקה הסתיימה. יובאו ${imported}, ממתינות ${pending}.`
-              : 'הסריקה הסתיימה. אין חשבוניות חדשות לעדכון.')
-          : (data.error || 'שגיאת סריקה'));
-        await loadDocs();
-      } catch {
-        if (!cancelled) {
-          setScanState('error');
-          setMessage('שגיאת סריקה. החשבוניות הקיימות עדיין מוצגות.');
+        setMessage(`סורק חשבוניות… חבילה ${round}/${maxRounds}`);
+        try {
+          const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST', cache: 'no-store' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) {
+            lastError = data.error || 'שגיאת סריקה';
+            break;
+          }
+
+          const imported = data.imported?.length || 0;
+          const pending = data.pending_review?.length || 0;
+          const processed = Number(data.processed_now || imported + pending || 0);
+          const suggestions = Number(data.suggestions || 0);
+
+          totalImported += imported;
+          totalPending += pending;
+          totalProcessed += processed;
+          await loadDocs();
+
+          if (processed === 0 || suggestions === 0) break;
+          if (!data.note && suggestions <= processed) break;
+        } catch {
+          lastError = 'שגיאת רשת בסריקה';
+          break;
         }
       }
+
+      if (cancelled) return;
+      if (lastError) {
+        setScanState('error');
+        setMessage(`${lastError}. החשבוניות הקיימות עדיין מוצגות.`);
+      } else {
+        setScanState('done');
+        setMessage(`הסריקה הסתיימה. עובדו ${totalProcessed}, יובאו ${totalImported}, ממתינות ${totalPending}.`);
+      }
+      await loadDocs();
     }
-    run();
+
+    runBatches();
     return () => { cancelled = true; };
   }, [shouldShow]);
 
   const visibleDocs = useMemo(() => {
     return [...docs]
       .filter(d => d && d.status !== 'removed')
-      .filter(isInLastThreeMonths)
       .sort((a, b) => String(b.doc_date || '').localeCompare(String(a.doc_date || '')));
   }, [docs]);
 
@@ -128,11 +142,11 @@ export default function ExpenseDocsQuickAccess() {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-3 border-b bg-slate-50">
           <button onClick={() => setOpen(v => !v)} className="text-sm font-bold text-slate-700 hover:text-slate-900">
-            {open ? '▾' : '▸'} חשבוניות 3 חודשים אחרונים
+            {open ? '▾' : '▸'} כל החשבוניות שנמצאו
           </button>
           <span className={`rounded-xl px-3 py-1 text-xs font-bold ${statusClass}`}>{scanState === 'running' ? '⏳ סורק…' : scanState === 'done' ? '✅ הסתיים' : scanState === 'error' ? '⚠️ שגיאה' : '✅ מוכן'}</span>
           {message && <span className="text-xs text-slate-500">{message}</span>}
-          <span className="mr-auto text-xs text-slate-400">{visibleDocs.length} חשבוניות משלושת החודשים האחרונים מוצגות כאן</span>
+          <span className="mr-auto text-xs text-slate-400">{visibleDocs.length} חשבוניות מוצגות כאן, כולל ישנות</span>
         </div>
 
         {open && (
@@ -162,7 +176,7 @@ export default function ExpenseDocsQuickAccess() {
                     </td>
                   </tr>
                 ))}
-                {!visibleDocs.length && <tr><td colSpan="5" className="text-center text-slate-400 py-5">אין חשבוניות לשלושת החודשים האחרונים</td></tr>}
+                {!visibleDocs.length && <tr><td colSpan="5" className="text-center text-slate-400 py-5">אין חשבוניות להצגה</td></tr>}
               </tbody>
             </table>
           </div>
