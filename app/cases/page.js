@@ -621,8 +621,9 @@ function AIChatPanel({ lawyers, onCaseCreated, onClose }) {
 
   async function createCase() {
     if (!form.client_name?.trim()) { setError('שם הלקוח חובה'); return; }
-    setSaving(true); setError('');
     const pin = sessionStorage.getItem('cases_pin') || '';
+    if (!pin) { setError('נדרש קוד גישה (PIN) כדי ליצור תיק — לחץ "כניסה לעריכה" בדף התיקים'); return; }
+    setSaving(true); setError('');
 
     const body = {
       ...form,
