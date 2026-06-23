@@ -253,7 +253,282 @@ function EditableCell({ value, onSave, type = 'text', options, placeholder = '',
   );
 }
 
-// ─── New Matter Modal ─────────────────────────────────────────────────────────
+// ─── Case Detail Drawer ───────────────────────────────────────────────────────
+
+function DrawerField({ label, children }) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] items-start gap-1 py-1.5 border-b border-gray-100 last:border-0">
+      <span className="text-xs text-gray-400 pt-1 leading-snug">{label}</span>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+}
+
+function DrawerSection({ icon, title, children }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="mb-2">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-right bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+        <span className="text-base">{icon}</span>
+        <span className="font-semibold text-gray-700 text-sm flex-1">{title}</span>
+        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="px-3 pt-1 pb-2">{children}</div>}
+    </div>
+  );
+}
+
+function CaseDetailDrawer({ matter, lawyers, tasks, unlocked, saveField, onClose }) {
+  const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
+  const myTasks    = (tasks || []).filter(t => t.matter_id === matter.id || t.matters?.id === matter.id);
+
+  const name = matter.clients?.name || matter.title || '';
+  const isRE = matter.case_category !== 'other';
+
+  const lawyerName = (Array.isArray(matter.profiles) ? matter.profiles[0]?.full_name : matter.profiles?.full_name)
+    || lawyers.find(l => l.id === matter.responsible_lawyer_id)?.full_name || '';
+
+  const days = matter.delivery_date
+    ? Math.round((new Date(matter.delivery_date) - new Date()) / 86400000) : null;
+
+  const sf = (field, val, isClient = false) => saveField(matter.id, field, val, isClient);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose}/>
+
+      {/* Drawer */}
+      <div className="fixed top-0 left-0 h-full w-full max-w-[520px] bg-white shadow-2xl z-50 flex flex-col" dir="rtl">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-white sticky top-0 z-10">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-gray-900 text-base truncate">{name || 'תיק ללא שם'}</div>
+            {matter.property_address && (
+              <div className="text-xs text-gray-400 truncate">{matter.property_address}</div>
+            )}
+          </div>
+          {matter.stage && (
+            <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STAGE_COLOR[matter.stage] || 'bg-gray-100'}`}>
+              {labelOf(STAGE_OPTIONS, matter.stage)}
+            </span>
+          )}
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-700 text-xl leading-none px-1 shrink-0">✕</button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+
+          {/* ─ פרטי הלקוח ─ */}
+          <DrawerSection icon="👤" title="פרטי הלקוח">
+            <DrawerField label="שם הלקוח">
+              <EditableCell editable={unlocked} value={matter.clients?.name}
+                onSave={v => sf('client_name', v, true)} placeholder="שם הלקוח"/>
+            </DrawerField>
+            <DrawerField label="ת.ז. / ח.פ.">
+              <EditableCell editable={unlocked} value={matter.clients?.id_number}
+                onSave={v => sf('client_id_number', v, true)} placeholder="000000000"/>
+            </DrawerField>
+            <DrawerField label="טלפון">
+              <div className="flex items-center gap-2">
+                <EditableCell editable={unlocked} value={matter.clients?.phone}
+                  onSave={v => sf('client_phone', v, true)} placeholder="050-0000000"/>
+                {matter.clients?.phone && (
+                  <a href={`tel:${matter.clients.phone}`} className="text-blue-500 text-xs hover:underline shrink-0">📞 התקשר</a>
+                )}
+              </div>
+            </DrawerField>
+            <DrawerField label='דוא"ל'>
+              <div className="flex items-center gap-2">
+                <EditableCell editable={unlocked} value={matter.clients?.email}
+                  onSave={v => sf('client_email', v, true)} placeholder="email@example.com"/>
+                {matter.clients?.email && (
+                  <a href={`mailto:${matter.clients.email}`} className="text-blue-500 text-xs hover:underline shrink-0">✉️ שלח</a>
+                )}
+              </div>
+            </DrawerField>
+          </DrawerSection>
+
+          {/* ─ פרטי הנכס (נדל"ן בלבד) ─ */}
+          {isRE && (
+            <DrawerSection icon="🏠" title="פרטי הנכס">
+              <DrawerField label="כתובת">
+                <EditableCell editable={unlocked} value={matter.property_address}
+                  onSave={v => sf('property_address', v)} placeholder="רחוב, עיר"/>
+              </DrawerField>
+              <DrawerField label="גוש / חלקה">
+                <EditableCell editable={unlocked} value={matter.parcel}
+                  onSave={v => sf('parcel', v)} placeholder="גוש 1234 / חלקה 56"/>
+              </DrawerField>
+              <DrawerField label="תאריך מסירה">
+                <div className="flex items-center gap-2">
+                  <EditableCell editable={unlocked} value={matter.delivery_date}
+                    onSave={v => sf('delivery_date', v)} type="date"/>
+                  {days != null && (
+                    <span className={`text-xs px-1.5 py-0.5 rounded shrink-0
+                      ${days < 0 ? 'bg-red-100 text-red-700 font-bold' : days === 0 ? 'bg-orange-100 text-orange-700 font-bold' : days <= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {days < 0 ? `${Math.abs(days)} ימים באיחור` : days === 0 ? 'היום' : `${days} ימים`}
+                    </span>
+                  )}
+                </div>
+              </DrawerField>
+            </DrawerSection>
+          )}
+
+          {/* ─ שלב ועו"ד ─ */}
+          <DrawerSection icon="⚖️" title='שלב ועו"ד'>
+            <DrawerField label="שלב">
+              <div>
+                <EditableCell editable={unlocked} value={matter.stage}
+                  onSave={v => sf('stage', v)} options={STAGE_OPTIONS}/>
+                {matter.stage && (
+                  <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${STAGE_COLOR[matter.stage] || 'bg-gray-100'}`}>
+                    {labelOf(STAGE_OPTIONS, matter.stage)}
+                  </span>
+                )}
+              </div>
+            </DrawerField>
+            {!isRE && (
+              <DrawerField label="סוג התיק">
+                <EditableCell editable={unlocked} value={matter.type}
+                  onSave={v => sf('type', v)} options={TYPE_OPTIONS}/>
+              </DrawerField>
+            )}
+            <DrawerField label='עו"ד מטפל'>
+              <EditableCell editable={unlocked} value={matter.responsible_lawyer_id}
+                displayLabel={lawyerName} onSave={v => sf('responsible_lawyer_id', v)} options={lawyerOpts}/>
+            </DrawerField>
+            <DrawerField label='עו"ד צד שני'>
+              <EditableCell editable={unlocked} value={matter.other_lawyer}
+                onSave={v => sf('other_lawyer', v)} placeholder="שם עו&quot;ד"/>
+            </DrawerField>
+            {isRE && (
+              <DrawerField label="מתווך">
+                <EditableCell editable={unlocked} value={matter.broker}
+                  onSave={v => sf('broker', v)} placeholder="שם המתווך"/>
+              </DrawerField>
+            )}
+            {!isRE && (
+              <>
+                <DrawerField label="מקור הפניה">
+                  <EditableCell editable={unlocked} value={matter.referral_source}
+                    onSave={v => sf('referral_source', v)}/>
+                </DrawerField>
+                <DrawerField label="מס׳ תיק">
+                  <EditableCell editable={unlocked} value={matter.case_number}
+                    onSave={v => sf('case_number', v)} placeholder="12345/26"/>
+                </DrawerField>
+                <DrawerField label="תאריך פתיחה">
+                  <EditableCell editable={unlocked} value={matter.open_date}
+                    onSave={v => sf('open_date', v)} type="date"/>
+                </DrawerField>
+                <DrawerField label="תאריך יעד">
+                  <EditableCell editable={unlocked} value={matter.target_date}
+                    onSave={v => sf('target_date', v)} type="date"/>
+                </DrawerField>
+              </>
+            )}
+          </DrawerSection>
+
+          {/* ─ פיננסי ─ */}
+          <DrawerSection icon="💰" title="פיננסי">
+            <DrawerField label='שכ"ט (תיאור)'>
+              <EditableCell editable={unlocked} value={matter.fee_text}
+                onSave={v => sf('fee_text', v)} placeholder='לדוג׳: 8500+מע"מ'/>
+            </DrawerField>
+            <DrawerField label='שכ"ט מוסכם'>
+              <EditableCell editable={unlocked} value={matter.agreed_fee}
+                onSave={v => sf('agreed_fee', v)} type="number" currency placeholder="₪"/>
+            </DrawerField>
+            <DrawerField label="נגבה">
+              <EditableCell editable={unlocked} value={matter.collected_amount}
+                onSave={v => sf('collected_amount', v)} type="number" currency placeholder="₪"/>
+            </DrawerField>
+            <DrawerField label="יתרה לגבייה">
+              <EditableCell editable={unlocked} value={matter.balance_amount}
+                onSave={v => sf('balance_amount', v)} type="number" currency placeholder="₪"/>
+            </DrawerField>
+            <DrawerField label="סטטוס תשלום">
+              <EditableCell editable={unlocked} value={matter.payment_status}
+                onSave={v => sf('payment_status', v)} options={PAYMENT_STATUS_OPTS}/>
+            </DrawerField>
+          </DrawerSection>
+
+          {/* ─ פרטים נוספים (נדל"ן) ─ */}
+          {isRE && (
+            <DrawerSection icon="🔧" title="פרטים נוספים">
+              <DrawerField label="משכנתא">
+                <EditableCell editable={unlocked} value={matter.mortgage}
+                  onSave={v => sf('mortgage', v)} placeholder="סטטוס משכנתא"/>
+              </DrawerField>
+              <DrawerField label="מס שבח">
+                <EditableCell editable={unlocked} value={matter.capital_gains}
+                  onSave={v => sf('capital_gains', v)} placeholder="סטטוס"/>
+              </DrawerField>
+              <DrawerField label="ועדה">
+                <EditableCell editable={unlocked} value={matter.committee_status}
+                  onSave={v => sf('committee_status', v)} placeholder="סטטוס ועדה"/>
+              </DrawerField>
+              <DrawerField label="עירייה">
+                <EditableCell editable={unlocked} value={matter.municipality_status}
+                  onSave={v => sf('municipality_status', v)} placeholder="סטטוס עירייה"/>
+              </DrawerField>
+              <DrawerField label="פניה רמי">
+                <EditableCell editable={unlocked} value={matter.rami_status}
+                  onSave={v => sf('rami_status', v)}/>
+              </DrawerField>
+            </DrawerSection>
+          )}
+
+          {/* ─ הערות ─ */}
+          <DrawerSection icon="📝" title="הערות">
+            <DrawerField label="הערות">
+              <EditableCell editable={unlocked} value={matter.description}
+                onSave={v => sf('description', v)} placeholder="הערות חופשיות..."/>
+            </DrawerField>
+          </DrawerSection>
+
+          {/* ─ משימות קשורות ─ */}
+          {myTasks.length > 0 && (
+            <DrawerSection icon="✅" title={`משימות קשורות (${myTasks.length})`}>
+              <div className="space-y-1">
+                {myTasks.map(t => {
+                  const done    = t.status === 'done';
+                  const overdue = !done && t.due_date && new Date(t.due_date) < new Date();
+                  return (
+                    <div key={t.id} className={`flex items-start gap-2 text-sm py-1 ${done ? 'opacity-40' : ''}`}>
+                      <span className={`mt-0.5 text-xs px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_COLOR[t.priority] || 'bg-gray-100 text-gray-500'}`}>
+                        {labelOf(TASK_PRIORITY, t.priority)}
+                      </span>
+                      <span className={`flex-1 ${done ? 'line-through' : ''}`}>{t.description}</span>
+                      {t.due_date && (
+                        <span className={`text-xs shrink-0 ${overdue ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                          {t.due_date}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </DrawerSection>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        {!unlocked && (
+          <div className="border-t px-4 py-3 bg-yellow-50 text-xs text-yellow-800 text-center">
+            🔒 מצב צפייה — לחץ "כניסה לעריכה" כדי לערוך שדות
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+
 
 function NewMatterModal({ category, lawyers, onSave, onClose }) {
   const isRE = category !== 'other';
@@ -637,7 +912,7 @@ const OTHER_COLS = [
 
 // ─── Matters Table ────────────────────────────────────────────────────────────
 
-function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField, saveExtra, onAddCol, onDeleteCol, deletingCol, onDeleteRow, onCloseRow }) {
+function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField, saveExtra, onAddCol, onDeleteCol, deletingCol, onDeleteRow, onCloseRow, onOpenDrawer }) {
   const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
   const totalCols  = cols.length + customCols.length + 1;
 
@@ -647,8 +922,13 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
 
     if (col.kind === 'client') {
       return (
-        <EditableCell editable={unlocked} value={m.clients?.[col.field]}
-          onSave={v => saveField(m.id, `client_${col.field}`, v, true)} placeholder={col.label}/>
+        <div className="flex items-center gap-1 group/name">
+          <EditableCell editable={unlocked} value={m.clients?.[col.field]}
+            onSave={v => saveField(m.id, `client_${col.field}`, v, true)} placeholder={col.label}/>
+          <button onClick={() => onOpenDrawer(m)}
+            className="opacity-0 group-hover/name:opacity-100 transition-opacity text-blue-400 hover:text-blue-600 text-xs leading-none shrink-0 px-1"
+            title="פתח פרטי תיק">⬡</button>
+        </div>
       );
     }
     if (col.kind === 'lawyer') {
@@ -1238,7 +1518,7 @@ function ReportsTab({ reMatters, otherMatters, lawyers }) {
 
 // ─── Personal Lawyer Dashboard (לוח בקרה אישי — כמו גיליונות לידור/פולינה/צופית/עופר) ──
 
-function LawyerDashboard({ lawyer, reMatters, otherMatters, tasks, unlocked, saveTask }) {
+function LawyerDashboard({ lawyer, reMatters, otherMatters, tasks, unlocked, saveTask, onOpenDrawer }) {
   const now = new Date();
   const isMine = m => m.responsible_lawyer_id === lawyer.id || m.profiles?.id === lawyer.id;
   const myRE     = reMatters.filter(isMine);
@@ -1306,7 +1586,12 @@ function LawyerDashboard({ lawyer, reMatters, otherMatters, tasks, unlocked, sav
                 const d = m.delivery_date ? Math.round((new Date(m.delivery_date) - now) / 86400000) : null;
                 return (
                   <tr key={m.id} className="hover:bg-blue-50/40">
-                    <td className="px-3 py-1.5 font-medium">{m.clients?.name || m.title || '—'}</td>
+                    <td className="px-3 py-1.5 font-medium">
+                      <button onClick={() => onOpenDrawer?.(m)}
+                        className="text-right hover:text-blue-600 hover:underline transition-colors">
+                        {m.clients?.name || m.title || '—'}
+                      </button>
+                    </td>
                     <td className="px-3 py-1.5 text-gray-500 text-xs">{labelOf(TYPE_OPTIONS, m.type)}</td>
                     <td className="px-3 py-1.5 text-gray-500">{m.property_address || ''}</td>
                     <td className="px-3 py-1.5">
@@ -1396,6 +1681,7 @@ export default function CasesPage() {
   const [showPin,      setShowPin]      = useState(false);
   const [uploading,    setUploading]    = useState(false);
   const [lastUpdated,  setLastUpdated]  = useState(null);
+  const [selectedMatter, setSelectedMatter] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -1498,8 +1784,11 @@ export default function CasesPage() {
     });
     const update = (list, setter) => setter(list.map(m => {
       if (m.id !== matterId) return m;
-      if (isClient) return { ...m, clients: { ...m.clients, [field.replace('client_', '')]: value } };
-      return { ...m, [field]: value };
+      const updated = isClient
+        ? { ...m, clients: { ...m.clients, [field.replace('client_', '')]: value } }
+        : { ...m, [field]: value };
+      if (selectedMatter?.id === matterId) setSelectedMatter(updated);
+      return updated;
     }));
     update(reMatters, setReMatters);
     update(otherMatters, setOtherMatters);
@@ -1617,6 +1906,16 @@ export default function CasesPage() {
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
 
+      {selectedMatter && (
+        <CaseDetailDrawer
+          matter={selectedMatter}
+          lawyers={lawyers}
+          tasks={allTasksList}
+          unlocked={unlocked}
+          saveField={saveField}
+          onClose={() => setSelectedMatter(null)}
+        />
+      )}
       {showPin       && <PinScreen onUnlock={() => { setUnlocked(true); setShowPin(false); }} onClose={() => setShowPin(false)} />}
       {showAddCol    && <AddColumnModal onAdd={col => { setCustomCols(prev => [...prev, col]); setShowAddCol(false); }} onClose={() => setShowAddCol(false)} />}
       {showNewMatter && (
@@ -1771,7 +2070,7 @@ export default function CasesPage() {
         <ReportsTab reMatters={reMatters} otherMatters={otherMatters} lawyers={lawyers}/>
       ) : lawyerTab ? (
         <LawyerDashboard lawyer={lawyerTab} reMatters={reMatters} otherMatters={otherMatters}
-          tasks={allTasksList} unlocked={unlocked} saveTask={saveTask}/>
+          tasks={allTasksList} unlocked={unlocked} saveTask={saveTask} onOpenDrawer={m => setSelectedMatter(m)}/>
       ) : isCollection ? (
         <CollectionTable matters={allMattersList} lawyers={lawyers} unlocked={unlocked} saveField={saveField}/>
       ) : isTasks ? (
@@ -1782,6 +2081,7 @@ export default function CasesPage() {
           unlocked={unlocked} saveField={saveField} saveExtra={saveExtra}
           onAddCol={() => setShowAddCol(true)} onDeleteCol={deleteColumn} deletingCol={deletingCol}
           onDeleteRow={deleteRow} onCloseRow={closeRow}
+          onOpenDrawer={m => setSelectedMatter(m)}
         />
       )}
 
