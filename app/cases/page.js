@@ -530,7 +530,7 @@ function CaseDetailDrawer({ matter, lawyers, tasks, unlocked, saveField, onClose
 
 
 
-// ─── AI Case Extractor ────────────────────────────────────────────────────────
+// ─── AI Case Chat (split-view) ────────────────────────────────────────────────
 
 const AI_TYPE_OPTS = [
   { val: 'sale',         label: 'מכירה' },
@@ -546,92 +546,131 @@ const AI_TYPE_OPTS = [
   { val: 'other',        label: 'אחר' },
 ];
 
+const EMPTY_FORM = {
+  client_name: '', client_id_number: '', client_phone: '', client_email: '',
+  property_address: '', parcel: '', type: '', stage: 'draft',
+  other_lawyer: '', other_party_name: '', broker: '',
+  agreed_fee: '', fee_text: '', delivery_date: '',
+  description: '', case_category: 'realestate',
+  referral_source: '', mortgage: '', capital_gains: '',
+  responsible_lawyer_id: '',
+};
+
+// ── FormField: single editable row inside the draft panel ──
+function FormField({ label, fkey, form, setForm, type = 'text', placeholder = '', opts, highlight }) {
+  const val = form[fkey] ?? '';
+  return (
+    <div className={`grid grid-cols-[110px_1fr] items-center gap-1 py-1 border-b border-gray-100 last:border-0 transition-colors duration-500 ${highlight ? 'bg-yellow-50' : ''}`}>
+      <span className="text-[11px] text-gray-400 leading-snug pr-1">{label}</span>
+      {opts ? (
+        <select value={val} onChange={e => setForm(f => ({ ...f, [fkey]: e.target.value }))}
+          className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full">
+          <option value="">—</option>
+          {opts.map(o => <option key={o.val ?? o} value={o.val ?? o}>{o.label ?? o}</option>)}
+        </select>
+      ) : (
+        <input value={val} onChange={e => setForm(f => ({ ...f, [fkey]: e.target.value }))}
+          type={type} placeholder={placeholder}
+          className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full"/>
+      )}
+    </div>
+  );
+}
+
 function AIChatPanel({ lawyers, onCaseCreated, onClose }) {
-  const [step, setStep]           = useState('input'); // 'input' | 'loading' | 'preview'
-  const [message, setMessage]     = useState('');
-  const [files, setFiles]         = useState([]);
-  const [extracted, setExtracted] = useState(null);
-  const [form, setForm]           = useState({});
-  const [error, setError]         = useState('');
-  const [saving, setSaving]       = useState(false);
-  const fileRef = useRef(null);
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
+  const [form, setForm]         = useState({ ...EMPTY_FORM });
+  const [highlighted, setHigh]  = useState({});        // field → true for 1.5s after AI update
+  const [messages, setMessages] = useState([
+    { role: 'ai', text: 'שלום! אני אעזור לפתוח תיק חדש.\nשלח פרטי העסקה, הודעת WhatsApp, או צרף מסמכים כמו נסח טאבו, צילום ת.ז. או ארנונה.' },
+  ]);
+  const [input, setInput]       = useState('');
+  const [files, setFiles]       = useState([]);
+  const [thinking, setThinking] = useState(false);
+  const [history, setHistory]   = useState([]);
+  const [error, setError]       = useState('');
+  const [saving, setSaving]     = useState(false);
+  const chatRef  = useRef(null);
+  const fileRef  = useRef(null);
+  const inputRef = useRef(null);
   const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
 
-  function addFiles(fileList) {
-    const arr = Array.from(fileList).slice(0, 6);
-    setFiles(prev => [...prev, ...arr].slice(0, 6));
+  // Scroll chat to bottom on new message
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, thinking]);
+
+  function addFiles(list) {
+    setFiles(prev => [...prev, ...Array.from(list)].slice(0, 6));
   }
 
-  function removeFile(i) {
-    setFiles(prev => prev.filter((_, j) => j !== i));
+  function flashFields(patches) {
+    const keys = Object.keys(patches).filter(k => patches[k] !== null && patches[k] !== undefined);
+    if (!keys.length) return;
+    setHigh(Object.fromEntries(keys.map(k => [k, true])));
+    setTimeout(() => setHigh({}), 1800);
   }
 
-  async function analyze() {
-    if (!message.trim() && files.length === 0) {
-      setError('יש להזין הודעה או לצרף מסמך');
-      return;
-    }
-    setError(''); setStep('loading');
+  async function send(overrideText) {
+    const text = (overrideText ?? input).trim();
+    if (!text && files.length === 0) return;
+
+    const userMsg = { role: 'user', text: text || `[${files.length} קבצים]`, files: files.map(f => f.name) };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setFiles([]);
+    setThinking(true);
+    setError('');
+
+    const fd = new FormData();
+    fd.append('message', text);
+    fd.append('form',    JSON.stringify(form));
+    fd.append('history', JSON.stringify(history.slice(-6)));
+    files.forEach(f => fd.append('files', f));
 
     try {
-      const fd = new FormData();
-      fd.append('message', message);
-      files.forEach(f => fd.append('files', f));
-
       const res  = await fetch('/api/cases/ai-chat', { method: 'POST', body: fd });
       const json = await res.json();
 
-      if (!res.ok || !json.extracted) {
-        setError(json.error || 'שגיאה בחילוץ נתונים');
-        setStep('input');
-        return;
+      if (!res.ok) { setError(json.error || 'שגיאה'); setThinking(false); return; }
+
+      // Apply patches
+      if (json.patches && Object.keys(json.patches).length) {
+        setForm(prev => {
+          const next = { ...prev };
+          for (const [k, v] of Object.entries(json.patches)) {
+            next[k] = v ?? prev[k] ?? '';
+          }
+          return next;
+        });
+        flashFields(json.patches);
       }
 
-      setExtracted(json.extracted);
-      setForm({
-        client_name:      json.extracted.client_name      || '',
-        client_id_number: json.extracted.client_id_number || '',
-        client_phone:     json.extracted.client_phone     || '',
-        client_email:     json.extracted.client_email     || '',
-        property_address: json.extracted.property_address || '',
-        parcel:           json.extracted.parcel           || '',
-        type:             json.extracted.type             || 'sale',
-        stage:            json.extracted.stage            || 'draft',
-        other_lawyer:     json.extracted.other_lawyer     || '',
-        other_party_name: json.extracted.other_party_name || '',
-        broker:           json.extracted.broker           || '',
-        agreed_fee:       json.extracted.agreed_fee       || '',
-        fee_text:         json.extracted.fee_text         || '',
-        delivery_date:    json.extracted.delivery_date    || '',
-        description:      json.extracted.description      || '',
-        case_category:    json.extracted.case_category    || 'realestate',
-        referral_source:  json.extracted.referral_source  || '',
-        mortgage:         json.extracted.mortgage         || '',
-        capital_gains:    json.extracted.capital_gains    || '',
-        responsible_lawyer_id: '',
-      });
-      setStep('preview');
+      const aiMsg = {
+        role: 'ai',
+        text: json.reply || 'בוצע.',
+        questions: json.questions || [],
+        patched: Object.keys(json.patches || {}).length,
+      };
+      setMessages(prev => [...prev, aiMsg]);
+
+      // Update history for next turn
+      setHistory(prev => [...prev,
+        { role: 'user',      content: text || '[קבצים]' },
+        { role: 'assistant', content: json.reply || '' },
+      ]);
     } catch {
-      setError('שגיאת רשת'); setStep('input');
+      setError('שגיאת רשת');
     }
+    setThinking(false);
   }
 
   async function createCase() {
-    if (!form.client_name?.trim()) { setError('שם הלקוח חובה'); return; }
+    if (!form.client_name?.trim()) { setError('שם הלקוח חובה — עדכן בטיוטה'); return; }
     const pin = sessionStorage.getItem('cases_pin') || '';
-    if (!pin) { setError('נדרש קוד גישה (PIN) כדי ליצור תיק — לחץ "כניסה לעריכה" בדף התיקים'); return; }
+    if (!pin) { setError('נדרש קוד גישה (PIN) — לחץ "כניסה לעריכה" בדף התיקים ואז פתח שוב'); return; }
     setSaving(true); setError('');
-
-    const body = {
-      ...form,
-      case_category: form.case_category || 'realestate',
-      agreed_fee: form.agreed_fee ? Number(form.agreed_fee) : undefined,
-      pin,
-    };
-
+    const body = { ...form, case_category: form.case_category || 'realestate',
+      agreed_fee: form.agreed_fee ? Number(form.agreed_fee) : undefined, pin };
     const res  = await fetch('/api/matters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-cases-pin': pin },
@@ -639,220 +678,218 @@ function AIChatPanel({ lawyers, onCaseCreated, onClose }) {
     });
     const json = await res.json();
     setSaving(false);
-
     if (!res.ok) { setError(json.error || 'שגיאה ביצירת תיק'); return; }
     onCaseCreated(json.matter);
     onClose();
   }
 
-  const Inp = ({ k, label, type = 'text', placeholder = '', opts }) => (
-    <div className="grid grid-cols-[130px_1fr] items-start gap-1 py-1.5 border-b border-gray-100">
-      <label className="text-xs text-gray-400 pt-1.5 leading-snug">{label}</label>
-      {opts ? (
-        <select value={form[k] || ''} onChange={e => set(k, e.target.value)}
-          className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue-400 bg-white">
-          <option value="">—</option>
-          {opts.map(o => <option key={o.val ?? o} value={o.val ?? o}>{o.label ?? o}</option>)}
-        </select>
-      ) : (
-        <input value={form[k] || ''} onChange={e => set(k, e.target.value)}
-          type={type} placeholder={placeholder}
-          className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue-400"/>
-      )}
-    </div>
+  const isRE = form.case_category !== 'other';
+  const FF = (label, fkey, props = {}) => (
+    <FormField key={fkey} label={label} fkey={fkey} form={form} setForm={setForm}
+      highlight={!!highlighted[fkey]} {...props}/>
   );
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose}/>
-      <div className="fixed inset-y-0 left-0 w-full max-w-[640px] bg-white shadow-2xl z-50 flex flex-col" dir="rtl">
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose}/>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b bg-gradient-to-l from-blue-600 to-indigo-700 text-white">
+      {/* Full-width modal, split layout */}
+      <div className="fixed inset-4 md:inset-8 bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden" dir="rtl">
+
+        {/* ── Header ── */}
+        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-l from-indigo-700 to-blue-600 text-white shrink-0">
           <span className="text-2xl">🤖</span>
-          <div className="flex-1">
-            <div className="font-bold">עוזר פתיחת תיק חכם</div>
-            <div className="text-xs opacity-80">שלח פרטי עסקה או מסמכים — אמלא את הטופס אוטומטית</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-base">עוזר פתיחת תיק — שיחה חכמה</div>
+            <div className="text-xs opacity-75 truncate">שוחח, צרף מסמכים — הטיוטה מתעדכנת בזמן אמת</div>
           </div>
-          {step === 'preview' && (
-            <button onClick={() => setStep('input')}
-              className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors">
-              ← ערוך הודעה
-            </button>
-          )}
-          <button onClick={onClose} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
         </div>
 
-        {/* Step: Input */}
-        {(step === 'input' || step === 'loading') && (
-          <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
-            {/* Message */}
-            <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-1.5">
-                ✍️ תאר את העסקה
-              </label>
-              <textarea
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                rows={6}
-                placeholder={`דוגמה:\n"מכירת דירה ברח׳ הרצל 12 חיפה, גוש 10500 חלקה 45.\nמוכר: יוסי כהן, ת.ז. 123456789, 050-1234567.\nקונה: דינה לוי.\nמחיר: 2,000,000 ₪. שכ״ט: 1%+מע״מ. מסירה: ינואר 2026."`}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-blue-400"
-              />
-            </div>
+        {/* ── Body: split ── */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
 
-            {/* File upload */}
-            <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-1.5">
-                📎 צרף מסמכים (אופציונלי)
-              </label>
-              <div
-                onClick={() => fileRef.current?.click()}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
-                className="border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer transition-colors">
-                <div className="text-2xl mb-1">📄</div>
-                <div className="text-sm text-gray-500">לחץ או גרור קבצים</div>
-                <div className="text-xs text-gray-400 mt-1">נסח טאבו · צילום ת.ז. · ארנונה · PDF · תמונות</div>
-                <input ref={fileRef} type="file" multiple accept="image/*,.pdf"
-                  className="hidden" onChange={e => addFiles(e.target.files)}/>
-              </div>
+          {/* LEFT — chat */}
+          <div className="flex flex-col w-full md:w-[44%] border-l border-gray-200 min-w-0">
 
-              {files.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {files.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-1.5 text-sm">
-                      <span className="text-base">{f.type.startsWith('image/') ? '🖼️' : '📄'}</span>
-                      <span className="flex-1 truncate text-gray-700">{f.name}</span>
-                      <span className="text-gray-400 text-xs">{(f.size / 1024).toFixed(0)} KB</span>
-                      <button onClick={() => removeFile(i)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
-                    </div>
+            {/* Messages */}
+            <div ref={chatRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm mt-0.5
+                    ${msg.role === 'ai' ? 'bg-indigo-100' : 'bg-blue-500 text-white'}">
+                    {msg.role === 'ai' ? '🤖' : '👤'}
+                  </div>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap
+                    ${msg.role === 'ai'
+                      ? 'bg-gray-100 text-gray-800 rounded-tr-none'
+                      : 'bg-blue-600 text-white rounded-tl-none'}`}>
+                    {msg.text}
+                    {msg.files?.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {msg.files.map((f, j) => (
+                          <div key={j} className="text-[11px] opacity-70">📎 {f}</div>
+                        ))}
+                      </div>
+                    )}
+                    {msg.patched > 0 && (
+                      <div className="text-[11px] opacity-60 mt-1">עודכנו {msg.patched} שדות ✦</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Suggestion chips from last AI message */}
+              {!thinking && messages.length > 0 && messages[messages.length - 1].role === 'ai' &&
+                (messages[messages.length - 1].questions || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pr-9">
+                  {messages[messages.length - 1].questions.map((q, i) => (
+                    <button key={i} onClick={() => { setInput(q); send(q); }}
+                      className="text-xs bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-full px-3 py-1 transition-colors">
+                      {q}
+                    </button>
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* Tips */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
-              <div className="font-semibold mb-1">💡 מה ניתן לשלוח?</div>
-              <div>• <strong>נסח טאבו</strong> — יחלץ גוש/חלקה, כתובת, בעלים</div>
-              <div>• <strong>תעודת זהות</strong> — יחלץ שם ומספר ת.ז.</div>
-              <div>• <strong>צילום ארנונה</strong> — יחלץ כתובת ושם</div>
-              <div>• <strong>הודעת WhatsApp</strong> — יחלץ את כל הפרטים שצוינו</div>
-            </div>
-
-            {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-
-            <button onClick={analyze} disabled={step === 'loading'}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold rounded-xl py-3 text-base transition-colors flex items-center justify-center gap-2">
-              {step === 'loading' ? (
-                <>
-                  <span className="animate-spin text-xl">⚙️</span>
-                  <span>מנתח... עד 15 שניות</span>
-                </>
-              ) : (
-                <>🔍 נתח עסקה</>
+              {/* Thinking indicator */}
+              {thinking && (
+                <div className="flex gap-2">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-sm">🤖</div>
+                  <div className="bg-gray-100 rounded-2xl rounded-tr-none px-3 py-2 flex gap-1 items-center">
+                    {[0,1,2].map(i => (
+                      <span key={i} className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: `${i * 0.15}s` }}/>
+                    ))}
+                  </div>
+                </div>
               )}
-            </button>
-          </div>
-        )}
+            </div>
 
-        {/* Step: Preview */}
-        {step === 'preview' && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Summary bar */}
-            {extracted?.summary && (
-              <div className="bg-green-50 border-b border-green-200 px-4 py-2 text-sm text-green-800">
-                <span className="font-semibold">✅ זוהה:</span> {extracted.summary}
+            {/* Error */}
+            {error && (
+              <div className="mx-3 mb-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>
+            )}
+
+            {/* Attached files preview */}
+            {files.length > 0 && (
+              <div className="px-3 pb-1 flex flex-wrap gap-1.5">
+                {files.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                    <span>{f.type.startsWith('image/') ? '🖼️' : '📄'}</span>
+                    <span className="max-w-[100px] truncate">{f.name}</span>
+                    <button onClick={() => setFiles(p => p.filter((_, j) => j !== i))}
+                      className="text-blue-400 hover:text-red-500 ml-0.5">✕</button>
+                  </div>
+                ))}
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-              {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+            {/* Input bar */}
+            <div className="border-t p-3 flex gap-2 items-end">
+              <button onClick={() => fileRef.current?.click()}
+                className="shrink-0 w-9 h-9 rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center text-gray-500 text-lg transition-colors"
+                title="צרף קובץ">
+                📎
+                <input ref={fileRef} type="file" multiple accept="image/*,.pdf"
+                  className="hidden" onChange={e => addFiles(e.target.files)}/>
+              </button>
+              <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                rows={1} placeholder="שלח הודעה... (Enter לשליחה)"
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-indigo-400 max-h-24"/>
+              <button onClick={() => send()} disabled={thinking || (!input.trim() && files.length === 0)}
+                className="shrink-0 w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white flex items-center justify-center text-base transition-colors">
+                ▶
+              </button>
+            </div>
+          </div>
 
-              {/* Rubric: Client */}
+          {/* RIGHT — live draft form */}
+          <div className="hidden md:flex flex-col flex-1 min-w-0">
+            <div className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 shrink-0">
+              <span className="font-semibold text-gray-700 text-sm">📋 טיוטת התיק</span>
+              <span className="text-xs text-gray-400 flex-1">מתעדכן בזמן אמת · ניתן לעריכה ידנית</span>
+              <button onClick={createCase} disabled={saving || !form.client_name}
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors">
+                {saving ? '⏳...' : '✅ צור תיק'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+
+              {/* Client */}
               <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <span>👤</span> פרטי הלקוח
-                </h3>
-                <div className="bg-gray-50 rounded-xl px-3">
-                  <Inp k="client_name"      label="שם הלקוח *"   placeholder="ישראל ישראלי"/>
-                  <Inp k="client_id_number" label="ת.ז. / ח.פ."  placeholder="000000000"/>
-                  <Inp k="client_phone"     label="טלפון"         placeholder="050-0000000"/>
-                  <Inp k="client_email"     label='דוא"ל'         placeholder="email@example.com"/>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">👤 פרטי לקוח</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-1">
+                  {FF('שם הלקוח *', 'client_name', { placeholder: 'ישראל ישראלי' })}
+                  {FF('ת.ז. / ח.פ.', 'client_id_number', { placeholder: '000000000' })}
+                  {FF('טלפון', 'client_phone', { placeholder: '050-0000000' })}
+                  {FF('דוא"ל', 'client_email', { placeholder: 'email@example.com' })}
                 </div>
               </section>
 
-              {/* Rubric: Property */}
-              {(form.case_category === 'realestate' || !form.case_category) && (
+              {/* Property */}
+              {isRE && (
                 <section>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                    <span>🏠</span> פרטי הנכס
-                  </h3>
-                  <div className="bg-gray-50 rounded-xl px-3">
-                    <Inp k="property_address" label="כתובת"         placeholder="רחוב, עיר"/>
-                    <Inp k="parcel"           label="גוש/חלקה"      placeholder="גוש 12345 חלקה 67"/>
-                    <Inp k="delivery_date"    label="תאריך מסירה"   type="date"/>
+                  <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">🏠 פרטי הנכס</div>
+                  <div className="bg-gray-50 rounded-xl px-3 py-1">
+                    {FF('כתובת', 'property_address', { placeholder: 'רחוב, עיר' })}
+                    {FF('גוש / חלקה', 'parcel', { placeholder: 'גוש 12345 חלקה 67' })}
+                    {FF('תאריך מסירה', 'delivery_date', { type: 'date' })}
                   </div>
                 </section>
               )}
 
-              {/* Rubric: Transaction */}
+              {/* Transaction */}
               <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <span>⚖️</span> פרטי העסקה
-                </h3>
-                <div className="bg-gray-50 rounded-xl px-3">
-                  <Inp k="case_category" label="קטגוריה" opts={[{ val: 'realestate', label: 'נדל"ן' }, { val: 'other', label: 'תיק אחר' }]}/>
-                  <Inp k="type"  label="סוג עסקה" opts={AI_TYPE_OPTS}/>
-                  <Inp k="stage" label="שלב"       opts={STAGE_OPTIONS}/>
-                  <Inp k="other_party_name" label="שם הצד השני"  placeholder="שם הקונה/מוכר"/>
-                  <Inp k="other_lawyer"     label='עו"ד צד שני'  placeholder="שם עו&quot;ד"/>
-                  <Inp k="broker"           label="מתווך"         placeholder="שם המתווך"/>
-                  <Inp k="referral_source"  label="מקור הפניה"    placeholder=""/>
-                  <Inp k="responsible_lawyer_id" label='עו"ד מטפל' opts={lawyerOpts}/>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">⚖️ פרטי עסקה</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-1">
+                  {FF('קטגוריה', 'case_category', { opts: [{ val: 'realestate', label: 'נדל"ן' }, { val: 'other', label: 'תיק אחר' }] })}
+                  {FF('סוג', 'type', { opts: AI_TYPE_OPTS })}
+                  {FF('שלב', 'stage', { opts: STAGE_OPTIONS })}
+                  {FF('צד שני', 'other_party_name', { placeholder: 'שם הקונה / מוכר' })}
+                  {FF('עו"ד צד שני', 'other_lawyer', { placeholder: 'שם עו"ד' })}
+                  {FF('מתווך', 'broker', { placeholder: 'שם המתווך' })}
+                  {FF('עו"ד מטפל', 'responsible_lawyer_id', { opts: lawyerOpts })}
+                  {FF('מקור הפניה', 'referral_source')}
                 </div>
               </section>
 
-              {/* Rubric: Financial */}
+              {/* Financial */}
               <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <span>💰</span> פיננסי
-                </h3>
-                <div className="bg-gray-50 rounded-xl px-3">
-                  <Inp k="fee_text"   label='שכ"ט (תיאור)'    placeholder='1%+מע"מ'/>
-                  <Inp k="agreed_fee" label='שכ"ט מוסכם (₪)' type="number" placeholder="0"/>
-                  <Inp k="mortgage"   label="משכנתא"           placeholder="פרטי משכנתא"/>
-                  <Inp k="capital_gains" label="מס שבח"        placeholder="פרטים"/>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">💰 פיננסי</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-1">
+                  {FF('שכ"ט תיאור', 'fee_text', { placeholder: '1%+מע"מ' })}
+                  {FF('שכ"ט (₪)', 'agreed_fee', { type: 'number', placeholder: '0' })}
+                  {FF('משכנתא', 'mortgage')}
+                  {FF('מס שבח', 'capital_gains')}
                 </div>
               </section>
 
-              {/* Rubric: Notes */}
+              {/* Notes */}
               <section>
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <span>📝</span> הערות
-                </h3>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">📝 הערות</div>
                 <div className="bg-gray-50 rounded-xl px-3 py-2">
-                  <textarea value={form.description || ''}
-                    onChange={e => set('description', e.target.value)}
-                    rows={3} placeholder="פרטים נוספים..."
-                    className="w-full bg-transparent text-sm focus:outline-none resize-none"/>
+                  <textarea value={form.description || ''} rows={3}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="פרטים נוספים..."
+                    className="w-full text-sm bg-transparent focus:outline-none resize-none"/>
                 </div>
               </section>
+
             </div>
 
-            {/* Footer actions */}
-            <div className="border-t px-4 py-3 bg-white flex gap-3">
-              <button onClick={createCase} disabled={saving}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl py-3 transition-colors">
-                {saving ? '⏳ יוצר תיק...' : '✅ אשר וצור תיק'}
-              </button>
-              <button onClick={() => setStep('input')}
-                className="px-4 border border-gray-300 rounded-xl text-sm hover:bg-gray-50 text-gray-600">
-                ← ערוך
+            {/* Mobile create button */}
+            <div className="border-t px-4 py-3 md:hidden">
+              <button onClick={createCase} disabled={saving || !form.client_name}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 transition-colors">
+                {saving ? '⏳ יוצר תיק...' : '✅ צור תיק'}
               </button>
             </div>
           </div>
-        )}
+
+        </div>
       </div>
     </>
   );
