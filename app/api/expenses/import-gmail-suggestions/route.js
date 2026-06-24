@@ -1,14 +1,13 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
-import { getGmailClient, getEmailDetails, getAttachmentData } from '@/lib/gmail';
-import { safeDriveFileName, uploadToMonthFolder, DEFAULT_EXPENSES_DRIVE_FOLDER_ID } from '@/lib/drive';
+import { DEFAULT_EXPENSES_DRIVE_FOLDER_ID } from '@/lib/drive';
+import { saveGmailReceiptToDrive } from '@/lib/expenseDriveSave';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
 
 async function recomputeCell(sb, orgId, section, item, year, month) {
   const { data } = await sb.from('expense_documents')
-    .select('amount, payer')
+    .select('amount, payer, status')
     .eq('organization_id', orgId)
     .eq('expense_section', section)
     .eq('expense_item', item)
@@ -16,6 +15,7 @@ async function recomputeCell(sb, orgId, section, item, year, month) {
     .eq('expense_month_num', month);
 
   const total = (data || [])
+    .filter(row => row.status !== 'removed')
     .filter(row => (row.payer || 'office') === 'office')
     .reduce((sum, row) => sum + Number(row.amount || 0), 0);
 
@@ -35,54 +35,41 @@ async function recomputeCell(sb, orgId, section, item, year, month) {
 function monthParts(dateValue) {
   const d = dateValue ? new Date(dateValue) : new Date();
   const safe = Number.isNaN(d.getTime()) ? new Date() : d;
-  return {
-    docDate: safe.toISOString().slice(0, 10),
-    year: safe.getFullYear(),
-    month: safe.getMonth() + 1,
-  };
+  return { docDate: safe.toISOString().slice(0, 10), year: safe.getFullYear(), month: safe.getMonth() + 1 };
 }
 
-function decodeGmailBase64(data) {
-  return Buffer.from(String(data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-}
-
-function pickBestAttachment(attachments = []) {
-  const pdf = attachments.find(a => String(a.mimeType || '').includes('pdf') || String(a.filename || '').toLowerCase().endsWith('.pdf'));
-  return pdf || attachments[0] || null;
-}
-
-async function tryUploadAttachmentToDrive({ org, gmailId, row, docDate, vendor, item, sb, orgId }) {
-  if (!org?.gmail_refresh_token) return { url: null, fileName: null, note: 'אין refresh token' };
-
-  const gmail = getGmailClient(org.gmail_refresh_token);
-  const details = await getEmailDetails(gmail, gmailId);
-  const attachment = pickBestAttachment(details.attachments || []);
-  if (!attachment?.attachmentId) return { url: null, fileName: null, note: 'לא נמצא קובץ מצורף במייל' };
-
-  const raw = await getAttachmentData(gmail, gmailId, attachment.attachmentId);
-  const buffer = decodeGmailBase64(raw);
-  const amount = Number(row.amount || 0) ? `${Number(row.amount || 0)} שח` : null;
-  const cleanName = safeDriveFileName([
-    docDate,
-    vendor || item,
-    row.description || row.subject || item,
-    amount,
-    row.payment_confirmation ? `אסמכתא ${row.payment_confirmation}` : null,
-  ]) + (String(attachment.filename || '').toLowerCase().endsWith('.pdf') ? '.pdf' : ` - ${attachment.filename || 'invoice'}`);
-
-  const d = docDate ? new Date(docDate) : new Date();
-  const driveFile = await uploadToMonthFolder({
-    refreshToken: org.gmail_refresh_token,
-    rootFolderId: org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID,
-    buffer,
-    fileName: cleanName,
-    mimeType: attachment.mimeType || 'application/pdf',
-    year: d.getFullYear(),
-    month: d.getMonth() + 1,
-    topic: item || null,
-  });
-
-  return { url: driveFile.webViewLink, fileName: driveFile.name, note: null };
+async function findDuplicate(sb, orgId, { gmailId, vendor, amount, docDate, subject }) {
+  if (gmailId) {
+    const { data: byGmail } = await sb.from('expense_documents')
+      .select('id,status')
+      .eq('organization_id', orgId)
+      .eq('gmail_message_id', gmailId)
+      .neq('status', 'removed')
+      .maybeSingle();
+    if (byGmail?.id) return { id: byGmail.id, reason: 'duplicate_gmail_message' };
+  }
+  if (amount && docDate && vendor) {
+    const { data: byFingerprint } = await sb.from('expense_documents')
+      .select('id,status')
+      .eq('organization_id', orgId)
+      .eq('doc_date', docDate)
+      .eq('vendor', vendor)
+      .eq('amount', Number(amount || 0))
+      .neq('status', 'removed')
+      .limit(1);
+    if (byFingerprint?.[0]?.id) return { id: byFingerprint[0].id, reason: 'duplicate_vendor_date_amount' };
+  }
+  if (subject && docDate) {
+    const { data: byName } = await sb.from('expense_documents')
+      .select('id,status')
+      .eq('organization_id', orgId)
+      .eq('doc_date', docDate)
+      .ilike('file_name', `%${String(subject).slice(0, 40)}%`)
+      .neq('status', 'removed')
+      .limit(1);
+    if (byName?.[0]?.id) return { id: byName[0].id, reason: 'duplicate_subject_date' };
+  }
+  return null;
 }
 
 export async function POST(request) {
@@ -107,28 +94,27 @@ export async function POST(request) {
     const gmailId = row.gmail_id || row.gmail_message_id;
     if (!gmailId) { skipped.push({ reason: 'missing_gmail_id' }); continue; }
 
-    const { data: exists } = await sb.from('expense_documents')
-      .select('id')
-      .eq('organization_id', profile.organization_id)
-      .eq('gmail_message_id', gmailId)
-      .maybeSingle();
-    if (exists?.id) { skipped.push({ gmail_id: gmailId, reason: 'duplicate' }); continue; }
-
     const section = row.section || 'office';
-    const item = row.item || row.matched_vendor || 'חשבוניות מספקים';
+    const item = row.item || row.matched_vendor || row.expense_item || 'חשבוניות מספקים';
     const { docDate, year, month } = monthParts(row.date || row.doc_date);
     const gmailLink = row.gmail_link || `https://mail.google.com/mail/#all/${gmailId}`;
     const vendor = row.matched_vendor || row.vendor || item;
+    const amount = Number(row.amount || 0);
+
+    const duplicate = await findDuplicate(sb, profile.organization_id, { gmailId, vendor, amount, docDate, subject: row.subject });
+    if (duplicate) { skipped.push({ gmail_id: gmailId, ...duplicate }); continue; }
 
     let fileUrl = gmailLink;
     let fileName = row.file_name || row.subject || `${gmailId}.gmail`;
+    let fileType = 'gmail_receipt';
     let driveNote = null;
 
     try {
-      const driveResult = await tryUploadAttachmentToDrive({ org, gmailId, row, docDate, vendor, item, sb, orgId: profile.organization_id });
+      const driveResult = await saveGmailReceiptToDrive({ org, gmailId, row, docDate, year, month, topic: item, vendor });
       if (driveResult.url) {
         fileUrl = driveResult.url;
         fileName = driveResult.fileName || fileName;
+        fileType = driveResult.source === 'gmail_body' ? 'drive_email_body' : 'drive_receipt';
       } else if (driveResult.note) {
         driveNote = driveResult.note;
         driveWarnings.push({ gmail_id: gmailId, warning: driveResult.note });
@@ -140,6 +126,7 @@ export async function POST(request) {
 
     const description = [
       row.description || row.subject || 'קבלה מגימייל',
+      row.card_last4 ? `כרטיס: ${row.card_last4}` : null,
       row.payment_confirmation ? `אסמכתא: ${row.payment_confirmation}` : null,
       row.subject ? `נושא: ${row.subject}` : null,
       row.from ? `שולח: ${row.from}` : null,
@@ -147,22 +134,21 @@ export async function POST(request) {
       `קישור למייל: ${gmailLink}`,
     ].filter(Boolean).join('\n');
 
-    const isNeedsReview = !!(row.needs_review);
     const { data, error } = await sb.from('expense_documents').insert({
       organization_id: profile.organization_id,
       uploaded_by: profile.id,
-      amount: Number(row.amount || 0),
+      amount,
       vendor,
       description,
       category: row.category || 'general',
       doc_date: docDate,
       month: docDate.slice(0, 7),
-      status: isNeedsReview ? 'needs_review' : 'linked',
+      status: 'linked',
       file_url: fileUrl,
       file_name: fileName,
-      file_type: fileUrl === gmailLink ? 'gmail_receipt' : 'drive_receipt',
-      expense_item: isNeedsReview ? null : item,
-      expense_section: isNeedsReview ? null : section,
+      file_type: fileType,
+      expense_item: item,
+      expense_section: section,
       expense_year: year,
       expense_month_num: month,
       gmail_message_id: gmailId,
@@ -170,9 +156,9 @@ export async function POST(request) {
     }).select('id').single();
 
     if (error) { errors.push({ gmail_id: gmailId, error: error.message }); continue; }
-    if (!isNeedsReview) await recomputeCell(sb, profile.organization_id, section, item, year, month);
-    imported.push({ id: data.id, gmail_id: gmailId, item, amount: Number(row.amount || 0), date: docDate, file_url: fileUrl, saved_to_drive: fileUrl !== gmailLink, needs_review: isNeedsReview });
+    await recomputeCell(sb, profile.organization_id, section, item, year, month);
+    imported.push({ id: data.id, gmail_id: gmailId, item, amount, date: docDate, file_url: fileUrl, saved_to_drive: fileUrl !== gmailLink });
   }
 
-  return Response.json({ imported, skipped, errors, driveWarnings, drive_folder_id: DEFAULT_EXPENSES_DRIVE_FOLDER_ID });
+  return Response.json({ imported, skipped, errors, driveWarnings, drive_folder_id: org?.drive_expenses_folder_id || DEFAULT_EXPENSES_DRIVE_FOLDER_ID });
 }

@@ -1,97 +1,110 @@
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/adminAuth';
-import { extractDriveFileId, moveFileToTopicFolder } from '@/lib/drive';
+import { createClient } from '@/lib/supabase/server';
+import { saveGmailReceiptToDrive } from '@/lib/expenseDriveSave';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
 
-// POST /api/expenses/review-doc
-// Body: { id, action: 'approve'|'reject', expense_item?, expense_section?, vendor?, amount?, doc_date? }
+async function recompute(sb, orgId, section, item, year, month) {
+  const { data } = await sb.from('expense_documents')
+    .select('amount,payer,status')
+    .eq('organization_id', orgId)
+    .eq('expense_section', section)
+    .eq('expense_item', item)
+    .eq('expense_year', year)
+    .eq('expense_month_num', month);
+  const total = (data || [])
+    .filter(x => x.status !== 'removed')
+    .filter(x => (x.payer || 'office') === 'office')
+    .reduce((s, x) => s + Number(x.amount || 0), 0);
+  await sb.from('office_expenses').upsert({ organization_id: orgId, section, item_name: item, year, month, amount: total, is_itemized: true }, { onConflict: 'organization_id,section,item_name,year,month' });
+}
+
 export async function POST(request) {
-  const profile = await requireAdmin();
-  if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const { data: profile } = await sb.from('profiles').select('id,organization_id,role').eq('id', user.id).single();
+  if (!['admin','accountant'].includes(profile?.role)) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
-  const { id, action } = body;
-  if (!id || !action) return Response.json({ error: 'id ו-action נדרשים' }, { status: 400 });
-
-  const sb = createServiceClient();
+  const id = body.id;
+  const action = body.action;
+  if (!id || !action) return Response.json({ error: 'id and action required' }, { status: 400 });
 
   if (action === 'reject') {
-    const { error } = await sb.from('expense_documents')
-      .update({ status: 'rejected' })
-      .eq('id', id)
-      .eq('organization_id', profile.organization_id);
+    const { data, error } = await sb.from('expense_documents').update({ status: 'removed' }).eq('id', id).eq('organization_id', profile.organization_id).select().single();
     if (error) return Response.json({ error: error.message }, { status: 500 });
-    return Response.json({ ok: true, action: 'rejected' });
+    return Response.json({ ok: true, doc: data });
   }
 
   if (action === 'approve') {
-    const { expense_item, expense_section = 'office', vendor, amount, doc_date } = body;
-    if (!expense_item) return Response.json({ error: 'expense_item נדרש לאישור' }, { status: 400 });
+    const docDate = body.doc_date || new Date().toISOString().slice(0, 10);
+    const date = new Date(docDate);
+    const safe = Number.isNaN(date.getTime()) ? new Date() : date;
+    const year = Number(body.expense_year || safe.getFullYear());
+    const monthNum = Number(body.expense_month_num || (safe.getMonth() + 1));
+    const item = body.expense_item || body.item;
+    if (!item) return Response.json({ error: 'יש לבחור תת נושא לפני אישור' }, { status: 400 });
+    const section = body.expense_section || 'office';
 
-    const updates = { status: 'linked', expense_item, expense_section };
-    if (vendor) updates.vendor = vendor;
-    if (amount !== undefined) updates.amount = Number(amount);
-    if (doc_date) {
-      updates.doc_date = doc_date;
-      updates.month = doc_date.slice(0, 7);
-      updates.expense_year = new Date(doc_date).getFullYear();
-      updates.expense_month_num = new Date(doc_date).getMonth() + 1;
-    }
-
-    const { data: doc, error } = await sb.from('expense_documents')
-      .update(updates)
+    const { data: oldDoc } = await sb.from('expense_documents')
+      .select('id,file_url,file_name,gmail_message_id,description')
       .eq('id', id)
       .eq('organization_id', profile.organization_id)
-      .select('expense_section, expense_item, expense_year, expense_month_num, file_url')
       .single();
 
-    if (error) return Response.json({ error: error.message }, { status: 500 });
+    let fileUrl = oldDoc?.file_url || null;
+    let fileName = oldDoc?.file_name || null;
+    let fileType = undefined;
+    let driveNote = null;
 
-    // Recompute cell totals
-    const { data: allDocs } = await sb.from('expense_documents')
-      .select('amount, payer')
-      .eq('organization_id', profile.organization_id)
-      .eq('expense_section', doc.expense_section)
-      .eq('expense_item', doc.expense_item)
-      .eq('expense_year', doc.expense_year)
-      .eq('expense_month_num', doc.expense_month_num);
-
-    const total = (allDocs || [])
-      .filter(r => (r.payer || 'office') === 'office')
-      .reduce((s, r) => s + Number(r.amount || 0), 0);
-
-    await sb.from('office_expenses').upsert({
-      organization_id: profile.organization_id,
-      section: doc.expense_section,
-      item_name: doc.expense_item,
-      year: doc.expense_year,
-      month: doc.expense_month_num,
-      amount: total,
-      is_itemized: true,
-    }, { onConflict: 'organization_id,section,item_name,year,month' });
-
-    // Move Drive file to correct topic folder (fire-and-forget)
-    const fileId = extractDriveFileId(doc.file_url);
-    if (fileId && doc.expense_year && doc.expense_month_num) {
-      const { data: org } = await sb.from('organizations')
-        .select('gmail_refresh_token, drive_expenses_folder_id')
-        .eq('id', profile.organization_id).single();
-      if (org?.gmail_refresh_token) {
-        moveFileToTopicFolder({
-          refreshToken: org.gmail_refresh_token,
-          rootFolderId: org.drive_expenses_folder_id || process.env.GOOGLE_DRIVE_EXPENSE_FOLDER_ID,
-          fileId,
-          year: doc.expense_year,
-          month: doc.expense_month_num,
-          topic: doc.expense_item,
-        }).catch(() => {});
+    if (oldDoc?.gmail_message_id) {
+      try {
+        const { data: org } = await sb.from('organizations')
+          .select('gmail_refresh_token,drive_expenses_folder_id')
+          .eq('id', profile.organization_id)
+          .single();
+        const saved = await saveGmailReceiptToDrive({
+          org,
+          gmailId: oldDoc.gmail_message_id,
+          row: { subject: oldDoc.file_name, description: oldDoc.description, amount: body.amount },
+          docDate,
+          year,
+          month: monthNum,
+          topic: item,
+          vendor: body.vendor || item,
+        });
+        if (saved.url) {
+          fileUrl = saved.url;
+          fileName = saved.fileName || fileName;
+          fileType = saved.source === 'gmail_body' ? 'drive_email_body' : 'drive_receipt';
+        } else if (saved.note) driveNote = saved.note;
+      } catch (e) {
+        driveNote = `לא נשמר בדרייב: ${e.message}`;
       }
     }
 
-    return Response.json({ ok: true, action: 'approved', expense_item });
+    const updates = {
+      status: 'linked',
+      expense_item: item,
+      expense_section: section,
+      expense_year: year,
+      expense_month_num: monthNum,
+      doc_date: docDate,
+      month: String(docDate).slice(0, 7),
+      vendor: body.vendor || item,
+      amount: body.amount === undefined ? 0 : Number(body.amount || 0),
+      category: body.category || 'general',
+      accountant_notes: body.accountant_notes || null,
+      ...(fileUrl ? { file_url: fileUrl } : {}),
+      ...(fileName ? { file_name: fileName } : {}),
+      ...(fileType ? { file_type: fileType } : {}),
+      ...(driveNote ? { description: [oldDoc?.description, driveNote].filter(Boolean).join('\n') } : {}),
+    };
+    const { data, error } = await sb.from('expense_documents').update(updates).eq('id', id).eq('organization_id', profile.organization_id).select().single();
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    await recompute(sb, profile.organization_id, section, item, year, monthNum);
+    return Response.json({ ok: true, doc: data });
   }
 
-  return Response.json({ error: 'action חייב להיות approve או reject' }, { status: 400 });
+  return Response.json({ error: 'unknown action' }, { status: 400 });
 }
