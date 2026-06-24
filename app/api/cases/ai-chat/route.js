@@ -66,8 +66,8 @@ export async function POST(request) {
   if (contentType.includes('multipart/form-data')) {
     const fd = await request.formData();
     userMessage = String(fd.get('message') || '');
-    currentForm = JSON.parse(String(fd.get('form') || '{}'));
-    history     = JSON.parse(String(fd.get('history') || '[]'));
+    try { currentForm = JSON.parse(String(fd.get('form') || '{}')); } catch { currentForm = {}; }
+    try { history     = JSON.parse(String(fd.get('history') || '[]')); } catch { history = []; }
 
     for (const file of fd.getAll('files')) {
       if (!file?.size) continue;
