@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { scanOrg } from '@/lib/expenseGmailScan';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request) {
   if (!validateCronSecret(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
