@@ -60,6 +60,25 @@ export default function ReceiptsPage() {
     }
   }, [load]);
 
+  // One-time comprehensive backfill — scans ~4 months and stores everything
+  // permanently. Safe to re-run (duplicate detection skips existing receipts).
+  const deepScan = useCallback(async () => {
+    if (!confirm('סריקה עמוקה תסרוק את כל ה-Gmail מ-4 החודשים האחרונים ותשמור את כל החשבוניות הישנות באתר באופן קבוע. הפעולה עשויה לקחת עד דקה. להתחיל?')) return;
+    setScanState('running');
+    setResult(null);
+    try {
+      const res = await fetch('/api/expenses/deep-scan?days=120', { method: 'POST', cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      setResult(data.error ? data : { _deep: true, ...data });
+      setScanState(res.ok ? 'done' : 'error');
+      setLastScan(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
+      await load();
+    } catch {
+      setScanState('error');
+      setResult({ error: 'הסריקה העמוקה ארכה זמן רב. ייתכן שחלק מהחשבוניות כבר נשמרו — רענן את העמוד ונסה שוב להשלמה.' });
+    }
+  }, [load]);
+
   useEffect(() => { load(); }, [load]);
 
   // Alert for recurring monthly expenses not yet entered this month
@@ -109,7 +128,13 @@ export default function ReceiptsPage() {
 
   const scanLabel = scanState === 'running' ? '⏳ סורק חשבוניות…' : scanState === 'done' ? '✅ הסריקה הסתיימה' : scanState === 'error' ? '⚠️ שגיאת סריקה' : '✅ מוכן';
   const scanClass = scanState === 'running' ? 'bg-red-600 text-white' : scanState === 'done' || scanState === 'idle' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white';
-  const resultText = result?.error ? result.error : result ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.` : '';
+  const resultText = result?.error
+    ? result.error
+    : result?._deep
+      ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
+      : result
+        ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
+        : '';
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-16">
@@ -126,9 +151,17 @@ export default function ReceiptsPage() {
             onClick={autoScan}
             disabled={scanState === 'running'}
             className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
-            title="סרוק Gmail עכשיו (הסריקה מתבצעת גם אוטומטית 3× ביום)"
+            title="סריקה מהירה של חשבוניות חדשות (מתבצעת גם אוטומטית 3× ביום)"
           >
             {scanState === 'running' ? '⏳ סורק…' : '📧 סרוק Gmail'}
+          </button>
+          <button
+            onClick={deepScan}
+            disabled={scanState === 'running'}
+            className="bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
+            title="סריקה חד-פעמית של 4 חודשים אחורה לאכלוס כל החשבוניות הישנות"
+          >
+            📥 סריקה עמוקה
           </button>
         </div>
       </header>
