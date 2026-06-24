@@ -63,11 +63,13 @@ export async function GET(request) {
   if (stage)  q = q.eq('stage', stage);
   if (type)   q = q.eq('type', type);
   if (search) {
+    // Escape PostgREST filter metacharacters so search terms can't break filter syntax.
+    const safe = search.replace(/[%*\\()'",]/g, '\\$&').slice(0, 200);
     const { data: matchedClients } = await sb.from('clients')
-      .select('id').eq('organization_id', orgId).ilike('name', `%${search}%`);
+      .select('id').eq('organization_id', orgId).ilike('name', `%${safe}%`);
     const clientIds = (matchedClients || []).map(c => c.id);
     const clientFilter = clientIds.length ? `,client_id.in.(${clientIds.join(',')})` : '';
-    q = q.or(`title.ilike.%${search}%,property_address.ilike.%${search}%,parcel.ilike.%${search}%${clientFilter}`);
+    q = q.or(`title.ilike.%${safe}%,property_address.ilike.%${safe}%,parcel.ilike.%${safe}%${clientFilter}`);
   }
 
   const { data, error } = await q;
