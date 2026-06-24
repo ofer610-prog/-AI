@@ -92,7 +92,12 @@ export async function GET(request) {
       return back(request, { gmail_error: 'no_refresh_token' });
     }
 
-    const updates = { gmail_connected: true };
+    // Tie the connected flag directly to token availability so we can never
+    // mark an org connected without a usable refresh token. A token is
+    // guaranteed here (returned now, or already stored) — the no_refresh_token
+    // path above returns before reaching this point.
+    const willHaveToken = !!(tokens.refresh_token || existing?.gmail_refresh_token);
+    const updates = { gmail_connected: willHaveToken };
     if (gmailEmail) updates.gmail_email = gmailEmail;
     if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
 

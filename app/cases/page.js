@@ -253,7 +253,647 @@ function EditableCell({ value, onSave, type = 'text', options, placeholder = '',
   );
 }
 
-// ─── New Matter Modal ─────────────────────────────────────────────────────────
+// ─── Case Detail Drawer ───────────────────────────────────────────────────────
+
+function DrawerField({ label, children }) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] items-start gap-1 py-1.5 border-b border-gray-100 last:border-0">
+      <span className="text-xs text-gray-400 pt-1 leading-snug">{label}</span>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+}
+
+function DrawerSection({ icon, title, children }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="mb-2">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-right bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+        <span className="text-base">{icon}</span>
+        <span className="font-semibold text-gray-700 text-sm flex-1">{title}</span>
+        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="px-3 pt-1 pb-2">{children}</div>}
+    </div>
+  );
+}
+
+function CaseDetailDrawer({ matter, lawyers, tasks, unlocked, saveField, onClose }) {
+  const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
+  const myTasks    = (tasks || []).filter(t => t.matter_id === matter.id || t.matters?.id === matter.id);
+
+  const name = matter.clients?.name || matter.title || '';
+  const isRE = matter.case_category !== 'other';
+
+  const lawyerName = (Array.isArray(matter.profiles) ? matter.profiles[0]?.full_name : matter.profiles?.full_name)
+    || lawyers.find(l => l.id === matter.responsible_lawyer_id)?.full_name || '';
+
+  const days = matter.delivery_date
+    ? Math.round((new Date(matter.delivery_date) - new Date()) / 86400000) : null;
+
+  const sf = (field, val, isClient = false) => saveField(matter.id, field, val, isClient);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose}/>
+
+      {/* Drawer */}
+      <div className="fixed top-0 left-0 h-full w-full max-w-[520px] bg-white shadow-2xl z-50 flex flex-col" dir="rtl">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-white sticky top-0 z-10">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-gray-900 text-base truncate">{name || 'תיק ללא שם'}</div>
+            {matter.property_address && (
+              <div className="text-xs text-gray-400 truncate">{matter.property_address}</div>
+            )}
+          </div>
+          {matter.stage && (
+            <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STAGE_COLOR[matter.stage] || 'bg-gray-100'}`}>
+              {labelOf(STAGE_OPTIONS, matter.stage)}
+            </span>
+          )}
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-700 text-xl leading-none px-1 shrink-0">✕</button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+
+          {/* ─ פרטי הלקוח ─ */}
+          <DrawerSection icon="👤" title="פרטי הלקוח">
+            <DrawerField label="שם הלקוח">
+              <EditableCell editable={unlocked} value={matter.clients?.name}
+                onSave={v => sf('client_name', v, true)} placeholder="שם הלקוח"/>
+            </DrawerField>
+            <DrawerField label="ת.ז. / ח.פ.">
+              <EditableCell editable={unlocked} value={matter.clients?.id_number}
+                onSave={v => sf('client_id_number', v, true)} placeholder="000000000"/>
+            </DrawerField>
+            <DrawerField label="טלפון">
+              <div className="flex items-center gap-2">
+                <EditableCell editable={unlocked} value={matter.clients?.phone}
+                  onSave={v => sf('client_phone', v, true)} placeholder="050-0000000"/>
+                {matter.clients?.phone && (
+                  <a href={`tel:${matter.clients.phone}`} className="text-blue-500 text-xs hover:underline shrink-0">📞 התקשר</a>
+                )}
+              </div>
+            </DrawerField>
+            <DrawerField label='דוא"ל'>
+              <div className="flex items-center gap-2">
+                <EditableCell editable={unlocked} value={matter.clients?.email}
+                  onSave={v => sf('client_email', v, true)} placeholder="email@example.com"/>
+                {matter.clients?.email && (
+                  <a href={`mailto:${matter.clients.email}`} className="text-blue-500 text-xs hover:underline shrink-0">✉️ שלח</a>
+                )}
+              </div>
+            </DrawerField>
+          </DrawerSection>
+
+          {/* ─ פרטי הנכס (נדל"ן בלבד) ─ */}
+          {isRE && (
+            <DrawerSection icon="🏠" title="פרטי הנכס">
+              <DrawerField label="כתובת">
+                <EditableCell editable={unlocked} value={matter.property_address}
+                  onSave={v => sf('property_address', v)} placeholder="רחוב, עיר"/>
+              </DrawerField>
+              <DrawerField label="גוש / חלקה">
+                <EditableCell editable={unlocked} value={matter.parcel}
+                  onSave={v => sf('parcel', v)} placeholder="גוש 1234 / חלקה 56"/>
+              </DrawerField>
+              <DrawerField label="תאריך מסירה">
+                <div className="flex items-center gap-2">
+                  <EditableCell editable={unlocked} value={matter.delivery_date}
+                    onSave={v => sf('delivery_date', v)} type="date"/>
+                  {days != null && (
+                    <span className={`text-xs px-1.5 py-0.5 rounded shrink-0
+                      ${days < 0 ? 'bg-red-100 text-red-700 font-bold' : days === 0 ? 'bg-orange-100 text-orange-700 font-bold' : days <= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {days < 0 ? `${Math.abs(days)} ימים באיחור` : days === 0 ? 'היום' : `${days} ימים`}
+                    </span>
+                  )}
+                </div>
+              </DrawerField>
+            </DrawerSection>
+          )}
+
+          {/* ─ שלב ועו"ד ─ */}
+          <DrawerSection icon="⚖️" title='שלב ועו"ד'>
+            <DrawerField label="שלב">
+              <div>
+                <EditableCell editable={unlocked} value={matter.stage}
+                  onSave={v => sf('stage', v)} options={STAGE_OPTIONS}/>
+                {matter.stage && (
+                  <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${STAGE_COLOR[matter.stage] || 'bg-gray-100'}`}>
+                    {labelOf(STAGE_OPTIONS, matter.stage)}
+                  </span>
+                )}
+              </div>
+            </DrawerField>
+            {!isRE && (
+              <DrawerField label="סוג התיק">
+                <EditableCell editable={unlocked} value={matter.type}
+                  onSave={v => sf('type', v)} options={TYPE_OPTIONS}/>
+              </DrawerField>
+            )}
+            <DrawerField label='עו"ד מטפל'>
+              <EditableCell editable={unlocked} value={matter.responsible_lawyer_id}
+                displayLabel={lawyerName} onSave={v => sf('responsible_lawyer_id', v)} options={lawyerOpts}/>
+            </DrawerField>
+            <DrawerField label='עו"ד צד שני'>
+              <EditableCell editable={unlocked} value={matter.other_lawyer}
+                onSave={v => sf('other_lawyer', v)} placeholder="שם עו&quot;ד"/>
+            </DrawerField>
+            {isRE && (
+              <DrawerField label="מתווך">
+                <EditableCell editable={unlocked} value={matter.broker}
+                  onSave={v => sf('broker', v)} placeholder="שם המתווך"/>
+              </DrawerField>
+            )}
+            {!isRE && (
+              <>
+                <DrawerField label="מקור הפניה">
+                  <EditableCell editable={unlocked} value={matter.referral_source}
+                    onSave={v => sf('referral_source', v)}/>
+                </DrawerField>
+                <DrawerField label="מס׳ תיק">
+                  <EditableCell editable={unlocked} value={matter.case_number}
+                    onSave={v => sf('case_number', v)} placeholder="12345/26"/>
+                </DrawerField>
+                <DrawerField label="תאריך פתיחה">
+                  <EditableCell editable={unlocked} value={matter.open_date}
+                    onSave={v => sf('open_date', v)} type="date"/>
+                </DrawerField>
+                <DrawerField label="תאריך יעד">
+                  <EditableCell editable={unlocked} value={matter.target_date}
+                    onSave={v => sf('target_date', v)} type="date"/>
+                </DrawerField>
+              </>
+            )}
+          </DrawerSection>
+
+          {/* ─ פיננסי ─ */}
+          <DrawerSection icon="💰" title="פיננסי">
+            <DrawerField label='שכ"ט (תיאור)'>
+              <EditableCell editable={unlocked} value={matter.fee_text}
+                onSave={v => sf('fee_text', v)} placeholder='לדוג׳: 8500+מע"מ'/>
+            </DrawerField>
+            <DrawerField label='שכ"ט מוסכם'>
+              <EditableCell editable={unlocked} value={matter.agreed_fee}
+                onSave={v => sf('agreed_fee', v)} type="number" currency placeholder="₪"/>
+            </DrawerField>
+            <DrawerField label="נגבה">
+              <EditableCell editable={unlocked} value={matter.collected_amount}
+                onSave={v => sf('collected_amount', v)} type="number" currency placeholder="₪"/>
+            </DrawerField>
+            <DrawerField label="יתרה לגבייה">
+              <EditableCell editable={unlocked} value={matter.balance_amount}
+                onSave={v => sf('balance_amount', v)} type="number" currency placeholder="₪"/>
+            </DrawerField>
+            <DrawerField label="סטטוס תשלום">
+              <EditableCell editable={unlocked} value={matter.payment_status}
+                onSave={v => sf('payment_status', v)} options={PAYMENT_STATUS_OPTS}/>
+            </DrawerField>
+          </DrawerSection>
+
+          {/* ─ פרטים נוספים (נדל"ן) ─ */}
+          {isRE && (
+            <DrawerSection icon="🔧" title="פרטים נוספים">
+              <DrawerField label="משכנתא">
+                <EditableCell editable={unlocked} value={matter.mortgage}
+                  onSave={v => sf('mortgage', v)} placeholder="סטטוס משכנתא"/>
+              </DrawerField>
+              <DrawerField label="מס שבח">
+                <EditableCell editable={unlocked} value={matter.capital_gains}
+                  onSave={v => sf('capital_gains', v)} placeholder="סטטוס"/>
+              </DrawerField>
+              <DrawerField label="ועדה">
+                <EditableCell editable={unlocked} value={matter.committee_status}
+                  onSave={v => sf('committee_status', v)} placeholder="סטטוס ועדה"/>
+              </DrawerField>
+              <DrawerField label="עירייה">
+                <EditableCell editable={unlocked} value={matter.municipality_status}
+                  onSave={v => sf('municipality_status', v)} placeholder="סטטוס עירייה"/>
+              </DrawerField>
+              <DrawerField label="פניה רמי">
+                <EditableCell editable={unlocked} value={matter.rami_status}
+                  onSave={v => sf('rami_status', v)}/>
+              </DrawerField>
+            </DrawerSection>
+          )}
+
+          {/* ─ הערות ─ */}
+          <DrawerSection icon="📝" title="הערות">
+            <DrawerField label="הערות">
+              <EditableCell editable={unlocked} value={matter.description}
+                onSave={v => sf('description', v)} placeholder="הערות חופשיות..."/>
+            </DrawerField>
+          </DrawerSection>
+
+          {/* ─ משימות קשורות ─ */}
+          {myTasks.length > 0 && (
+            <DrawerSection icon="✅" title={`משימות קשורות (${myTasks.length})`}>
+              <div className="space-y-1">
+                {myTasks.map(t => {
+                  const done    = t.status === 'done';
+                  const overdue = !done && t.due_date && new Date(t.due_date) < new Date();
+                  return (
+                    <div key={t.id} className={`flex items-start gap-2 text-sm py-1 ${done ? 'opacity-40' : ''}`}>
+                      <span className={`mt-0.5 text-xs px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_COLOR[t.priority] || 'bg-gray-100 text-gray-500'}`}>
+                        {labelOf(TASK_PRIORITY, t.priority)}
+                      </span>
+                      <span className={`flex-1 ${done ? 'line-through' : ''}`}>{t.description}</span>
+                      {t.due_date && (
+                        <span className={`text-xs shrink-0 ${overdue ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                          {t.due_date}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </DrawerSection>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        {!unlocked && (
+          <div className="border-t px-4 py-3 bg-yellow-50 text-xs text-yellow-800 text-center">
+            🔒 מצב צפייה — לחץ "כניסה לעריכה" כדי לערוך שדות
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+
+
+// ─── AI Case Chat (split-view) ────────────────────────────────────────────────
+
+const AI_TYPE_OPTS = [
+  { val: 'sale',         label: 'מכירה' },
+  { val: 'purchase',     label: 'רכישה' },
+  { val: 'rental',       label: 'שכירות' },
+  { val: 'tama38',       label: 'תמ"א 38' },
+  { val: 'pinui',        label: 'פינוי בינוי' },
+  { val: 'inheritance',  label: 'ירושה' },
+  { val: 'registration', label: 'רישום' },
+  { val: 'mortgage',     label: 'משכנתא' },
+  { val: 'litigation',   label: 'ליטיגציה' },
+  { val: 'consulting',   label: 'ייעוץ' },
+  { val: 'other',        label: 'אחר' },
+];
+
+const EMPTY_FORM = {
+  client_name: '', client_id_number: '', client_phone: '', client_email: '',
+  property_address: '', parcel: '', type: '', stage: 'draft',
+  other_lawyer: '', other_party_name: '', broker: '',
+  agreed_fee: '', fee_text: '', delivery_date: '',
+  description: '', case_category: 'realestate',
+  referral_source: '', mortgage: '', capital_gains: '',
+  responsible_lawyer_id: '',
+};
+
+// ── FormField: single editable row inside the draft panel ──
+function FormField({ label, fkey, form, setForm, type = 'text', placeholder = '', opts, highlight }) {
+  const val = form[fkey] ?? '';
+  return (
+    <div className={`grid grid-cols-[110px_1fr] items-center gap-1 py-1 border-b border-gray-100 last:border-0 transition-colors duration-500 ${highlight ? 'bg-yellow-50' : ''}`}>
+      <span className="text-[11px] text-gray-400 leading-snug pr-1">{label}</span>
+      {opts ? (
+        <select value={val} onChange={e => setForm(f => ({ ...f, [fkey]: e.target.value }))}
+          className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full">
+          <option value="">—</option>
+          {opts.map(o => <option key={o.val ?? o} value={o.val ?? o}>{o.label ?? o}</option>)}
+        </select>
+      ) : (
+        <input value={val} onChange={e => setForm(f => ({ ...f, [fkey]: e.target.value }))}
+          type={type} placeholder={placeholder}
+          className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full"/>
+      )}
+    </div>
+  );
+}
+
+function AIChatPanel({ lawyers, onCaseCreated, onClose }) {
+  const [form, setForm]         = useState({ ...EMPTY_FORM });
+  const [highlighted, setHigh]  = useState({});        // field → true for 1.5s after AI update
+  const [messages, setMessages] = useState([
+    { role: 'ai', text: 'שלום! אני אעזור לפתוח תיק חדש.\nשלח פרטי העסקה, הודעת WhatsApp, או צרף מסמכים כמו נסח טאבו, צילום ת.ז. או ארנונה.' },
+  ]);
+  const [input, setInput]       = useState('');
+  const [files, setFiles]       = useState([]);
+  const [thinking, setThinking] = useState(false);
+  const [history, setHistory]   = useState([]);
+  const [error, setError]       = useState('');
+  const [saving, setSaving]     = useState(false);
+  const chatRef  = useRef(null);
+  const fileRef  = useRef(null);
+  const inputRef = useRef(null);
+  const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
+
+  // Scroll chat to bottom on new message
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, thinking]);
+
+  function addFiles(list) {
+    setFiles(prev => [...prev, ...Array.from(list)].slice(0, 6));
+  }
+
+  function flashFields(patches) {
+    const keys = Object.keys(patches).filter(k => patches[k] !== null && patches[k] !== undefined);
+    if (!keys.length) return;
+    setHigh(Object.fromEntries(keys.map(k => [k, true])));
+    setTimeout(() => setHigh({}), 1800);
+  }
+
+  async function send(overrideText) {
+    const text = (overrideText ?? input).trim();
+    if (!text && files.length === 0) return;
+
+    const userMsg = { role: 'user', text: text || `[${files.length} קבצים]`, files: files.map(f => f.name) };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setFiles([]);
+    setThinking(true);
+    setError('');
+
+    const fd = new FormData();
+    fd.append('message', text);
+    fd.append('form',    JSON.stringify(form));
+    fd.append('history', JSON.stringify(history.slice(-6)));
+    files.forEach(f => fd.append('files', f));
+
+    try {
+      const res  = await fetch('/api/cases/ai-chat', { method: 'POST', body: fd });
+      const json = await res.json();
+
+      if (!res.ok) { setError(json.error || 'שגיאה'); setThinking(false); return; }
+
+      // Apply patches
+      if (json.patches && Object.keys(json.patches).length) {
+        setForm(prev => {
+          const next = { ...prev };
+          for (const [k, v] of Object.entries(json.patches)) {
+            next[k] = v ?? prev[k] ?? '';
+          }
+          return next;
+        });
+        flashFields(json.patches);
+      }
+
+      const aiMsg = {
+        role: 'ai',
+        text: json.reply || 'בוצע.',
+        questions: json.questions || [],
+        patched: Object.keys(json.patches || {}).length,
+      };
+      setMessages(prev => [...prev, aiMsg]);
+
+      // Update history for next turn
+      setHistory(prev => [...prev,
+        { role: 'user',      content: text || '[קבצים]' },
+        { role: 'assistant', content: json.reply || '' },
+      ]);
+    } catch {
+      setError('שגיאת רשת');
+    }
+    setThinking(false);
+  }
+
+  async function createCase() {
+    if (!form.client_name?.trim()) { setError('שם הלקוח חובה — עדכן בטיוטה'); return; }
+    const pin = sessionStorage.getItem('cases_pin') || '';
+    if (!pin) { setError('נדרש קוד גישה (PIN) — לחץ "כניסה לעריכה" בדף התיקים ואז פתח שוב'); return; }
+    setSaving(true); setError('');
+    const body = { ...form, case_category: form.case_category || 'realestate',
+      agreed_fee: form.agreed_fee ? Number(form.agreed_fee) : undefined, pin };
+    const res  = await fetch('/api/matters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cases-pin': pin },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (!res.ok) { setError(json.error || 'שגיאה ביצירת תיק'); return; }
+    onCaseCreated(json.matter);
+    onClose();
+  }
+
+  const isRE = form.case_category !== 'other';
+  const FF = (label, fkey, props = {}) => (
+    <FormField key={fkey} label={label} fkey={fkey} form={form} setForm={setForm}
+      highlight={!!highlighted[fkey]} {...props}/>
+  );
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose}/>
+
+      {/* Full-width modal, split layout */}
+      <div className="fixed inset-4 md:inset-8 bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden" dir="rtl">
+
+        {/* ── Header ── */}
+        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-l from-indigo-700 to-blue-600 text-white shrink-0">
+          <span className="text-2xl">🤖</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-base">עוזר פתיחת תיק — שיחה חכמה</div>
+            <div className="text-xs opacity-75 truncate">שוחח, צרף מסמכים — הטיוטה מתעדכנת בזמן אמת</div>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">✕</button>
+        </div>
+
+        {/* ── Body: split ── */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+
+          {/* LEFT — chat */}
+          <div className="flex flex-col w-full md:w-[44%] border-l border-gray-200 min-w-0">
+
+            {/* Messages */}
+            <div ref={chatRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm mt-0.5
+                    ${msg.role === 'ai' ? 'bg-indigo-100' : 'bg-blue-500 text-white'}">
+                    {msg.role === 'ai' ? '🤖' : '👤'}
+                  </div>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap
+                    ${msg.role === 'ai'
+                      ? 'bg-gray-100 text-gray-800 rounded-tr-none'
+                      : 'bg-blue-600 text-white rounded-tl-none'}`}>
+                    {msg.text}
+                    {msg.files?.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {msg.files.map((f, j) => (
+                          <div key={j} className="text-[11px] opacity-70">📎 {f}</div>
+                        ))}
+                      </div>
+                    )}
+                    {msg.patched > 0 && (
+                      <div className="text-[11px] opacity-60 mt-1">עודכנו {msg.patched} שדות ✦</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Suggestion chips from last AI message */}
+              {!thinking && messages.length > 0 && messages[messages.length - 1].role === 'ai' &&
+                (messages[messages.length - 1].questions || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pr-9">
+                  {messages[messages.length - 1].questions.map((q, i) => (
+                    <button key={i} onClick={() => { setInput(q); send(q); }}
+                      className="text-xs bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-full px-3 py-1 transition-colors">
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Thinking indicator */}
+              {thinking && (
+                <div className="flex gap-2">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-sm">🤖</div>
+                  <div className="bg-gray-100 rounded-2xl rounded-tr-none px-3 py-2 flex gap-1 items-center">
+                    {[0,1,2].map(i => (
+                      <span key={i} className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: `${i * 0.15}s` }}/>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="mx-3 mb-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>
+            )}
+
+            {/* Attached files preview */}
+            {files.length > 0 && (
+              <div className="px-3 pb-1 flex flex-wrap gap-1.5">
+                {files.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                    <span>{f.type.startsWith('image/') ? '🖼️' : '📄'}</span>
+                    <span className="max-w-[100px] truncate">{f.name}</span>
+                    <button onClick={() => setFiles(p => p.filter((_, j) => j !== i))}
+                      className="text-blue-400 hover:text-red-500 ml-0.5">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Input bar */}
+            <div className="border-t p-3 flex gap-2 items-end">
+              <button onClick={() => fileRef.current?.click()}
+                className="shrink-0 w-9 h-9 rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center text-gray-500 text-lg transition-colors"
+                title="צרף קובץ">
+                📎
+                <input ref={fileRef} type="file" multiple accept="image/*,.pdf"
+                  className="hidden" onChange={e => addFiles(e.target.files)}/>
+              </button>
+              <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                rows={1} placeholder="שלח הודעה... (Enter לשליחה)"
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-indigo-400 max-h-24"/>
+              <button onClick={() => send()} disabled={thinking || (!input.trim() && files.length === 0)}
+                className="shrink-0 w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white flex items-center justify-center text-base transition-colors">
+                ▶
+              </button>
+            </div>
+          </div>
+
+          {/* RIGHT — live draft form */}
+          <div className="hidden md:flex flex-col flex-1 min-w-0">
+            <div className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 shrink-0">
+              <span className="font-semibold text-gray-700 text-sm">📋 טיוטת התיק</span>
+              <span className="text-xs text-gray-400 flex-1">מתעדכן בזמן אמת · ניתן לעריכה ידנית</span>
+              <button onClick={createCase} disabled={saving || !form.client_name}
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors">
+                {saving ? '⏳...' : '✅ צור תיק'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+
+              {/* Client */}
+              <section>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">👤 פרטי לקוח</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-1">
+                  {FF('שם הלקוח *', 'client_name', { placeholder: 'ישראל ישראלי' })}
+                  {FF('ת.ז. / ח.פ.', 'client_id_number', { placeholder: '000000000' })}
+                  {FF('טלפון', 'client_phone', { placeholder: '050-0000000' })}
+                  {FF('דוא"ל', 'client_email', { placeholder: 'email@example.com' })}
+                </div>
+              </section>
+
+              {/* Property */}
+              {isRE && (
+                <section>
+                  <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">🏠 פרטי הנכס</div>
+                  <div className="bg-gray-50 rounded-xl px-3 py-1">
+                    {FF('כתובת', 'property_address', { placeholder: 'רחוב, עיר' })}
+                    {FF('גוש / חלקה', 'parcel', { placeholder: 'גוש 12345 חלקה 67' })}
+                    {FF('תאריך מסירה', 'delivery_date', { type: 'date' })}
+                  </div>
+                </section>
+              )}
+
+              {/* Transaction */}
+              <section>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">⚖️ פרטי עסקה</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-1">
+                  {FF('קטגוריה', 'case_category', { opts: [{ val: 'realestate', label: 'נדל"ן' }, { val: 'other', label: 'תיק אחר' }] })}
+                  {FF('סוג', 'type', { opts: AI_TYPE_OPTS })}
+                  {FF('שלב', 'stage', { opts: STAGE_OPTIONS })}
+                  {FF('צד שני', 'other_party_name', { placeholder: 'שם הקונה / מוכר' })}
+                  {FF('עו"ד צד שני', 'other_lawyer', { placeholder: 'שם עו"ד' })}
+                  {FF('מתווך', 'broker', { placeholder: 'שם המתווך' })}
+                  {FF('עו"ד מטפל', 'responsible_lawyer_id', { opts: lawyerOpts })}
+                  {FF('מקור הפניה', 'referral_source')}
+                </div>
+              </section>
+
+              {/* Financial */}
+              <section>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">💰 פיננסי</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-1">
+                  {FF('שכ"ט תיאור', 'fee_text', { placeholder: '1%+מע"מ' })}
+                  {FF('שכ"ט (₪)', 'agreed_fee', { type: 'number', placeholder: '0' })}
+                  {FF('משכנתא', 'mortgage')}
+                  {FF('מס שבח', 'capital_gains')}
+                </div>
+              </section>
+
+              {/* Notes */}
+              <section>
+                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide mb-1">📝 הערות</div>
+                <div className="bg-gray-50 rounded-xl px-3 py-2">
+                  <textarea value={form.description || ''} rows={3}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="פרטים נוספים..."
+                    className="w-full text-sm bg-transparent focus:outline-none resize-none"/>
+                </div>
+              </section>
+
+            </div>
+
+            {/* Mobile create button */}
+            <div className="border-t px-4 py-3 md:hidden">
+              <button onClick={createCase} disabled={saving || !form.client_name}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 transition-colors">
+                {saving ? '⏳ יוצר תיק...' : '✅ צור תיק'}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
+}
 
 function NewMatterModal({ category, lawyers, onSave, onClose }) {
   const isRE = category !== 'other';
@@ -637,7 +1277,7 @@ const OTHER_COLS = [
 
 // ─── Matters Table ────────────────────────────────────────────────────────────
 
-function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField, saveExtra, onAddCol, onDeleteCol, deletingCol, onDeleteRow, onCloseRow }) {
+function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField, saveExtra, onAddCol, onDeleteCol, deletingCol, onDeleteRow, onCloseRow, onOpenDrawer }) {
   const lawyerOpts = lawyers.map(l => ({ val: l.id, label: l.full_name }));
   const totalCols  = cols.length + customCols.length + 1;
 
@@ -647,8 +1287,13 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
 
     if (col.kind === 'client') {
       return (
-        <EditableCell editable={unlocked} value={m.clients?.[col.field]}
-          onSave={v => saveField(m.id, `client_${col.field}`, v, true)} placeholder={col.label}/>
+        <div className="flex items-center gap-1 group/name">
+          <EditableCell editable={unlocked} value={m.clients?.[col.field]}
+            onSave={v => saveField(m.id, `client_${col.field}`, v, true)} placeholder={col.label}/>
+          <button onClick={() => onOpenDrawer(m)}
+            className="opacity-0 group-hover/name:opacity-100 transition-opacity text-blue-400 hover:text-blue-600 text-xs leading-none shrink-0 px-1"
+            title="פתח פרטי תיק">⬡</button>
+        </div>
       );
     }
     if (col.kind === 'lawyer') {
@@ -1238,7 +1883,7 @@ function ReportsTab({ reMatters, otherMatters, lawyers }) {
 
 // ─── Personal Lawyer Dashboard (לוח בקרה אישי — כמו גיליונות לידור/פולינה/צופית/עופר) ──
 
-function LawyerDashboard({ lawyer, reMatters, otherMatters, tasks, unlocked, saveTask }) {
+function LawyerDashboard({ lawyer, reMatters, otherMatters, tasks, unlocked, saveTask, onOpenDrawer }) {
   const now = new Date();
   const isMine = m => m.responsible_lawyer_id === lawyer.id || m.profiles?.id === lawyer.id;
   const myRE     = reMatters.filter(isMine);
@@ -1306,7 +1951,12 @@ function LawyerDashboard({ lawyer, reMatters, otherMatters, tasks, unlocked, sav
                 const d = m.delivery_date ? Math.round((new Date(m.delivery_date) - now) / 86400000) : null;
                 return (
                   <tr key={m.id} className="hover:bg-blue-50/40">
-                    <td className="px-3 py-1.5 font-medium">{m.clients?.name || m.title || '—'}</td>
+                    <td className="px-3 py-1.5 font-medium">
+                      <button onClick={() => onOpenDrawer?.(m)}
+                        className="text-right hover:text-blue-600 hover:underline transition-colors">
+                        {m.clients?.name || m.title || '—'}
+                      </button>
+                    </td>
                     <td className="px-3 py-1.5 text-gray-500 text-xs">{labelOf(TYPE_OPTIONS, m.type)}</td>
                     <td className="px-3 py-1.5 text-gray-500">{m.property_address || ''}</td>
                     <td className="px-3 py-1.5">
@@ -1396,6 +2046,8 @@ export default function CasesPage() {
   const [showPin,      setShowPin]      = useState(false);
   const [uploading,    setUploading]    = useState(false);
   const [lastUpdated,  setLastUpdated]  = useState(null);
+  const [selectedMatter, setSelectedMatter] = useState(null);
+  const [showAIChat,   setShowAIChat]   = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -1498,8 +2150,11 @@ export default function CasesPage() {
     });
     const update = (list, setter) => setter(list.map(m => {
       if (m.id !== matterId) return m;
-      if (isClient) return { ...m, clients: { ...m.clients, [field.replace('client_', '')]: value } };
-      return { ...m, [field]: value };
+      const updated = isClient
+        ? { ...m, clients: { ...m.clients, [field.replace('client_', '')]: value } }
+        : { ...m, [field]: value };
+      if (selectedMatter?.id === matterId) setSelectedMatter(updated);
+      return updated;
     }));
     update(reMatters, setReMatters);
     update(otherMatters, setOtherMatters);
@@ -1617,6 +2272,27 @@ export default function CasesPage() {
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
 
+      {showAIChat && (
+        <AIChatPanel
+          lawyers={lawyers}
+          onCaseCreated={m => {
+            const isRE = m.case_category !== 'other';
+            if (isRE) setReMatters(p => [m, ...p]); else setOtherMatters(p => [m, ...p]);
+            setSelectedMatter(m);
+          }}
+          onClose={() => setShowAIChat(false)}
+        />
+      )}
+      {selectedMatter && (
+        <CaseDetailDrawer
+          matter={selectedMatter}
+          lawyers={lawyers}
+          tasks={allTasksList}
+          unlocked={unlocked}
+          saveField={saveField}
+          onClose={() => setSelectedMatter(null)}
+        />
+      )}
       {showPin       && <PinScreen onUnlock={() => { setUnlocked(true); setShowPin(false); }} onClose={() => setShowPin(false)} />}
       {showAddCol    && <AddColumnModal onAdd={col => { setCustomCols(prev => [...prev, col]); setShowAddCol(false); }} onClose={() => setShowAddCol(false)} />}
       {showNewMatter && (
@@ -1678,8 +2354,22 @@ export default function CasesPage() {
           <div className="flex-1"/>
 
           {/* Action buttons */}
+          {/* AI chat always accessible when on matters tabs */}
+          {isMatters && !unlocked && (
+            <button onClick={() => setShowAIChat(true)}
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              🤖 תיק מצ'ט
+            </button>
+          )}
+
           {unlocked ? (
             <>
+              {isMatters && (
+                <button onClick={() => setShowAIChat(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                  🤖 תיק מצ'ט
+                </button>
+              )}
               {isMatters && (
                 <button onClick={() => setShowNewMatter(true)} disabled={adding}
                   className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1.5 rounded-lg">
@@ -1771,7 +2461,7 @@ export default function CasesPage() {
         <ReportsTab reMatters={reMatters} otherMatters={otherMatters} lawyers={lawyers}/>
       ) : lawyerTab ? (
         <LawyerDashboard lawyer={lawyerTab} reMatters={reMatters} otherMatters={otherMatters}
-          tasks={allTasksList} unlocked={unlocked} saveTask={saveTask}/>
+          tasks={allTasksList} unlocked={unlocked} saveTask={saveTask} onOpenDrawer={m => setSelectedMatter(m)}/>
       ) : isCollection ? (
         <CollectionTable matters={allMattersList} lawyers={lawyers} unlocked={unlocked} saveField={saveField}/>
       ) : isTasks ? (
@@ -1782,6 +2472,7 @@ export default function CasesPage() {
           unlocked={unlocked} saveField={saveField} saveExtra={saveExtra}
           onAddCol={() => setShowAddCol(true)} onDeleteCol={deleteColumn} deletingCol={deletingCol}
           onDeleteRow={deleteRow} onCloseRow={closeRow}
+          onOpenDrawer={m => setSelectedMatter(m)}
         />
       )}
 

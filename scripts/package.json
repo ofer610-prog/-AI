@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "playwright": "^1.44.0",
-    "israeli-bank-scrapers": "^4.0.0"
+    "israeli-bank-scrapers": "^5.0.0"
   }
 }
