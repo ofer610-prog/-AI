@@ -48,9 +48,12 @@ export default function ReceiptsPage() {
     setScanState('running');
     setResult(null);
     try {
-      const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST', cache: 'no-store', keepalive: true });
+      // Quick scan uses the same comprehensive scanner as the deep scan,
+      // limited to the last 30 days (finds invoices by supplier/keyword/
+      // attachment, not only by card number).
+      const res = await fetch('/api/expenses/deep-scan?days=30', { method: 'POST', cache: 'no-store', keepalive: true });
       const data = await res.json().catch(() => ({}));
-      setResult(data);
+      setResult(data.error ? data : { _deep: true, ...data });
       setScanState(res.ok ? 'done' : 'error');
       setLastScan(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
       await load();
