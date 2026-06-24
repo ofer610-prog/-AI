@@ -30,6 +30,8 @@ export default function ReceiptsPage() {
   const [preview, setPreview] = useState(null);
   const [edit, setEdit] = useState(null);
   const startedRef = useRef(false);
+  const [missingExpenses, setMissingExpenses] = useState([]);
+  const [missingDismissed, setMissingDismissed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,6 +67,16 @@ export default function ReceiptsPage() {
     startedRef.current = true;
     autoScan();
   }, [autoScan]);
+
+  // Alert for recurring monthly expenses not yet entered this month
+  useEffect(() => {
+    const now = new Date();
+    if (now.getFullYear() !== year) return;
+    fetch('/api/expenses/missing-check')
+      .then(r => r.json())
+      .then(d => { if (d.missing?.length) setMissingExpenses(d.missing); })
+      .catch(() => {});
+  }, [year]);
 
   const topics = useMemo(() => [...new Set(entries.map(e => e.item_name).filter(Boolean))].sort(), [entries]);
   const rows = useMemo(() => {
@@ -121,6 +133,31 @@ export default function ReceiptsPage() {
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
         {pending > 0 && <div className="rounded-2xl p-4 border bg-orange-100 border-orange-300 text-orange-900 font-bold">⚠️ {pending} חשבוניות ממתינות לסיווג מנהל. הן לא נספרות כהוצאה רגילה עד אישור.</div>}
+
+        {missingExpenses.length > 0 && !missingDismissed && (
+          <div className="rounded-2xl border border-red-300 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🔔</span>
+              <div className="flex-1">
+                <div className="font-bold text-red-900 mb-1">{missingExpenses.length} הוצאות חודשיות קבועות עדיין לא הוזנו החודש</div>
+                <p className="text-xs text-red-600 mb-2">פריטים שהוזנו בחודשים קודמים אך חסרים לחודש הנוכחי:</p>
+                <div className="flex flex-wrap gap-2">
+                  {missingExpenses.map(item => (
+                    <span key={`${item.section}__${item.item_name}`} className="inline-flex items-center gap-1 bg-white border border-red-200 text-red-800 text-xs px-2.5 py-1.5 rounded-full font-medium shadow-sm">
+                      {item.is_recurring ? '📌' : '🔄'} {item.item_name}
+                      {item.last_amount && <span className="text-red-400 mr-1">₪{Number(item.last_amount).toLocaleString('he-IL')}</span>}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 mt-3">
+                  <Link href="/expenses" className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors">➕ עדכן הוצאות</Link>
+                  <button onClick={() => setMissingDismissed(true)} className="text-xs text-red-500 hover:text-red-700 underline">הסתר עד לרענון</button>
+                </div>
+              </div>
+              <button onClick={() => setMissingDismissed(true)} className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0" title="סגור התראה">✕</button>
+            </div>
+          </div>
+        )}
         {resultText && <div className={`rounded-2xl p-4 border ${result?.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{resultText}</div>}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
