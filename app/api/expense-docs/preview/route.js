@@ -32,6 +32,7 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+  const download = searchParams.get('download') === '1';
   if (!id) return Response.json({ error: 'חסר מזהה חשבונית' }, { status: 400 });
 
   const sb = createServiceClient();
@@ -58,7 +59,7 @@ export async function GET(request) {
     return new Response(buffer, {
       headers: {
         'Content-Type': mimeType,
-        'Content-Disposition': 'inline',
+        'Content-Disposition': download ? `attachment; filename="${meta.data.name || doc.file_name || 'document'}"` : 'inline',
         'Cache-Control': 'private, max-age=60',
       },
     });
@@ -76,7 +77,7 @@ export async function GET(request) {
     return new Response(buffer, {
       headers: {
         'Content-Type': mimeType,
-        'Content-Disposition': 'inline',
+        'Content-Disposition': download ? `attachment; filename="${att.filename || doc.file_name || 'document'}"` : 'inline',
         'Cache-Control': 'private, max-age=60',
       },
     });

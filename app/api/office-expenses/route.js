@@ -34,13 +34,12 @@ export async function GET(request) {
   const { data: org } = await sb.from('organizations')
     .select('accountant_email').eq('id', profile.organization_id).single();
 
-  // Invoice docs linked to specific expense rows (for invoice status indicators
-  // and itemized line items)
+  // All expense docs for the year — includes needs_review items awaiting classification
   const { data: docs } = await sb.from('expense_documents')
     .select('id, file_url, file_name, file_type, amount, vendor, description, doc_date, status, expense_item, expense_section, expense_year, expense_month_num, gmail_message_id')
     .eq('organization_id', profile.organization_id)
     .eq('expense_year', year)
-    .not('expense_item', 'is', null);
+    .order('doc_date', { ascending: false });
 
   return Response.json({ entries: data || [], docs: docs || [], year, accountant_email: org?.accountant_email || '' });
 }

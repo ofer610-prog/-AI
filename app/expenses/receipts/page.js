@@ -76,11 +76,11 @@ export default function ReceiptsPage() {
   const [docs, setDocs] = useState([]);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [reorganizing, setReorganizing] = useState(false);
   const [result, setResult] = useState(null);
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
+  const [sortBy, setSortBy] = useState('date');
   const [preview, setPreview] = useState(null);
   const [edit, setEdit] = useState(null);
   const [connectStatus, setConnectStatus] = useState(null);
@@ -122,16 +122,6 @@ export default function ReceiptsPage() {
       .catch(() => {});
   }, [year]);
 
-  const sync = async () => {
-    setSyncing(true); setResult(null);
-    try {
-      const res = await fetch('/api/expenses/scan-and-import-gmail', { method: 'POST' });
-      const data = await res.json();
-      setResult(data); await load();
-    } catch { setResult({ error: 'שגיאת רשת' }); }
-    setSyncing(false);
-  };
-
   const reorganize = async () => {
     if (!confirm('לארגן את כל החשבוניות בדרייב לתיקיות לפי נושא? הפעולה תעדכן את קישורי הקבצים.')) return;
     setReorganizing(true); setResult(null);
@@ -146,17 +136,45 @@ export default function ReceiptsPage() {
 
   const topics = useMemo(() => [...new Set(entries.map(e => e.item_name).filter(Boolean))].sort(), [entries]);
 
+  // Auto duplicate detection: same gmail_message_id OR same vendor+amount+date
+  const duplicateIds = useMemo(() => {
+    const seen = new Map();
+    const dupSet = new Set();
+    for (const d of docs) {
+      if (d.gmail_message_id) {
+        const prev = seen.get('gm:' + d.gmail_message_id);
+        if (prev) { dupSet.add(d.id); dupSet.add(prev); }
+        else seen.set('gm:' + d.gmail_message_id, d.id);
+      }
+      if (d.vendor && d.amount && d.doc_date) {
+        const key = `${d.vendor}__${d.amount}__${d.doc_date}`;
+        const prev = seen.get(key);
+        if (prev) { dupSet.add(d.id); dupSet.add(prev); }
+        else seen.set(key, d.id);
+      }
+    }
+    return dupSet;
+  }, [docs]);
+
   const rows = useMemo(() => {
     const query = q.trim().toLowerCase();
-    return docs.filter(d => {
+    const filtered = docs.filter(d => {
       if (m !== 'all' && Number(d.expense_month_num) !== Number(m)) return false;
       if (!query) return true;
       return [d.vendor, d.file_name, d.description, d.expense_item, d.status].filter(Boolean).join(' ').toLowerCase().includes(query);
-    }).sort((a, b) =>
+    });
+    if (sortBy === 'topic') {
+      return filtered.sort((a, b) => String(a.expense_item || '').localeCompare(String(b.expense_item || ''), 'he'));
+    }
+    if (sortBy === 'amount') {
+      return filtered.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
+    }
+    // default: needs_review first, then by date desc
+    return filtered.sort((a, b) =>
       a.status === 'needs_review' ? -1 : b.status === 'needs_review' ? 1
         : String(b.doc_date || '').localeCompare(String(a.doc_date || ''))
     );
-  }, [docs, q, m]);
+  }, [docs, q, m, sortBy]);
 
   const pending = rows.filter(d => d.status === 'needs_review').length;
   const total = rows.filter(d => d.status !== 'needs_review').reduce((s, d) => s + Number(d.amount || 0), 0);
@@ -231,11 +249,11 @@ export default function ReceiptsPage() {
           >
             📁 {m !== 'all' ? `${MONTHS[Number(m) - 1]} ${year}` : `דרייב ${year}`}
           </button>
-          <button onClick={reorganize} disabled={reorganizing} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-3 py-2 rounded-xl text-sm">
+          <button onClick={reorganize} disabled={reorganizing} className="bg-violet-700 hover:bg-violet-600 disabled:opacity-50 px-3 py-2 rounded-xl text-sm" title="העבר קבצים לתיקיות נושא בדרייב">
             {reorganizing ? '⏳ מארגן…' : '🗂 ארגן בדרייב'}
           </button>
-          <button onClick={sync} disabled={syncing} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm">
-            {syncing ? '⏳ מסנכרן…' : '📧 סרוק וייבא'}
+          <button onClick={load} disabled={loading} className="bg-slate-600 hover:bg-slate-500 disabled:opacity-50 px-3 py-2 rounded-xl text-sm" title="רענן נתונים">
+            {loading ? '⏳' : '🔄 רענן'}
           </button>
         </div>
       </header>
@@ -323,6 +341,17 @@ export default function ReceiptsPage() {
               <option value="all">כל החודשים</option>
               {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
             </select>
+            <div className="flex items-center gap-1 border rounded-xl overflow-hidden text-sm">
+              {[['date','תאריך'],['topic','נושא'],['amount','סכום']].map(([v,l]) => (
+                <button key={v} onClick={() => setSortBy(v)}
+                  className={`px-3 py-2 ${sortBy === v ? 'bg-slate-800 text-white' : 'hover:bg-slate-100'}`}>{l}</button>
+              ))}
+            </div>
+            {duplicateIds.size > 0 && (
+              <span className="bg-orange-100 border border-orange-300 text-orange-700 text-xs px-2.5 py-1.5 rounded-full font-medium">
+                ⚠️ {duplicateIds.size} כפולות זוהו
+              </span>
+            )}
           </div>
 
           {loading ? <div className="py-12 text-center text-slate-400">טוען…</div> : (
@@ -340,11 +369,14 @@ export default function ReceiptsPage() {
                 </thead>
                 <tbody>
                   {rows.map(d => (
-                    <tr key={d.id} className={d.status === 'needs_review' ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-r-orange-500' : 'hover:bg-slate-50'}>
+                    <tr key={d.id} className={`${d.status === 'needs_review' ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-r-orange-500' : 'hover:bg-slate-50'} ${duplicateIds.has(d.id) ? 'opacity-80' : ''}`}>
                       <td className="p-2 border-b whitespace-nowrap">
-                        {d.status === 'needs_review'
-                          ? <span className="text-orange-700 font-bold text-xs">ממתין לסיווג</span>
-                          : <span className="text-emerald-700 text-xs">מאושר</span>}
+                        <div className="flex flex-col gap-0.5">
+                          {d.status === 'needs_review'
+                            ? <span className="text-orange-700 font-bold text-xs">ממתין לסיווג</span>
+                            : <span className="text-emerald-700 text-xs">מאושר</span>}
+                          {duplicateIds.has(d.id) && <span className="text-orange-500 text-xs">⚠ כפול</span>}
+                        </div>
                       </td>
                       <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
                       <td className="p-2 border-b font-medium">{d.vendor || '—'}</td>
@@ -391,10 +423,13 @@ export default function ReceiptsPage() {
             <div className="font-bold text-sm truncate">{preview.vendor || preview.file_name}</div>
             <InlinePreview docId={preview.id} />
             <div className="flex gap-3 flex-wrap text-sm">
-              <a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח בכרטיסייה חדשה</a>
-              {preview.file_url && <a href={preview.file_url} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח מקור</a>}
+              <a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">🔍 פתח בכרטיסייה</a>
+              <a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}&download=1`} download className="text-sky-600 underline">⬇️ הורד</a>
+              {preview.gmail_message_id && (
+                <a href={`https://mail.google.com/mail/#all/${preview.gmail_message_id}`} target="_blank" rel="noreferrer" className="text-emerald-700 underline">📧 מייל מקורי</a>
+              )}
               {driveFileId(preview.file_url) && (
-                <button onClick={() => openFolder(preview)} className="text-indigo-700 underline">פתח תיקייה בדרייב</button>
+                <button onClick={() => openFolder(preview)} className="text-indigo-700 underline">📁 תיקייה בדרייב</button>
               )}
             </div>
           </div>
