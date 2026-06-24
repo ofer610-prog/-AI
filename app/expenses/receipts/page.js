@@ -29,7 +29,6 @@ export default function ReceiptsPage() {
   const [m, setM] = useState('all');
   const [preview, setPreview] = useState(null);
   const [edit, setEdit] = useState(null);
-  const startedRef = useRef(false);
   const [missingExpenses, setMissingExpenses] = useState([]);
   const [missingDismissed, setMissingDismissed] = useState(false);
 
@@ -62,11 +61,6 @@ export default function ReceiptsPage() {
   }, [load]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    autoScan();
-  }, [autoScan]);
 
   // Alert for recurring monthly expenses not yet entered this month
   useEffect(() => {
@@ -127,7 +121,15 @@ export default function ReceiptsPage() {
             {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <div className="flex-1" />
-          <div className={`rounded-2xl px-4 py-2 text-sm font-bold shadow ${scanClass}`}>{scanLabel}{lastScan ? ` · ${lastScan}` : ''}</div>
+          {lastScan && <span className="text-slate-400 text-xs">סריקה אחרונה: {lastScan}</span>}
+          <button
+            onClick={autoScan}
+            disabled={scanState === 'running'}
+            className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
+            title="סרוק Gmail עכשיו (הסריקה מתבצעת גם אוטומטית 3× ביום)"
+          >
+            {scanState === 'running' ? '⏳ סורק…' : '📧 סרוק Gmail'}
+          </button>
         </div>
       </header>
 

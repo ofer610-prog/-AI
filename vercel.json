@@ -6,7 +6,15 @@
     },
     {
       "path": "/api/cron/expense-gmail-scan",
-      "schedule": "30 6 * * *" 
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/expense-gmail-scan",
+      "schedule": "30 10 * * *"
+    },
+    {
+      "path": "/api/cron/expense-gmail-scan",
+      "schedule": "30 15 * * *"
     },
     {
       "path": "/api/cron/morning-briefing",
