@@ -2065,6 +2065,8 @@ export default function CasesPage() {
   const [showAIChat,   setShowAIChat]   = useState(false);
   const [pendingUnlock, setPendingUnlock] = useState(null); // action to run after PIN entry
   const [driveExportStatus, setDriveExportStatus] = useState(''); // '' | 'syncing' | 'ok' | 'err'
+  const [backupStatus,  setBackupStatus]  = useState(''); // '' | 'running' | 'ok' | 'err'
+  const [backupLink,    setBackupLink]    = useState('');
   const fileInputRef  = useRef(null);
   const exportTimerRef = useRef(null);
 
@@ -2270,6 +2272,22 @@ export default function CasesPage() {
     setSyncing(false);
   }
 
+  async function backupNow() {
+    setBackupStatus('running'); setBackupLink('');
+    try {
+      const res  = await fetch('/api/cases/backup', { method: 'POST' });
+      const json = await res.json();
+      if (json.ok) {
+        setBackupStatus('ok');
+        if (json.webViewLink) setBackupLink(json.webViewLink);
+      } else {
+        setBackupStatus('err');
+        setSyncMsg('שגיאת גיבוי: ' + (json.error || 'לא ידוע'));
+      }
+    } catch { setBackupStatus('err'); setSyncMsg('שגיאת רשת בגיבוי'); }
+    setTimeout(() => setBackupStatus(''), 8000);
+  }
+
   async function uploadFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2451,6 +2469,24 @@ export default function CasesPage() {
                 className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm px-3 py-1.5 rounded-lg">
                 {syncing ? '⏳...' : '🔄 Drive'}
               </button>
+              <button
+                onClick={backupNow}
+                disabled={backupStatus === 'running'}
+                title="שמור גיבוי Excel ב-Google Drive עכשיו"
+                className={`text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                  backupStatus === 'ok'  ? 'bg-green-600 text-white' :
+                  backupStatus === 'err' ? 'bg-red-500 text-white' :
+                  'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}>
+                {backupStatus === 'running' ? '⏳ מגבה...' :
+                 backupStatus === 'ok'      ? '✅ גובה!' :
+                 backupStatus === 'err'     ? '❌ שגיאה' :
+                 '💾 גיבוי Drive'}
+              </button>
+              {backupLink && backupStatus === 'ok' && (
+                <a href={backupLink} target="_blank" rel="noreferrer"
+                  className="text-xs text-green-700 underline">פתח גיבוי</a>
+              )}
               {isMatters && (
                 <button onClick={() => setShowAddCol(true)}
                   className="border border-purple-400 text-purple-700 hover:bg-purple-50 text-sm px-3 py-1.5 rounded-lg">
