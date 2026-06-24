@@ -11,6 +11,7 @@ import { usePathname } from 'next/navigation';
  * and is PIN-gated on entry.
  */
 const NAV_ITEMS = [
+  { href: '/',             label: 'בית',          icon: '🏠' },
   { href: '/cases',        label: 'תיקים',        icon: '📁' },
   { href: '/tasks',        label: 'משימות',       icon: '✅' },
   { href: '/calendar',     label: 'יומן',         icon: '📅' },
@@ -33,7 +34,7 @@ export default function AppNav() {
     return () => { cancelled = true; };
   }, []);
 
-  if (!pathname || pathname === '/login' || pathname === '/') return null;
+  if (!pathname || pathname === '/login') return null;
 
   const isAdmin = profile && ['admin', 'accountant'].includes(profile.role);
   const isActive = (href) => pathname === href || pathname.startsWith(href + '/');
@@ -68,7 +69,7 @@ export default function AppNav() {
               }`}>
               💰 גבייה
             </Link>
-            <Link href="/expenses"
+            <Link href="/expenses/receipts"
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
                 isActive('/expenses')
                   ? 'bg-emerald-500 border-emerald-400 text-white font-bold'

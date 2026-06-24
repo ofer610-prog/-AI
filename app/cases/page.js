@@ -902,9 +902,12 @@ function NewMatterModal({ category, lawyers, onSave, onClose }) {
     type: isRE ? 'sale' : 'other', stage: 'draft',
     responsible_lawyer_id: '', delivery_date: '',
     agreed_fee: '', fee_text: '', payment_status: '',
-    other_lawyer: '', broker: '', notes: '',
+    other_lawyer: '', broker: '', description: '',
     case_number: '', referral_source: '', open_date: today(),
     target_date: '',
+    mortgage: '', capital_gains: '', committee_status: '',
+    municipality_status: '', rami_status: '',
+    collected_amount: '', balance_amount: '',
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
@@ -969,6 +972,13 @@ function NewMatterModal({ category, lawyers, onSave, onClose }) {
               <Field label='עו"ד צד שני'>{inp('other_lawyer')}</Field>
               <Field label="מתווך">{inp('broker')}</Field>
               <Field label='שכ"ט'>{inp('fee_text', 'text', 'לדוג׳: 8500+מע"מ')}</Field>
+              <Field label="משכנתא">{inp('mortgage', 'text', 'סטטוס משכנתא')}</Field>
+              <Field label="מס שבח">{inp('capital_gains', 'text', 'סטטוס מס שבח')}</Field>
+              <Field label="ועדה">{inp('committee_status', 'text', 'סטטוס ועדה')}</Field>
+              <Field label="עירייה">{inp('municipality_status', 'text', 'סטטוס עירייה')}</Field>
+              <Field label="פניה רמ״י">{inp('rami_status')}</Field>
+              <Field label="נגבה (₪)">{inp('collected_amount', 'number')}</Field>
+              <Field label="יתרה (₪)">{inp('balance_amount', 'number')}</Field>
             </>
           ) : (
             <>
@@ -987,10 +997,10 @@ function NewMatterModal({ category, lawyers, onSave, onClose }) {
           <Field label="סטטוס תשלום">{sel('payment_status', PAYMENT_STATUS_OPTS)}</Field>
           <Field label='שכ"ט מוסכם (₪)'>{inp('agreed_fee', 'number')}</Field>
           <div className="col-span-2">
-            <Field label="הערות">
-              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
+            <Field label="הערות (מידע חופשי)">
+              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-blue-400 resize-none"
-                placeholder="הערות, פרטים נוספים..."/>
+                placeholder="הערות, פרטים נוספים, מידע חופשי..."/>
             </Field>
           </div>
           {err && <p className="col-span-2 text-red-500 text-sm">{err}</p>}
