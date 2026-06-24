@@ -64,7 +64,7 @@ export default function DashboardClient({
     { id: 'timesheet',     label: 'שעתון' },
     isLawyer && { id: 'my_collection', label: '💳 גבייה שלי' },
     isAdmin && { id: 'income',    label: '🔐 הכנסות' },
-    isAdmin && { id: 'expense',   label: '🔐 הוצאות' },
+    isAdmin && { id: 'expense',   label: '🔐 הוצאות', href: '/expenses/receipts' },
     isAdmin && { id: 'invoices',  label: '🔐 חשבוניות' },
     isAdmin && { id: 'collection', label: '🔐 גבייה' },
     isAdmin && { id: 'forecast',  label: '🔐 תחזיות מס' },
