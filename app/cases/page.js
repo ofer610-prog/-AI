@@ -2048,7 +2048,14 @@ export default function CasesPage() {
   const [lastUpdated,  setLastUpdated]  = useState(null);
   const [selectedMatter, setSelectedMatter] = useState(null);
   const [showAIChat,   setShowAIChat]   = useState(false);
+  const [pendingUnlock, setPendingUnlock] = useState(null); // action to run after PIN entry
   const fileInputRef = useRef(null);
+
+  // Open the manual new-case form, prompting for the PIN first if still locked.
+  const openNewMatter = () => {
+    if (unlocked) setShowNewMatter(true);
+    else { setPendingUnlock('newMatter'); setShowPin(true); }
+  };
 
   useEffect(() => {
     const ts = sessionStorage.getItem('cases_unlocked');
@@ -2293,7 +2300,7 @@ export default function CasesPage() {
           onClose={() => setSelectedMatter(null)}
         />
       )}
-      {showPin       && <PinScreen onUnlock={() => { setUnlocked(true); setShowPin(false); }} onClose={() => setShowPin(false)} />}
+      {showPin       && <PinScreen onUnlock={() => { setUnlocked(true); setShowPin(false); if (pendingUnlock === 'newMatter') setShowNewMatter(true); setPendingUnlock(null); }} onClose={() => { setShowPin(false); setPendingUnlock(null); }} />}
       {showAddCol    && <AddColumnModal onAdd={col => { setCustomCols(prev => [...prev, col]); setShowAddCol(false); }} onClose={() => setShowAddCol(false)} />}
       {showNewMatter && (
         <NewMatterModal
@@ -2354,12 +2361,18 @@ export default function CasesPage() {
           <div className="flex-1"/>
 
           {/* Action buttons */}
-          {/* AI chat always accessible when on matters tabs */}
+          {/* AI chat + manual new-case always accessible when on matters tabs */}
           {isMatters && !unlocked && (
-            <button onClick={() => setShowAIChat(true)}
-              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-              🤖 תיק מצ'ט
-            </button>
+            <>
+              <button onClick={() => setShowAIChat(true)}
+                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                🤖 תיק מצ'ט
+              </button>
+              <button onClick={openNewMatter}
+                className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1.5 rounded-lg">
+                + תיק חדש
+              </button>
+            </>
           )}
 
           {unlocked ? (
