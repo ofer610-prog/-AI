@@ -1,124 +1,43 @@
-import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
+import { createServiceClient } from '@/lib/supabase/server';
+import { scanOrg } from '@/lib/expenseGmailScan';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
-
-const AUTO_IMPORT_LIMIT = 4;
-const AUTO_PENDING_LIMIT = 8;
-
-async function savePendingReview(sb, profile, row) {
-  const gmailId = row.gmail_id || row.gmail_message_id;
-  if (!gmailId) return { skipped: true, reason: 'missing_gmail_id' };
-
-  const { data: exists } = await sb.from('expense_documents')
-    .select('id,status')
-    .eq('organization_id', profile.organization_id)
-    .eq('gmail_message_id', gmailId)
-    .neq('status', 'removed')
-    .maybeSingle();
-  if (exists?.id) return { skipped: true, reason: 'duplicate', id: exists.id };
-
-  const dateStr = row.date || row.doc_date || new Date().toISOString().slice(0, 10);
-  const month = String(dateStr).slice(0, 7);
-  const gmailLink = row.gmail_link || `https://mail.google.com/mail/#all/${gmailId}`;
-  const description = [
-    row.description || row.subject || 'חשבונית ממתינה לסיווג',
-    row.card_last4 ? `כרטיס: ${row.card_last4}` : null,
-    row.from ? `שולח: ${row.from}` : null,
-    `קישור למייל: ${gmailLink}`,
-  ].filter(Boolean).join('\n');
-
-  const { data, error } = await sb.from('expense_documents').insert({
-    organization_id: profile.organization_id,
-    uploaded_by: profile.id,
-    amount: Number(row.amount || 0),
-    vendor: row.vendor || row.from || null,
-    description,
-    category: 'review',
-    doc_date: dateStr,
-    month,
-    status: 'needs_review',
-    file_url: gmailLink,
-    file_name: row.subject || `${gmailId}.gmail`,
-    file_type: 'gmail_candidate',
-    gmail_message_id: gmailId,
-    payer: 'office',
-  }).select('id').single();
-
-  if (error) return { error: error.message, gmail_id: gmailId };
-  return { id: data.id, gmail_id: gmailId, status: 'needs_review' };
-}
+export const maxDuration = 300;
 
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const origin = new URL(request.url).origin;
-  const cookie = request.headers.get('cookie') || '';
-
-  const scanRes = await fetch(`${origin}/api/expenses/scan-gmail`, { method: 'POST', headers: { cookie } });
-  const scan = await scanRes.json().catch(() => ({}));
-  if (!scanRes.ok) return Response.json(scan, { status: scanRes.status });
-
-  const suggestions = Array.isArray(scan.suggestions) ? scan.suggestions : [];
-  if (!suggestions.length) {
-    return Response.json({
-      ok: true,
-      scanned: scan.scanned || 0,
-      suggestions: 0,
-      imported: [],
-      pending_review: [],
-      skipped: [],
-      errors: [],
-      message: 'לא נמצאו קבלות חדשות לייבוא',
-      mode: 'fast_page_scan',
-    });
-  }
-
-  const known = suggestions.filter(x => !!x.matched_vendor).slice(0, AUTO_IMPORT_LIMIT);
-  const unknown = suggestions.filter(x => !x.matched_vendor).slice(0, AUTO_PENDING_LIMIT);
+  const { searchParams } = new URL(request.url);
+  const days = Math.min(Math.max(Number(searchParams.get('days')) || 30, 7), 180);
 
   const sb = createServiceClient();
-  const pending = [];
-  const pendingErrors = [];
-  for (const row of unknown) {
-    const saved = await savePendingReview(sb, profile, row);
-    if (saved?.error) pendingErrors.push(saved); else pending.push(saved);
+  const { data: org, error } = await sb.from('organizations')
+    .select('id,gmail_refresh_token,office_card_last4,drive_expenses_folder_id,gmail_connected')
+    .eq('id', profile.organization_id)
+    .single();
+
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (!org?.gmail_connected || !org.gmail_refresh_token) {
+    return Response.json({ error: 'Gmail לא מחובר. חבר את Gmail תחילה.' }, { status: 400 });
   }
 
-  let imported = { imported: [], skipped: [], errors: [], driveWarnings: [] };
-  if (known.length) {
-    const importRes = await fetch(`${origin}/api/expenses/import-gmail-suggestions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', cookie },
-      body: JSON.stringify({ suggestions: known }),
+  try {
+    const result = await scanOrg(sb, org, days);
+    return Response.json({
+      ok: true,
+      mode: 'unified_scan_compat',
+      days,
+      scanned: result.found || 0,
+      suggestions: result.found || 0,
+      imported: Array.from({ length: result.imported || 0 }).map((_, i) => ({ id: `imported-${i + 1}` })),
+      pending_review: Array.from({ length: result.pending_review || 0 }).map((_, i) => ({ id: `pending-${i + 1}` })),
+      skipped: [],
+      errors: result.failed ? [{ count: result.failed, error: 'חלק מהודעות Gmail נכשלו בעיבוד' }] : [],
+      ...result,
     });
-    imported = await importRes.json().catch(() => ({}));
-    if (!importRes.ok) {
-      return Response.json({
-        ok: false,
-        error: imported.error || 'שגיאת ייבוא חשבוניות',
-        imported: imported.imported || [],
-        pending_review: pending.filter(x => !x.skipped),
-        errors: [...(imported.errors || []), ...pendingErrors],
-        mode: 'fast_page_scan',
-      }, { status: 200 });
-    }
+  } catch (e) {
+    return Response.json({ ok: false, mode: 'unified_scan_compat', error: e.message }, { status: 500 });
   }
-
-  return Response.json({
-    ok: true,
-    scanned: scan.scanned || suggestions.length,
-    suggestions: suggestions.length,
-    processed_now: known.length + unknown.length,
-    imported: imported.imported || [],
-    skipped: imported.skipped || [],
-    errors: [...(imported.errors || []), ...pendingErrors],
-    driveWarnings: imported.driveWarnings || [],
-    pending_review: pending.filter(x => !x.skipped),
-    pending_skipped: pending.filter(x => x.skipped),
-    note: suggestions.length > known.length + unknown.length ? 'נמצאו עוד חשבוניות. הן יעובדו בהמשך בסריקות הבאות או ב־Cron היומי.' : null,
-    mode: 'fast_page_scan',
-  });
 }

@@ -2072,9 +2072,6 @@ export default function CasesPage() {
 
   // Debounced export to Drive: fires 8 seconds after the last field save
   const scheduleExportToDrive = () => {
-    if (!process.env.NEXT_PUBLIC_DRIVE_EXPORT_ENABLED && typeof window !== 'undefined') {
-      // Only run if GDRIVE_FILE_ID is configured (server knows; we just try and let it fail quietly)
-    }
     if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
     setDriveExportStatus('pending');
     exportTimerRef.current = setTimeout(async () => {
