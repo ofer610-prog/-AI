@@ -54,7 +54,7 @@
     },
     {
       "path": "/api/cron/sync-calendar",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
