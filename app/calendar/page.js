@@ -116,6 +116,27 @@ export default function CalendarPage() {
     loadEvents();
   };
 
+  const [syncing, setSyncing]     = useState(false);
+  const [syncMsg, setSyncMsg]     = useState('');
+  const syncGoogleCalendar = async () => {
+    setSyncing(true); setSyncMsg('');
+    try {
+      const res  = await fetch('/api/calendar/sync', { method: 'POST' });
+      const json = await res.json();
+      if (json.error === 'no_token' || json.error === 'no_calendar_scope') {
+        setSyncMsg('⚠️ יש לחבר מחדש את חשבון Google עם הרשאת יומן');
+        setTimeout(() => window.location.href = '/api/auth/google/connect?return_to=/calendar', 2500);
+      } else if (json.ok) {
+        setSyncMsg(`✅ סונכרן — ${json.imported} חדשים, ${json.updated} עודכנו`);
+        loadEvents();
+      } else {
+        setSyncMsg('❌ שגיאה: ' + (json.message || json.error));
+      }
+    } catch { setSyncMsg('❌ שגיאת רשת'); }
+    setSyncing(false);
+    setTimeout(() => setSyncMsg(''), 6000);
+  };
+
   // ── Week view helpers ──────────────────────────────────────────────────────
   const getWeekDays = () => {
     const d = new Date(current);
@@ -154,6 +175,14 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={syncGoogleCalendar}
+              disabled={syncing}
+              title="סנכרן עם Google Calendar"
+              className="px-3 py-2 border border-sky-300 text-sky-700 text-sm rounded-md flex items-center gap-1.5 hover:bg-sky-50 disabled:opacity-50">
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : '📅'}
+              {syncing ? 'מסנכרן...' : 'סנכרן Google'}
+            </button>
             <button onClick={() => openNew(null)}
               className="px-4 py-2 bg-slate-800 text-white text-sm rounded-md flex items-center gap-2 hover:bg-slate-900">
               <Plus className="w-4 h-4" /> פגישה חדשה
@@ -167,6 +196,7 @@ export default function CalendarPage() {
           <button onClick={() => navigate(1)}  className="p-1 hover:bg-sky-50 rounded"><ChevronLeft className="w-5 h-5" /></button>
           <span className="text-sm font-medium text-slate-700">{title}</span>
           {loading && <Loader2 className="w-4 h-4 animate-spin text-sky-400 mr-2" />}
+          {syncMsg && <span className="text-xs mr-2 text-sky-700">{syncMsg}</span>}
         </div>
       </header>
 

@@ -77,6 +77,14 @@ export default function AppNav() {
               }`}>
               💸 הוצאות
             </Link>
+            <Link href="/expenses/library"
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
+                isActive('/expenses/library')
+                  ? 'bg-emerald-500 border-emerald-400 text-white font-bold'
+                  : 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-500 hover:text-white'
+              }`}>
+              📚 ספרייה
+            </Link>
             <Link href="/credit-charges"
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
                 isActive('/credit-charges')

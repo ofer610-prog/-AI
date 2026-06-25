@@ -1376,11 +1376,16 @@ function MattersTable({ cols, matters, lawyers, customCols, unlocked, saveField,
               <th key={col.id}
                 className="px-2 py-2 text-right font-semibold border-b text-xs whitespace-nowrap bg-purple-50"
                 style={{ minWidth: '140px' }}>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 group/colhdr">
                   <span>{col.name}</span>
                   {unlocked && (
-                    <button onClick={() => onDeleteCol(col)} disabled={deletingCol === col.id}
-                      title="מחק עמודה" className="text-gray-300 hover:text-red-400 text-xs ml-1 leading-none">✕</button>
+                    <button
+                      onClick={() => { if (window.confirm(`למחוק את העמודה "${col.name}"? הפעולה תמחק את כל הנתונים בעמודה זו.`)) onDeleteCol(col); }}
+                      disabled={deletingCol === col.id}
+                      title="מחק עמודה"
+                      className="opacity-0 group-hover/colhdr:opacity-100 bg-red-100 hover:bg-red-500 text-red-500 hover:text-white rounded px-1 text-xs transition-all ml-1 leading-none">
+                      🗑️
+                    </button>
                   )}
                 </div>
               </th>
@@ -2059,7 +2064,30 @@ export default function CasesPage() {
   const [selectedMatter, setSelectedMatter] = useState(null);
   const [showAIChat,   setShowAIChat]   = useState(false);
   const [pendingUnlock, setPendingUnlock] = useState(null); // action to run after PIN entry
-  const fileInputRef = useRef(null);
+  const [driveExportStatus, setDriveExportStatus] = useState(''); // '' | 'syncing' | 'ok' | 'err'
+  const [backupStatus,  setBackupStatus]  = useState(''); // '' | 'running' | 'ok' | 'err'
+  const [backupLink,    setBackupLink]    = useState('');
+  const fileInputRef  = useRef(null);
+  const exportTimerRef = useRef(null);
+
+  // Debounced export to Drive: fires 8 seconds after the last field save
+  const scheduleExportToDrive = () => {
+    if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+    setDriveExportStatus('pending');
+    exportTimerRef.current = setTimeout(async () => {
+      setDriveExportStatus('syncing');
+      try {
+        const res = await fetch('/api/cases/export-to-drive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-cases-pin': getPin() },
+          body: JSON.stringify({ pin: getPin() }),
+        });
+        const j = await res.json();
+        setDriveExportStatus(j.ok ? 'ok' : 'err');
+      } catch { setDriveExportStatus('err'); }
+      setTimeout(() => setDriveExportStatus(''), 4000);
+    }, 8000);
+  };
 
   // Open the manual new-case form, prompting for the PIN first if still locked.
   const openNewMatter = () => {
@@ -2175,6 +2203,7 @@ export default function CasesPage() {
     }));
     update(reMatters, setReMatters);
     update(otherMatters, setOtherMatters);
+    scheduleExportToDrive();
   }
 
   async function saveExtra(matterId, colId, value) {
@@ -2188,6 +2217,7 @@ export default function CasesPage() {
     const update = (list, setter) => setter(list.map(m => m.id === matterId ? { ...m, extra_data: extra } : m));
     update(reMatters, setReMatters);
     update(otherMatters, setOtherMatters);
+    scheduleExportToDrive();
   }
 
   async function deleteRow(matterId, name) {
@@ -2237,6 +2267,22 @@ export default function CasesPage() {
       if (json.ok) load();
     } catch { setSyncMsg('שגיאת רשת'); }
     setSyncing(false);
+  }
+
+  async function backupNow() {
+    setBackupStatus('running'); setBackupLink('');
+    try {
+      const res  = await fetch('/api/cases/backup', { method: 'POST' });
+      const json = await res.json();
+      if (json.ok) {
+        setBackupStatus('ok');
+        if (json.webViewLink) setBackupLink(json.webViewLink);
+      } else {
+        setBackupStatus('err');
+        setSyncMsg('שגיאת גיבוי: ' + (json.error || 'לא ידוע'));
+      }
+    } catch { setBackupStatus('err'); setSyncMsg('שגיאת רשת בגיבוי'); }
+    setTimeout(() => setBackupStatus(''), 8000);
   }
 
   async function uploadFile(e) {
@@ -2420,6 +2466,24 @@ export default function CasesPage() {
                 className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm px-3 py-1.5 rounded-lg">
                 {syncing ? '⏳...' : '🔄 Drive'}
               </button>
+              <button
+                onClick={backupNow}
+                disabled={backupStatus === 'running'}
+                title="שמור גיבוי Excel ב-Google Drive עכשיו"
+                className={`text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                  backupStatus === 'ok'  ? 'bg-green-600 text-white' :
+                  backupStatus === 'err' ? 'bg-red-500 text-white' :
+                  'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}>
+                {backupStatus === 'running' ? '⏳ מגבה...' :
+                 backupStatus === 'ok'      ? '✅ גובה!' :
+                 backupStatus === 'err'     ? '❌ שגיאה' :
+                 '💾 גיבוי Drive'}
+              </button>
+              {backupLink && backupStatus === 'ok' && (
+                <a href={backupLink} target="_blank" rel="noreferrer"
+                  className="text-xs text-green-700 underline">פתח גיבוי</a>
+              )}
               {isMatters && (
                 <button onClick={() => setShowAddCol(true)}
                   className="border border-purple-400 text-purple-700 hover:bg-purple-50 text-sm px-3 py-1.5 rounded-lg">
@@ -2458,6 +2522,10 @@ export default function CasesPage() {
 
         <div className="flex items-center gap-3 mt-1">
           {syncMsg && <p className="text-xs text-green-700">{syncMsg}</p>}
+          {driveExportStatus === 'pending'  && <p className="text-xs text-gray-400">⏳ מכין גיבוי Excel...</p>}
+          {driveExportStatus === 'syncing'  && <p className="text-xs text-blue-500">☁️ מעדכן Excel בDrive...</p>}
+          {driveExportStatus === 'ok'       && <p className="text-xs text-green-600">✅ Excel גובה בהצלחה</p>}
+          {driveExportStatus === 'err'      && <p className="text-xs text-orange-500" title="ייתכן שהגדרות Drive אינן מורשות לכתיבה">⚠️ גיבוי Drive לא זמין</p>}
           {lastUpdated && (
             <p className="text-xs text-gray-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse"/>

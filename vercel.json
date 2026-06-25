@@ -47,6 +47,14 @@
     {
       "path": "/api/cron/scan-gmail",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/backup-cases",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/sync-calendar",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
