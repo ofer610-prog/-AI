@@ -94,7 +94,7 @@ function RowActions({ isClosed, onClose, onDelete }) {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(o => !o)}
-        className="opacity-0 group-hover/row:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 px-1.5 py-0.5 rounded hover:bg-gray-100 text-base leading-none"
+        className="text-gray-400 hover:text-gray-700 px-1.5 py-0.5 rounded hover:bg-gray-100 text-base leading-none"
         title="פעולות">⋮</button>
       {open && (
         <div className="absolute left-0 top-6 bg-white border rounded-lg shadow-lg z-50 min-w-[160px] py-1" style={{ direction: 'rtl' }}>
