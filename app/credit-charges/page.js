@@ -206,7 +206,7 @@ export default function CreditChargesPage() {
           <div className="bg-white rounded-xl shadow-sm border p-4 space-y-3">
             <h2 className="font-semibold text-gray-800">📂 ייבוא קובץ חיובים / דף חשבון</h2>
             <p className="text-xs text-gray-500 leading-relaxed">
-              העלה קובץ CSV או Excel שהורדת מאתר הבנק (הפועלים, לאומי, דיסקונט, מזרחי) או מחברת האשראי (ישראכרט, Max, Visa Cal).
+              העלה קובץ Excel, CSV או PDF שהורדת מאתר הבנק (הפועלים, לאומי, דיסקונט, מזרחי) או מחברת האשראי (ישראכרט, Max, Visa Cal).
               המערכת תזהה אוטומטית את הפורמט, תחשב את כל החיובים ותסמן אלו שאין להם חשבונית.
             </p>
 
@@ -221,7 +221,7 @@ export default function CreditChargesPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.xls,.xlsx,.ods,.tsv"
+                accept=".csv,.xls,.xlsx,.ods,.tsv,.pdf"
                 className="hidden"
                 onChange={e => setFile(e.target.files?.[0] || null)}
               />
@@ -235,7 +235,7 @@ export default function CreditChargesPage() {
                 <>
                   <span className="text-3xl mb-1">⬆️</span>
                   <p className="text-sm text-gray-600">גרור קובץ לכאן או לחץ לבחירה</p>
-                  <p className="text-xs text-gray-400 mt-1">CSV, XLS, XLSX</p>
+                  <p className="text-xs text-gray-400 mt-1">CSV, XLS, XLSX, PDF</p>
                 </>
               )}
             </label>

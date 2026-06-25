@@ -1,6 +1,5 @@
 import './globals.css';
 import NotificationBell from '@/components/NotificationBell';
-import TimeTracker from '@/components/TimeTracker';
 import AppNav from '@/components/AppNav';
 import LawyerSidebar from '@/components/LawyerSidebar';
 import GoogleExpenseConnect from '@/components/GoogleExpenseConnect';
@@ -28,7 +27,6 @@ export default function RootLayout({ children }) {
         {children}
         <LawyerSidebar />
         <NotificationBell />
-        <TimeTracker />
         <GoogleExpenseConnect />
       </body>
     </html>

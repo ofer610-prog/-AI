@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import * as XLSX from 'xlsx';
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -140,6 +141,58 @@ async function isDuplicate(sb, orgId, charge) {
   return (data?.length ?? 0) > 0;
 }
 
+// ── Parse a PDF bank statement into normalised rows ──────────────────────────
+async function parsePdf(buffer) {
+  const data = await pdfParse(buffer);
+  const lines = data.text.split('\n').map(l => l.trim()).filter(Boolean);
+  const rows = [];
+
+  // Patterns used by Israeli banks in their PDF exports:
+  // הפועלים / לאומי / דיסקונט / מזרחי — all share similar date+amount columns
+  // We look for lines that start with a date (DD/MM/YY or DD/MM/YYYY)
+  // and contain a numeric amount
+  const datePat = /^(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})/;
+  const amountPat = /[\d,]+\.\d{2}/g;
+
+  for (const line of lines) {
+    if (!datePat.test(line)) continue;
+
+    const dateMatch = line.match(datePat);
+    if (!dateMatch) continue;
+    const charge_date = parseDate(dateMatch[1]);
+    if (!charge_date) continue;
+
+    // Find all numbers that look like amounts (e.g. 1,234.56)
+    const amounts = [...line.matchAll(amountPat)].map(m => parseAmount(m[0])).filter(a => a && a > 0);
+    if (!amounts.length) continue;
+
+    // The last numeric value on the line is typically the charge amount
+    // (some banks put date | description | amount | balance — we want amount, not balance)
+    const amount = amounts[amounts.length > 1 ? amounts.length - 2 : 0] ?? amounts[0];
+    if (!amount || amount < 1) continue;
+
+    // Vendor = everything between the date and the first amount-looking number
+    const dateEnd = line.indexOf(dateMatch[1]) + dateMatch[1].length;
+    const firstAmountIdx = line.search(/[\d,]+\.\d{2}/);
+    const vendor = (firstAmountIdx > dateEnd
+      ? line.slice(dateEnd, firstAmountIdx)
+      : line.slice(dateEnd)
+    ).trim().replace(/^\s*[-–]\s*/, '').trim() || 'לא זוהה';
+
+    // Skip summary lines
+    if (/^(סה"כ|סהכ|total|balance|יתרה|סיכום)/i.test(vendor)) continue;
+
+    rows.push({
+      charge_date,
+      amount,
+      vendor: vendor.slice(0, 120),
+      raw_sms: `PDF: ${line}`.slice(0, 500),
+    });
+  }
+
+  return rows;
+}
+
 export async function POST(request) {
   const profile = await requireAdmin();
   if (!profile) return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -150,24 +203,34 @@ export async function POST(request) {
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
+  const fileName = (file.name || '').toLowerCase();
+  const isPdf = fileName.endsWith('.pdf') || file.type === 'application/pdf';
 
-  let workbook;
-  try {
-    workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
-  } catch {
-    return Response.json({ error: 'לא ניתן לקרוא את הקובץ. אנא השתמש ב-CSV או Excel' }, { status: 422 });
-  }
+  let allRows = [];
 
-  // Parse all sheets, merge
-  const allRows = [];
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    allRows.push(...parseSheet(sheet));
+  if (isPdf) {
+    try {
+      allRows = await parsePdf(buffer);
+    } catch (err) {
+      return Response.json({ error: `לא ניתן לקרוא את ה-PDF: ${err.message}` }, { status: 422 });
+    }
+  } else {
+    let workbook;
+    try {
+      workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
+    } catch {
+      return Response.json({ error: 'לא ניתן לקרוא את הקובץ. אנא השתמש ב-PDF, CSV או Excel' }, { status: 422 });
+    }
+    for (const sheetName of workbook.SheetNames) {
+      allRows.push(...parseSheet(workbook.Sheets[sheetName]));
+    }
   }
 
   if (!allRows.length) {
     return Response.json({
-      error: 'לא נמצאו עסקאות בקובץ. ודא שהקובץ מכיל עמודות תאריך, שם בית עסק וסכום חיוב',
+      error: isPdf
+        ? 'לא נמצאו עסקאות ב-PDF. ודא שהקובץ הוא דף חשבון מהבנק (פורמט טקסט, לא סריקה)'
+        : 'לא נמצאו עסקאות בקובץ. ודא שהקובץ מכיל עמודות תאריך, שם בית עסק וסכום חיוב',
     }, { status: 422 });
   }
 
