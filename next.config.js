@@ -6,6 +6,7 @@ const nextConfig = {
       bodySizeLimit: '10mb', // for document uploads
     },
   },
+  serverExternalPackages: ['pdf-parse'],
 };
 
 module.exports = nextConfig;

@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import * as XLSX from 'xlsx';
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import pdfParse from 'pdf-parse';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
