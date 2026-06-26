@@ -243,14 +243,28 @@ export default function AnnualReportPage() {
             {/* ── VAT Tab ── */}
             {tab === 'vat' && (
               <div className="space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-                  <strong>דוח מע״מ דו-חודשי</strong> — עוסק מורשה מגיש אחת לחודשיים. מועד הגשה: 19 לחודש שלאחר התקופה.
-                  מע״מ פלט (מכירות) מחושב לפי 18/118 מהחשבוניות. מע״מ תשומות מחושב לפי כללי ניכוי מסקיל israeliExpenseCategorizer.
+                <div className="space-y-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                    <strong>דוח מע״מ דו-חודשי</strong> — עוסק מורשה מגיש אחת לחודשיים. מועד הגשה: <strong>19</strong> לחודש שלאחר התקופה.
+                    מע״מ פלט (מכירות) מחושב לפי 18/118 מהחשבוניות. מע״מ תשומות לפי כללי ניכוי ישראליים (רכב 45%, טלפון 50%, אירוח 0%).
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-800">
+                    <strong>📋 PCN874 — דוח מע״מ מפורט</strong> — חובה מ-1.1.2026 לעוסק מורשה עם מחזור מעל 500,000 ₪.
+                    מועד הגשה: <strong>23</strong> לחודש שלאחר התקופה (לא 19). לחץ על <strong>PCN874 ↓</strong> בכל תקופה להורדת הקובץ.
+                    יש להגיש רשמית דרך <span className="underline">gov.il → שע״מ</span>.
+                  </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {data.vat_periods.filter(p => p.has_data).map((p, i) => (
                     <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5">
-                      <div className="font-bold text-slate-800 mb-3 text-base">{p.period} {year}</div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-bold text-slate-800 text-base">{p.period} {year}</span>
+                        <a href={`/api/annual-report/pcn874?year=${year}&period=${i + 1}`}
+                          className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-medium"
+                          title="ייצא PCN874 — דוח מע״מ מפורט (חובה מ-2026)">
+                          PCN874 ↓
+                        </a>
+                      </div>
                       <div className="space-y-2 text-sm">
                         <VatRow label="מע״מ עסקאות (פלט)" value={p.output_vat} />
                         <VatRow label="מע״מ תשומות (קנייה)" value={p.input_vat} neg />
@@ -260,7 +274,7 @@ export default function AnnualReportPage() {
                             {p.net_vat >= 0 ? '' : '('}₪{NIS2(Math.abs(p.net_vat))}{p.net_vat < 0 ? ')' : ''}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-400">מועד הגשה: {p.due_date}</div>
+                        <div className="text-xs text-slate-400">מועד הגשה: {p.due_date} | PCN874: 23 ל{p.due_date?.split(' ל')[1] || ''}</div>
                       </div>
                     </div>
                   ))}

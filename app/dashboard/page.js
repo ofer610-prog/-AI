@@ -74,7 +74,8 @@ export default async function DashboardPage() {
   ]);
 
   const invoices = rawInvoices || [];
-  const VAT_RATE = org.vat_rate || 0.18;
+  // Normalize: DB stores vat_rate as 18.00 (percent), code needs 0.18 (decimal)
+  const VAT_RATE = org.vat_rate > 1 ? org.vat_rate / 100 : (org.vat_rate || 0.18);
 
   // Map invoices → income shape expected by DashboardClient
   const income = invoices.map(inv => ({
