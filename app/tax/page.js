@@ -325,6 +325,32 @@ export default function TaxPage() {
           </div>
         </section>
 
+        {/* YTD real numbers */}
+        {data?.ytd && (
+          <section>
+            <h2 className="text-lg font-bold text-slate-700 mb-4">נתונים אמיתיים — {activeYear} עד כה</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { label: 'הכנסות חשבוניות', value: data.ytd.income, color: 'text-emerald-700', bg: 'bg-emerald-50', icon: '📄' },
+                { label: 'גבוי בפועל', value: data.ytd.paid, color: 'text-sky-700', bg: 'bg-sky-50', icon: '✅' },
+                { label: 'חוב פתוח', value: data.ytd.unpaid, color: 'text-rose-600', bg: 'bg-rose-50', icon: '⏳' },
+                { label: 'מע"מ עסקאות (חישוב)', value: data.ytd.vat_output, color: 'text-blue-700', bg: 'bg-blue-50', icon: '🧾' },
+                { label: 'מע"מ ששולם בפועל', value: data.ytd.vat_paid, color: data.ytd.vat_paid > 0 ? 'text-green-700' : 'text-slate-400', bg: 'bg-green-50', icon: '💳' },
+                { label: 'מס הכנסה ששולם', value: data.ytd.income_tax_paid, color: data.ytd.income_tax_paid > 0 ? 'text-amber-700' : 'text-slate-400', bg: 'bg-amber-50', icon: '💰' },
+              ].map(item => (
+                <div key={item.label} className={`rounded-xl p-3 ${item.bg} border border-transparent`}>
+                  <p className="text-xl mb-1">{item.icon}</p>
+                  <p className="text-xs text-slate-500 mb-1">{item.label}</p>
+                  <p className={`text-lg font-bold ${item.color}`}>₪{Math.round(item.value || 0).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+            {data.ytd.vat_paid === 0 && (
+              <p className="text-xs text-slate-400 mt-2">💡 כדי לעקוב אחרי תשלומי מע"מ ומס הכנסה בפועל — הזן אותם בלשונית "שכר ומסים" בדוח השנתי.</p>
+            )}
+          </section>
+        )}
+
         {/* Notes */}
         <section className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="font-bold text-amber-800 mb-2">⚠️ הערות חשובות</p>
