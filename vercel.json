@@ -49,12 +49,16 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/scan-outlook",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/cron/backup-cases",
       "schedule": "0 22 * * *"
     },
     {
       "path": "/api/cron/sync-calendar",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }

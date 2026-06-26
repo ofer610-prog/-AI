@@ -152,11 +152,13 @@ export default function ReceiptsPage() {
   const scanClass = scanState === 'running' ? 'bg-red-600 text-white' : scanState === 'done' || scanState === 'idle' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white';
   const resultText = result?.error
     ? result.error
-    : result?._deep
-      ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
-      : result
-        ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
-        : '';
+    : result?._outlook
+      ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. יובאו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}.`
+      : result?._deep
+        ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
+        : result
+          ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
+          : '';
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-16">
@@ -184,6 +186,24 @@ export default function ReceiptsPage() {
             title="סריקה חד-פעמית של 4 חודשים אחורה לאכלוס כל החשבוניות הישנות"
           >
             📥 סריקה עמוקה
+          </button>
+          <button
+            onClick={async () => {
+              setScanState('running'); setResult(null);
+              try {
+                const res = await fetch('/api/cron/scan-outlook?days=30', { method: 'POST', cache: 'no-store' });
+                const data = await res.json();
+                setResult(data.error ? data : { _outlook: true, ...data });
+                setScanState(res.ok ? 'done' : 'error');
+                setLastScan(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
+                await load();
+              } catch { setScanState('error'); }
+            }}
+            disabled={scanState === 'running'}
+            className="bg-blue-700 hover:bg-blue-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
+            title="סרוק Outlook / Hotmail לתלושי שכר, מסים וחשבוניות"
+          >
+            📨 סרוק Outlook
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}

@@ -73,6 +73,22 @@ export default function AnnualReportPage() {
           <div className="flex-1" />
           <span className="text-xs text-slate-400">עדכון אחרון: {new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
           <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">רענן</button>
+          <a href={`/api/annual-report/export?year=${year}`}
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-sm font-medium">
+            📥 ייצוא CSV
+          </a>
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/cron/scan-outlook?days=30', { method: 'POST' });
+              const d = await res.json();
+              alert(d.error ? `שגיאה: ${d.error}` : `Outlook: נמצאו ${d.found||0} | יובאו ${d.imported||0} | לסיווג ${d.pending_review||0}`);
+              load();
+            }}
+            className="bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded-lg text-sm font-medium"
+            title="סרוק Outlook/Hotmail לתלושי שכר, מסים וחשבוניות"
+          >
+            📨 סרוק Outlook
+          </button>
         </div>
       </header>
 
