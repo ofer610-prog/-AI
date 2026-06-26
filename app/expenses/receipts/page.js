@@ -31,6 +31,8 @@ export default function ReceiptsPage() {
   const [edit, setEdit] = useState(null);
   const [missingExpenses, setMissingExpenses] = useState([]);
   const [missingDismissed, setMissingDismissed] = useState(false);
+  const [uploadScan, setUploadScan] = useState(null); // { file, state: 'scanning'|'done'|'error', result }
+  const fileInputRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +83,23 @@ export default function ReceiptsPage() {
       setResult({ error: 'הסריקה העמוקה ארכה זמן רב. ייתכן שחלק מהחשבוניות כבר נשמרו — רענן את העמוד ונסה שוב להשלמה.' });
     }
   }, [load]);
+
+  const scanReceiptFile = useCallback(async (file) => {
+    setUploadScan({ file, state: 'scanning', result: null });
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/api/expenses/scan-receipt', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setUploadScan(s => ({ ...s, state: 'error', result: data }));
+      } else {
+        setUploadScan(s => ({ ...s, state: 'done', result: data.result }));
+      }
+    } catch (e) {
+      setUploadScan(s => ({ ...s, state: 'error', result: { error: e.message } }));
+    }
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -166,6 +185,15 @@ export default function ReceiptsPage() {
           >
             📥 סריקה עמוקה
           </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-violet-700 hover:bg-violet-600 px-4 py-2 rounded-xl text-sm font-semibold"
+            title="העלה קבלה או חשבונית (PDF / תמונה) לזיהוי AI"
+          >
+            🧾 סרוק קבלה
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) scanReceiptFile(f); e.target.value = ''; }} />
         </div>
       </header>
 
@@ -236,9 +264,128 @@ export default function ReceiptsPage() {
 
       {preview && <Modal title="צפייה מהירה" onClose={() => setPreview(null)}><div className="space-y-3"><div className="font-bold">{preview.file_name}</div><iframe src={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} className="w-full h-[70vh] border rounded-xl bg-white" /><div className="flex gap-3 flex-wrap"><a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח צפייה בכרטיסייה חדשה</a>{gmailUrl(preview) && <a href={gmailUrl(preview)} target="_blank" rel="noreferrer" className="text-amber-700 underline font-semibold">פתח גוף המייל</a>}{preview.file_url && <a href={preview.file_url} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח מקור</a>}{driveFileId(preview.file_url) && <button onClick={() => openFolder(preview)} className="text-indigo-700 underline">פתח תיקייה בדרייב</button>}</div></div></Modal>}
       {edit && <Modal title="סיווג ואישור חשבונית" onClose={() => setEdit(null)}><div className="grid gap-3"><label className="text-sm">תת נושא<select value={edit.expense_item} onChange={e => setEdit({ ...edit, expense_item: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1"><option value="">בחר תת נושא</option>{topics.map(t => <option key={t} value={t}>{t}</option>)}</select></label><label className="text-sm">ספק<input value={edit.vendor} onChange={e => setEdit({ ...edit, vendor: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><label className="text-sm">סכום<input value={edit.amount} onChange={e => setEdit({ ...edit, amount: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><label className="text-sm">תאריך<input type="date" value={edit.doc_date} onChange={e => setEdit({ ...edit, doc_date: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><button onClick={approveDoc} className="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold">אשר ושמור</button></div></Modal>}
+
+      {uploadScan && (
+        <Modal title="סריקת קבלה / חשבונית" onClose={() => setUploadScan(null)}>
+          {uploadScan.state === 'scanning' && (
+            <div className="py-10 text-center text-slate-500">
+              <div className="text-4xl mb-3 animate-bounce">🧾</div>
+              <div className="font-semibold">מנתח את המסמך…</div>
+              <div className="text-sm text-slate-400 mt-1">{uploadScan.file?.name}</div>
+            </div>
+          )}
+          {uploadScan.state === 'error' && (
+            <div className="py-6 text-center text-red-700">
+              <div className="text-3xl mb-2">⚠️</div>
+              <div className="font-bold">שגיאה בסריקה</div>
+              <div className="text-sm mt-1">{uploadScan.result?.error || 'שגיאה לא ידועה'}</div>
+            </div>
+          )}
+          {uploadScan.state === 'done' && uploadScan.result && (
+            <ReceiptScanResult result={uploadScan.result} fileName={uploadScan.file?.name} />
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
 
 function Card({ title, value, warn }) { return <div className={`rounded-2xl border bg-white ${warn ? 'border-orange-300' : 'border-slate-200'} p-4`}><div className="text-xs text-slate-500 mb-1">{title}</div><div className={`text-2xl font-bold ${warn ? 'text-orange-600' : 'text-slate-800'}`}>{value}</div></div>; }
 function Modal({ title, children, onClose }) { return <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4"><div dir="rtl" className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-5"><div className="flex items-center mb-4"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose} className="mr-auto text-slate-500 hover:text-black">✕</button></div>{children}</div></div>; }
+
+const DOC_TYPE_LABELS = { tax_invoice: 'חשבונית מס', tax_invoice_receipt: 'חשבונית מס / קבלה', receipt: 'קבלה', proforma: 'חשבונית עסקה', unknown: 'לא ידוע' };
+const money2 = n => n == null ? '—' : Number(n).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function ReceiptScanResult({ result, fileName }) {
+  const r = result;
+  const docLabel = DOC_TYPE_LABELS[r.document_type] || r.document_type;
+  const vendorName = r.merchant?.name_he || r.merchant?.name_en || '—';
+  return (
+    <div className="space-y-4 text-sm max-h-[80vh] overflow-y-auto">
+      {/* header */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <span className={`px-3 py-1 rounded-full text-xs font-bold ${r.needs_review ? 'bg-orange-100 text-orange-800' : 'bg-emerald-100 text-emerald-800'}`}>
+          {r.needs_review ? '⚠️ דורש בדיקה' : '✅ תקין'}
+        </span>
+        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs">{docLabel}</span>
+        <span className={`px-3 py-1 rounded-full text-xs font-bold ${r.vat_deductible ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+          מע"מ: {r.vat_deductible ? 'ניתן לניכוי' : 'לא ניתן לניכוי'}
+        </span>
+      </div>
+
+      {/* main grid */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 bg-slate-50 rounded-xl p-4 border">
+        <Field label="ספק" value={vendorName} />
+        <Field label="עוסק מורשה" value={r.merchant?.vat_registration || '—'} />
+        <Field label="תאריך" value={r.date || '—'} />
+        <Field label="מספר מסמך" value={r.document_number || '—'} />
+        <Field label="מספר הקצאה" value={r.allocation_number || '—'} />
+        <Field label="קטגוריה" value={r.category_he || r.category || '—'} />
+        <Field label="קונה" value={r.buyer_name || '—'} />
+        <Field label="ע.מ. קונה" value={r.buyer_vat_number || '—'} />
+      </div>
+
+      {/* amounts */}
+      <div className="grid grid-cols-3 gap-3">
+        <AmountCard label='סה"כ לפני מע"מ' value={`₪${money2(r.subtotal)}`} />
+        <AmountCard label='מע"מ 18%' value={`₪${money2(r.vat_amount)}`} />
+        <AmountCard label='סה"כ לתשלום' value={`₪${money2(r.total)}`} accent />
+      </div>
+
+      {/* payment */}
+      {r.payment?.method && (
+        <div className="text-xs text-slate-600 bg-slate-50 rounded-xl px-4 py-2 border">
+          אמצעי תשלום: <span className="font-medium">{r.payment.method === 'credit_card' ? `כרטיס אשראי${r.payment.card_last_four ? ` ****${r.payment.card_last_four}` : ''}` : r.payment.method === 'cash' ? 'מזומן' : r.payment.method}</span>
+          {r.payment.installments > 1 && <span className="mr-3">{r.payment.installments} תשלומים</span>}
+        </div>
+      )}
+
+      {/* items */}
+      {r.items?.length > 0 && (
+        <div>
+          <div className="font-semibold text-slate-700 mb-1.5">פריטים ({r.items.length})</div>
+          <div className="rounded-xl border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead><tr className="bg-slate-100"><th className="text-right p-2 border-b">תיאור</th><th className="text-left p-2 border-b">כמות</th><th className="text-left p-2 border-b">מחיר יחידה</th><th className="text-left p-2 border-b">סה"כ</th></tr></thead>
+              <tbody>{r.items.map((it, i) => (
+                <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                  <td className="p-2">{it.description}</td>
+                  <td className="p-2 text-left">{it.quantity ?? '—'}</td>
+                  <td className="p-2 text-left">{it.unit_price != null ? `₪${money2(it.unit_price)}` : '—'}</td>
+                  <td className="p-2 text-left font-medium">{it.total != null ? `₪${money2(it.total)}` : '—'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* warnings */}
+      {r.warnings?.length > 0 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-1">
+          <div className="font-bold text-amber-800 text-xs mb-1">אזהרות</div>
+          {r.warnings.map((w, i) => <div key={i} className="text-xs text-amber-700">• {w}</div>)}
+        </div>
+      )}
+
+      <div className="text-xs text-slate-400 pt-1">{fileName}</div>
+    </div>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <span className="text-slate-400 text-xs">{label}: </span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+function AmountCard({ label, value, accent }) {
+  return (
+    <div className={`rounded-xl border p-3 text-center ${accent ? 'bg-slate-800 text-white border-slate-700' : 'bg-white'}`}>
+      <div className={`text-xs mb-1 ${accent ? 'text-slate-300' : 'text-slate-500'}`}>{label}</div>
+      <div className={`font-bold text-lg ${accent ? 'text-white' : 'text-slate-800'}`}>{value}</div>
+    </div>
+  );
+}
