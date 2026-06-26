@@ -73,8 +73,12 @@ export default function AnnualReportPage() {
           <div className="flex-1" />
           <span className="text-xs text-slate-400">עדכון אחרון: {new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
           <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">רענן</button>
+          <button onClick={() => window.print()}
+            className="bg-slate-600 hover:bg-slate-500 px-3 py-1.5 rounded-lg text-sm font-medium print:hidden">
+            🖨️ הדפס
+          </button>
           <a href={`/api/annual-report/export?year=${year}`}
-            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-sm font-medium">
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-sm font-medium print:hidden">
             📥 ייצוא CSV
           </a>
           <button
@@ -100,13 +104,14 @@ export default function AnnualReportPage() {
         ) : (
           <>
             {/* ── KPI Cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
               <KpiCard title="סה״כ הכנסות" value={`₪${NIS(s.total_income)}`} sub={`${s.invoice_count} חשבוניות`} color="emerald" />
               <KpiCard title="גבוי בפועל" value={`₪${NIS(s.total_paid)}`} sub={s.total_unpaid > 0 ? `פתוח: ₪${NIS(s.total_unpaid)}` : 'הכל גבוי'} color="sky" />
               <KpiCard title="הוצאות משרד" value={`₪${NIS(s.office_expenses)}`} sub="הוצאות עסקיות" color="orange" />
               <KpiCard title="הוצאות אישיות" value={`₪${NIS(s.personal_expenses)}`} sub="ארנונות, שכירות" color="rose" />
               <KpiCard title="רווח נקי" value={`₪${NIS(s.net_profit)}`} sub={`מרווח ${PCT(s.gross_margin_pct)}`} color={s.net_profit >= 0 ? 'emerald' : 'red'} large />
               <KpiCard title="ניתן לניכוי" value={`₪${NIS(s.total_deductible)}`} sub="הוצאות מוכרות" color="violet" />
+              <KpiCard title="מס הכנסה משוער" value={`₪${NIS(data.estimated_tax_liability)}`} sub="23% על רווח" color="amber" />
             </div>
 
             {/* ── Pipeline Banner ── */}
@@ -193,6 +198,10 @@ export default function AnnualReportPage() {
                         <PLRow label="הכנסות (הכנסות)" months={months} field="income" total={s.total_income} bold />
                         <PLRow label="הוצאות עסקיות" months={months} field="office_exp" total={s.office_expenses} neg />
                         <PLRow label="הוצאות אישיות" months={months} field="personal_exp" total={s.personal_expenses} neg muted />
+                        {s.salary_total > 0 && <PLRow label="שכר" months={months} field="salary" total={s.salary_total} neg />}
+                        {s.pension_total > 0 && <PLRow label="פנסיה / ביטוח מנהלים" months={months} field="pension" total={s.pension_total} neg />}
+                        {s.vat_payments_total > 0 && <PLRow label="מע״מ שולם" months={months} field="vat_payment" total={s.vat_payments_total} neg muted />}
+                        {s.income_tax_total > 0 && <PLRow label="מס הכנסה / מקדמות" months={months} field="income_tax" total={s.income_tax_total} neg muted />}
                         <tr className="bg-slate-50 font-bold">
                           <td className="px-4 py-3 border-t-2 border-slate-300">רווח תפעולי (רווח תפעולי)</td>
                           {months.map(m => (
@@ -213,6 +222,17 @@ export default function AnnualReportPage() {
                           ))}
                           <td className="px-3 py-2 text-left font-semibold">{PCT(s.gross_margin_pct)}</td>
                         </tr>
+                        {data.estimated_tax_liability > 0 && (
+                          <tr className="text-xs text-amber-700 bg-amber-50">
+                            <td className="px-4 py-2">מס הכנסה משוער (23%)</td>
+                            {months.map(m => (
+                              <td key={m.month} className="px-3 py-2 text-left">
+                                {m.net > 0 ? `(₪${NIS(m.net * 0.23)})` : '—'}
+                              </td>
+                            ))}
+                            <td className="px-3 py-2 text-left font-bold">(₪{NIS(data.estimated_tax_liability)})</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -248,7 +268,7 @@ export default function AnnualReportPage() {
                 {/* VAT year total */}
                 <div className="bg-white rounded-2xl border border-slate-200 p-5">
                   <h3 className="font-bold mb-3">סיכום מע״מ שנתי {year}</h3>
-                  <div className="grid grid-cols-3 gap-6 text-center">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                     <div>
                       <div className="text-xs text-slate-500 mb-1">סה״כ מע״מ עסקאות</div>
                       <div className="text-xl font-bold text-rose-600">₪{NIS2(data.vat_periods.reduce((s, p) => s + p.output_vat, 0))}</div>
@@ -258,8 +278,13 @@ export default function AnnualReportPage() {
                       <div className="text-xl font-bold text-emerald-600">₪{NIS2(data.vat_periods.reduce((s, p) => s + p.input_vat, 0))}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500 mb-1">סה״כ מע״מ לתשלום</div>
+                      <div className="text-xs text-slate-500 mb-1">מע״מ נטו לתשלום (חישוב)</div>
                       <div className="text-xl font-bold text-slate-800">₪{NIS2(data.vat_periods.reduce((s, p) => s + p.net_vat, 0))}</div>
+                    </div>
+                    <div className={s.vat_payments_total > 0 ? '' : 'opacity-40'}>
+                      <div className="text-xs text-slate-500 mb-1">מע״מ ששולם בפועל</div>
+                      <div className="text-xl font-bold text-orange-600">₪{NIS2(s.vat_payments_total)}</div>
+                      {s.vat_payments_total === 0 && <div className="text-xs text-slate-400 mt-1">הזן בלשונית שכר ומסים</div>}
                     </div>
                   </div>
                 </div>
@@ -540,6 +565,7 @@ const COLOR_MAP = {
   violet: 'bg-violet-50 border-violet-200 text-violet-700',
   red: 'bg-red-50 border-red-200 text-red-700',
   amber: 'bg-amber-50 border-amber-200 text-amber-700',
+  teal: 'bg-teal-50 border-teal-200 text-teal-700',
   slate: 'bg-slate-50 border-slate-200 text-slate-700',
 };
 

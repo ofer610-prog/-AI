@@ -143,6 +143,24 @@ export async function GET(request) {
     byCat[catKey].items.push({ name: exp.item_name, month: exp.month, amount: amt, deduct_pct: catInfo.deduct_pct, note: catInfo.note });
   }
 
+  // ── Integrate expense_documents (scanned receipts) into monthly + byCat ──
+  for (const doc of docs) {
+    if (!doc.amount) continue;
+    const docMonth = doc.expense_month_num || (doc.doc_date ? new Date(doc.doc_date).getMonth() + 1 : 1);
+    const m = (docMonth || 1) - 1;
+    const amt = Number(doc.amount || 0);
+    monthlyExpenses[m].office += amt;
+    monthlyExpenses[m].total += amt;
+    const catInfo = categorize(doc.vendor || doc.category || '');
+    const deductible = amt * catInfo.deduct_pct / 100;
+    monthlyExpenses[m].deductible += deductible;
+    const catKey = catInfo.cat;
+    if (!byCat[catKey]) byCat[catKey] = { cat: catKey, cat_he: catInfo.cat_he, total: 0, deductible: 0, account: catInfo.account, items: [] };
+    byCat[catKey].total += amt;
+    byCat[catKey].deductible += deductible;
+    byCat[catKey].items.push({ name: doc.vendor || doc.category || 'קבלה סרוקה', month: docMonth, amount: amt, deduct_pct: catInfo.deduct_pct, note: 'מסמך סרוק' });
+  }
+
   // ── VAT bi-monthly summary (Jan-Feb, Mar-Apr, May-Jun, ...) ────────────────
   const vatPeriods = [];
   for (let p = 0; p < 6; p++) {
@@ -215,18 +233,28 @@ export async function GET(request) {
     },
     monthly_income: monthlyIncome,
     monthly_expenses: monthlyExpenses,
-    monthly_combined: monthlyIncome.map((inc, i) => ({
-      month: inc.month, month_he: inc.month_he,
-      income: inc.total, paid: inc.paid, unpaid: inc.unpaid, invoices: inc.invoices,
-      expenses: monthlyExpenses[i].total,
-      office_exp: monthlyExpenses[i].office,
-      personal_exp: monthlyExpenses[i].personal,
-      net: inc.total - monthlyExpenses[i].total,
-    })),
+    monthly_combined: monthlyIncome.map((inc, i) => {
+      const exp = monthlyExpenses[i];
+      return {
+        month: inc.month, month_he: inc.month_he,
+        income: inc.total, paid: inc.paid, unpaid: inc.unpaid, invoices: inc.invoices,
+        expenses: exp.total,
+        office_exp: exp.office,
+        personal_exp: exp.personal,
+        salary: exp.salary,
+        pension: exp.pension,
+        vat_payment: exp.vat_payment,
+        income_tax: exp.income_tax,
+        net: inc.total - exp.total,
+      };
+    }),
     expense_by_category: Object.values(byCat).sort((a, b) => b.total - a.total),
     vat_periods: vatPeriods,
     pipeline,
     docs_pending: docs.filter(d => d.status !== 'approved').length,
     docs_approved: docs.filter(d => d.status === 'approved').length,
+    // Income tax liability estimate (23% corporate / individual progressive)
+    estimated_tax_liability: Math.max(0, netProfit * 0.23),
+    taxable_income: Math.max(0, totalIncome - totalDeductible),
   });
 }
