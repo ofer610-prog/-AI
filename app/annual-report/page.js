@@ -24,9 +24,10 @@ export default function AnnualReportPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('pl'); // pl | vat | categories | pipeline | payroll
+  const [tab, setTab] = useState('pl'); // pl | vat | categories | pipeline | payroll | budget
   const [payrollForm, setPayrollForm] = useState({ section: 'salary', item_name: '', month: new Date().getMonth() + 1, amount: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [targetIncome, setTargetIncome] = useState(50000);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,6 +81,11 @@ export default function AnnualReportPage() {
           <a href={`/api/annual-report/export?year=${year}`}
             className="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-sm font-medium print:hidden">
             📥 ייצוא CSV
+          </a>
+          <a href={`/api/annual-report/hashavshevet?year=${year}`}
+            className="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm font-medium print:hidden"
+            title="ייצא פקודות יומן לייבוא בחשבשבת">
+            ⬇️ ייצוא לחשבשבת
           </a>
           <button
             onClick={async () => {
@@ -144,6 +150,7 @@ export default function AnnualReportPage() {
                 { id: 'categories', label: 'סיווג הוצאות' },
                 { id: 'pipeline', label: 'עסקאות בצינור' },
                 { id: 'payroll', label: 'שכר, פנסיה ומסים' },
+                { id: 'budget', label: '📊 תקציב' },
               ].map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.id ? 'bg-white text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'}`}>
@@ -254,30 +261,63 @@ export default function AnnualReportPage() {
                     יש להגיש רשמית דרך <span className="underline">gov.il → שע״מ</span>.
                   </div>
                 </div>
+                {/* Allocation number threshold warning */}
+                <div className="bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3 text-sm text-yellow-800">
+                  <strong>⚠️ מספר הקצאה (mispar haktzaa)</strong> — חשבוניות קנייה ללא מספר הקצאה מעל הסף לא יוכרו לניכוי מע"מ תשומות.<br/>
+                  <span className="font-mono">עד 31.5.2026: סף 10,000 ₪ | מ-1.6.2026: סף 5,000 ₪</span>
+                  <span className="mr-3 text-yellow-600"> — בדוק שכל חשבונית ספק מעל הסף כוללת מספר הקצאה.</span>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {data.vat_periods.filter(p => p.has_data).map((p, i) => (
-                    <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="font-bold text-slate-800 text-base">{p.period} {year}</span>
-                        <a href={`/api/annual-report/pcn874?year=${year}&period=${i + 1}`}
-                          className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-medium"
-                          title="ייצא PCN874 — דוח מע״מ מפורט (חובה מ-2026)">
-                          PCN874 ↓
-                        </a>
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        <VatRow label="מע״מ עסקאות (פלט)" value={p.output_vat} />
-                        <VatRow label="מע״מ תשומות (קנייה)" value={p.input_vat} neg />
-                        <div className="border-t pt-2 flex justify-between font-bold">
-                          <span>מע״מ לתשלום</span>
-                          <span className={p.net_vat >= 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                            {p.net_vat >= 0 ? '' : '('}₪{NIS2(Math.abs(p.net_vat))}{p.net_vat < 0 ? ')' : ''}
-                          </span>
+                  {data.vat_periods.filter(p => p.has_data).map((p, i) => {
+                    const salesBase = p.output_vat / 0.18;
+                    const inputBase = p.input_vat / 0.18;
+                    return (
+                      <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-bold text-slate-800 text-base">{p.period} {year}</span>
+                          <a href={`/api/annual-report/pcn874?year=${year}&period=${i + 1}`}
+                            className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-medium"
+                            title="ייצא PCN874 — דוח מע״מ מפורט (חובה מ-2026)">
+                            PCN874 ↓
+                          </a>
                         </div>
-                        <div className="text-xs text-slate-400">מועד הגשה: {p.due_date} | PCN874: 23 ל{p.due_date?.split(' ל')[1] || ''}</div>
+                        <div className="space-y-2 text-sm">
+                          <VatRow label="מע״מ עסקאות (פלט)" value={p.output_vat} />
+                          <VatRow label="מע״מ תשומות (קנייה)" value={p.input_vat} neg />
+                          <div className="border-t pt-2 flex justify-between font-bold">
+                            <span>מע״מ לתשלום</span>
+                            <span className={p.net_vat >= 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                              {p.net_vat >= 0 ? '' : '('}₪{NIS2(Math.abs(p.net_vat))}{p.net_vat < 0 ? ')' : ''}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400">מועד הגשה: {p.due_date} | PCN874: 23 ל{p.due_date?.split(' ל')[1] || ''}</div>
+                        </div>
+                        {/* VAT Return Fields 1-9 */}
+                        <details className="mt-3">
+                          <summary className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer font-medium">▸ שדות טופס מע״מ 1–9 (לדיווח לשע״מ)</summary>
+                          <div className="mt-2 space-y-1 text-xs border-t border-slate-100 pt-2">
+                            {[
+                              ['1', 'מכירות חייבות (ללא מע״מ)', salesBase, 'text-slate-700'],
+                              ['2', 'מכירות בשיעור אפס (ייצוא)', 0, 'text-slate-400'],
+                              ['3', 'מכירות פטורות', 0, 'text-slate-400'],
+                              ['4', 'מע״מ עסקאות', p.output_vat, 'text-rose-600'],
+                              ['5', 'קניות חייבות (ללא מע״מ)', inputBase, 'text-slate-700'],
+                              ['6', 'מע״מ תשומות', p.input_vat, 'text-emerald-600'],
+                              ['7', 'מע״מ נטו (שדה 4 פחות שדה 6)', p.net_vat, p.net_vat >= 0 ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold'],
+                              ['8', 'תיאומים', 0, 'text-slate-400'],
+                              ['9', 'לתשלום / להחזר', p.net_vat, p.net_vat >= 0 ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'],
+                            ].map(([num, label, val, cls]) => (
+                              <div key={num} className="flex justify-between items-center">
+                                <span className="text-slate-400 w-5 flex-shrink-0">{num}.</span>
+                                <span className="flex-1 text-slate-600">{label}</span>
+                                <span className={`font-mono ${cls}`}>₪{NIS2(val)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {/* VAT year total */}
                 <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -525,6 +565,122 @@ export default function AnnualReportPage() {
                     </table>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Budget Tab ── */}
+            {tab === 'budget' && (
+              <div className="space-y-5">
+                {/* Target income input */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-wrap items-center gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">יעד הכנסה חודשי (₪)</label>
+                    <input
+                      type="number"
+                      value={targetIncome}
+                      onChange={e => setTargetIncome(Number(e.target.value) || 0)}
+                      className="border rounded-xl px-3 py-2 text-sm w-40 text-left"
+                      min={0}
+                      step={1000}
+                    />
+                  </div>
+                  <div className="text-xs text-slate-500 mt-4">
+                    הגדר יעד הכנסה חודשי. טור ✓/✗ יציג האם הגעת ליעד בכל חודש.
+                  </div>
+                </div>
+
+                {/* Budget comparison table */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3">
+                    <span className="font-bold">השוואת תקציב — {year}</span>
+                    <span className="text-slate-400 text-sm">יעד חודשי: ₪{NIS(targetIncome)}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 text-xs">
+                          <th className="text-right px-4 py-2 border-b">חודש</th>
+                          <th className="text-left px-3 py-2 border-b">הכנסות</th>
+                          <th className="text-left px-3 py-2 border-b">הוצאות</th>
+                          <th className="text-left px-3 py-2 border-b">רווח נטו</th>
+                          <th className="text-center px-3 py-2 border-b">יעד</th>
+                          <th className="text-left px-3 py-2 border-b">פער מהיעד</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {months.map(m => {
+                          const hitTarget = m.income >= targetIncome;
+                          const gap = m.income - targetIncome;
+                          return (
+                            <tr key={m.month} className="border-b hover:bg-slate-50">
+                              <td className="px-4 py-2.5 font-medium">{m.month_he}</td>
+                              <td className="px-3 py-2.5 text-left text-emerald-700 font-semibold">₪{NIS(m.income)}</td>
+                              <td className="px-3 py-2.5 text-left text-rose-600">₪{NIS(m.expenses)}</td>
+                              <td className={`px-3 py-2.5 text-left font-semibold ${m.net >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                {m.net >= 0 ? '' : '('}₪{NIS(Math.abs(m.net))}{m.net < 0 ? ')' : ''}
+                              </td>
+                              <td className="px-3 py-2.5 text-center text-lg">
+                                {hitTarget ? '✅' : '❌'}
+                              </td>
+                              <td className={`px-3 py-2.5 text-left font-medium ${gap >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {gap >= 0 ? '+' : ''}₪{NIS(gap)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {months.length === 0 && (
+                          <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">אין נתונים לשנה זו</td></tr>
+                        )}
+                      </tbody>
+                      {months.length > 0 && (
+                        <tfoot>
+                          <tr className="bg-slate-800 text-white font-bold">
+                            <td className="px-4 py-3">סה״כ {year}</td>
+                            <td className="px-3 py-3 text-left text-emerald-400">₪{NIS(months.reduce((s, m) => s + m.income, 0))}</td>
+                            <td className="px-3 py-3 text-left text-rose-400">₪{NIS(months.reduce((s, m) => s + m.expenses, 0))}</td>
+                            <td className="px-3 py-3 text-left text-emerald-400">₪{NIS(months.reduce((s, m) => s + m.net, 0))}</td>
+                            <td className="px-3 py-3 text-center">
+                              {months.filter(m => m.income >= targetIncome).length}/{months.length} חודשים
+                            </td>
+                            <td className="px-3 py-3 text-left">
+                              ממוצע: ₪{NIS(Math.round(months.reduce((s, m) => s + m.income, 0) / (months.length || 1)))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+
+                {/* Summary cards */}
+                {months.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <KpiCard
+                      title="חודשים שעמדו ביעד"
+                      value={`${months.filter(m => m.income >= targetIncome).length} / ${months.length}`}
+                      sub={`יעד: ₪${NIS(targetIncome)} / חודש`}
+                      color={months.filter(m => m.income >= targetIncome).length >= months.length * 0.7 ? 'emerald' : 'rose'}
+                    />
+                    <KpiCard
+                      title="ממוצע הכנסות חודשי"
+                      value={`₪${NIS(Math.round(months.reduce((s, m) => s + m.income, 0) / (months.length || 1)))}`}
+                      sub={months.reduce((s, m) => s + m.income, 0) / (months.length || 1) >= targetIncome ? 'מעל היעד ✅' : 'מתחת ליעד ❌'}
+                      color={months.reduce((s, m) => s + m.income, 0) / (months.length || 1) >= targetIncome ? 'emerald' : 'amber'}
+                    />
+                    <KpiCard
+                      title="ממוצע הוצאות חודשי"
+                      value={`₪${NIS(Math.round(months.reduce((s, m) => s + m.expenses, 0) / (months.length || 1)))}`}
+                      sub="הוצאות עסקיות"
+                      color="orange"
+                    />
+                    <KpiCard
+                      title="ממוצע רווח נטו"
+                      value={`₪${NIS(Math.round(months.reduce((s, m) => s + m.net, 0) / (months.length || 1)))}`}
+                      sub="לאחר כל הוצאות"
+                      color={months.reduce((s, m) => s + m.net, 0) >= 0 ? 'sky' : 'red'}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
