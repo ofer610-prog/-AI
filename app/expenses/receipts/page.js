@@ -3,6 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
+const EXPENSE_SECTIONS = [
+  { value: 'office',        label: 'משרד כללי' },
+  { value: 'vehicle',       label: 'רכב ודלק' },
+  { value: 'telecom',       label: 'תקשורת' },
+  { value: 'professional',  label: 'שירותים מקצועיים' },
+  { value: 'insurance',     label: 'ביטוח' },
+  { value: 'salary',        label: 'שכר' },
+  { value: 'personal',      label: 'אישי / נכסים' },
+];
+
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const money = n => Number(n || 0).toLocaleString('he-IL', { maximumFractionDigits: 2 });
 
@@ -302,7 +312,12 @@ export default function ReceiptsPage() {
             </div>
           )}
           {uploadScan.state === 'done' && uploadScan.result && (
-            <ReceiptScanResult result={uploadScan.result} fileName={uploadScan.file?.name} />
+            <ReceiptScanResult
+              result={uploadScan.result}
+              fileName={uploadScan.file?.name}
+              topics={topics}
+              onSaved={() => { setUploadScan(null); load(); }}
+            />
           )}
         </Modal>
       )}
@@ -316,10 +331,44 @@ function Modal({ title, children, onClose }) { return <div className="fixed inse
 const DOC_TYPE_LABELS = { tax_invoice: 'חשבונית מס', tax_invoice_receipt: 'חשבונית מס / קבלה', receipt: 'קבלה', proforma: 'חשבונית עסקה', unknown: 'לא ידוע' };
 const money2 = n => n == null ? '—' : Number(n).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function ReceiptScanResult({ result, fileName }) {
+function ReceiptScanResult({ result, fileName, topics = [], onSaved }) {
   const r = result;
   const docLabel = DOC_TYPE_LABELS[r.document_type] || r.document_type;
   const vendorName = r.merchant?.name_he || r.merchant?.name_en || '—';
+
+  const now = new Date();
+  const [saveForm, setSaveForm] = useState(null); // null | { section, item, year, month }
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function openSaveForm() {
+    setSaveForm({
+      section: 'office',
+      item: topics[0] || '',
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+    });
+  }
+
+  async function doSave() {
+    if (!saveForm.item) { alert('יש לבחור נושא הוצאה'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/expenses/import-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scan: r, ...saveForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'שגיאה בשמירה');
+      setSaved(true);
+      setTimeout(() => onSaved?.(), 1200);
+    } catch (e) {
+      alert('שגיאה: ' + e.message);
+    }
+    setSaving(false);
+  }
+
   return (
     <div className="space-y-4 text-sm max-h-[80vh] overflow-y-auto">
       {/* header */}
@@ -389,6 +438,65 @@ function ReceiptScanResult({ result, fileName }) {
       )}
 
       <div className="text-xs text-slate-400 pt-1">{fileName}</div>
+
+      {/* Save to expenses */}
+      {!saved && !saveForm && (
+        <button
+          onClick={openSaveForm}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition text-sm"
+        >
+          💾 שמור להוצאות
+        </button>
+      )}
+
+      {saveForm && !saved && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+          <p className="font-semibold text-emerald-800 text-xs uppercase tracking-wider">שמירה להוצאות</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">מדור</label>
+              <select value={saveForm.section} onChange={e => setSaveForm(f => ({ ...f, section: e.target.value }))}
+                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
+                {EXPENSE_SECTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">נושא הוצאה</label>
+              <select value={saveForm.item} onChange={e => setSaveForm(f => ({ ...f, item: e.target.value }))}
+                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
+                <option value="">בחר נושא</option>
+                {topics.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value={vendorName !== '—' ? vendorName : 'אחר'}>{vendorName !== '—' ? vendorName : 'אחר'}</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">שנה</label>
+              <input type="number" value={saveForm.year} onChange={e => setSaveForm(f => ({ ...f, year: Number(e.target.value) }))}
+                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">חודש</label>
+              <select value={saveForm.month} onChange={e => setSaveForm(f => ({ ...f, month: Number(e.target.value) }))}
+                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
+                {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={doSave} disabled={saving}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold py-2 rounded-xl text-sm transition">
+              {saving ? 'שומר…' : '✅ אישור ושמירה'}
+            </button>
+            <button onClick={() => setSaveForm(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm">ביטול</button>
+          </div>
+        </div>
+      )}
+
+      {saved && (
+        <div className="rounded-xl bg-emerald-100 text-emerald-800 font-bold text-center py-3 text-sm">
+          ✅ נשמר בהצלחה!
+        </div>
+      )}
     </div>
   );
 }

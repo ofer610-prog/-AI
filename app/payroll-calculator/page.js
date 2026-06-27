@@ -73,6 +73,9 @@ export default function PayrollCalculatorPage() {
         </div>
 
         {/* Inputs */}
+        {/* Credit points wizard */}
+        <CreditPointsWizard onApply={pts => set('creditPoints', pts)} />
+
         <div className="bg-white rounded-xl border border-slate-200 p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Payslip metadata fields */}
           <Field label="שם חברה / מעסיק" value={form.companyName} onChange={v => set('companyName', v)} placeholder="לדוגמה: משרד עו״ד כהן ושות׳" />
@@ -168,6 +171,128 @@ export default function PayrollCalculatorPage() {
           מחשבון זה מבוסס על תקנות 2026 (תיקון 288 למס הכנסה, תיקון 252 לביטוח לאומי). אינו מהווה ייעוץ מקצועי.
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Credit Points Wizard ────────────────────────────────────────────────────
+// Sources: ITA circular, Amendment 288
+const CHILD_POINTS = [
+  { label: 'לידה עד גיל 1', pts: 1.5 },
+  { label: 'גיל 1–5 (גן)', pts: 2.5 },
+  { label: 'גיל 6–12 (יסודי)', pts: 2 },
+  { label: 'גיל 13–17 (תיכון)', pts: 1 },
+  { label: 'גיל 18+ (בגיר)', pts: 1 },
+];
+
+function calcCreditPoints(w) {
+  let pts = w.gender === 'female' ? 2.75 : 2.25; // base resident
+  for (const [i, grp] of CHILD_POINTS.entries()) {
+    pts += (w.children[i] || 0) * grp.pts;
+  }
+  if (w.singleParent) pts += 1;
+  if (w.newImmigrant) pts += (w.immigrantYears <= 1 ? 3 : w.immigrantYears <= 2 ? 2 : w.immigrantYears <= 3 ? 1 : 0.5);
+  if (w.disability) pts += 2;
+  if (w.militaryOfficer) pts += 0.5;
+  return Math.round(pts * 100) / 100;
+}
+
+function CreditPointsWizard({ onApply }) {
+  const [open, setOpen] = useState(false);
+  const [w, setW] = useState({
+    gender: 'male', children: [0, 0, 0, 0, 0],
+    singleParent: false, newImmigrant: false, immigrantYears: 1,
+    disability: false, militaryOfficer: false,
+  });
+
+  const pts = calcCreditPoints(w);
+  const setW2 = (k, v) => setW(prev => ({ ...prev, [k]: v }));
+  const setChild = (i, v) => setW(prev => {
+    const c = [...prev.children]; c[i] = Math.max(0, Number(v)); return { ...prev, children: c };
+  });
+
+  return (
+    <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-3 text-right hover:bg-blue-50 transition"
+      >
+        <span className="font-semibold text-slate-700 text-sm">🧮 אשף נקודות זיכוי — {pts} נק׳ × ₪242 = ₪{fmt(pts * 242)}/חודש</span>
+        <span className="text-slate-400 text-xs">{open ? '▲ סגור' : '▼ פתח'}</span>
+      </button>
+      {open && (
+        <div className="px-5 pb-5 border-t border-blue-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Gender */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">מין</label>
+            <div className="flex gap-2">
+              {[['male','גבר (2.25 נק׳)'],['female','אישה (2.75 נק׳)']].map(([v,l]) => (
+                <button key={v} onClick={() => setW2('gender', v)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition ${w.gender === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-300 text-slate-600'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Children groups */}
+          <div className="sm:col-span-2">
+            <p className="text-xs font-medium text-slate-600 mb-2">ילדים (לפי קבוצת גיל)</p>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {CHILD_POINTS.map((grp, i) => (
+                <div key={i} className="text-center">
+                  <div className="text-xs text-slate-500 mb-1">{grp.label}<br/><span className="text-blue-600 font-bold">{grp.pts} נק׳</span></div>
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => setChild(i, (w.children[i]||0) - 1)}
+                      className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-300">−</button>
+                    <span className="w-5 text-center font-bold text-slate-800">{w.children[i] || 0}</span>
+                    <button onClick={() => setChild(i, (w.children[i]||0) + 1)}
+                      className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-sm hover:bg-blue-700">+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Checkboxes */}
+          <div className="sm:col-span-2 flex flex-wrap gap-4">
+            {[
+              ['singleParent', 'הורה יחיד (+1 נק׳)'],
+              ['disability', 'נכות (501 +2 נק׳)'],
+              ['militaryOfficer', 'קצין צבא (+0.5 נק׳)'],
+              ['newImmigrant', 'עולה חדש'],
+            ].map(([k, l]) => (
+              <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={!!w[k]} onChange={e => setW2(k, e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                {l}
+              </label>
+            ))}
+            {w.newImmigrant && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-slate-500">שנות ותק:</span>
+                <select value={w.immigrantYears} onChange={e => setW2('immigrantYears', Number(e.target.value))}
+                  className="border border-slate-300 rounded px-2 py-0.5 text-sm">
+                  {[1,2,3,4,5].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Result + Apply */}
+          <div className="sm:col-span-2 flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-xs text-slate-500">סה״כ נקודות זיכוי מחושבות</p>
+              <p className="text-2xl font-bold text-blue-700">{pts} נק׳</p>
+              <p className="text-xs text-slate-500">= ₪{fmt(pts * 242)}/חודש חיסכון במס</p>
+            </div>
+            <button onClick={() => { onApply(pts); setOpen(false); }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition">
+              ✅ החל על החישוב
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
