@@ -26,7 +26,11 @@ export default function NewInvoicePage() {
     due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     vat_rate: 18,
     notes: '',
+    allocation_number: '',
   });
+
+  // Allocation number required from 1.6.2026 for invoices >= 5,000 NIS pre-VAT
+  const ALLOC_THRESHOLD = 5000;
 
   const [items, setItems] = useState([emptyItem()]);
 
@@ -85,7 +89,9 @@ export default function NewInvoicePage() {
           client_name: client?.name || '',
           subtotal,
           vat_amount: vatAmount,
+          amount: total,
           status,
+          allocation_number: form.allocation_number || null,
           items: items.filter(i => i.description),
         }),
       });
@@ -157,7 +163,7 @@ export default function NewInvoicePage() {
 
         {/* Dates */}
         <div className="bg-white border border-sky-100 rounded-xl p-6 space-y-4">
-          <h2 className="font-semibold text-slate-800 text-base border-b border-sky-100 pb-3">תאריכים</h2>
+          <h2 className="font-semibold text-slate-800 text-base border-b border-sky-100 pb-3">תאריכים ופרטי מע"מ</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Field
               label="תאריך הנפקה"
@@ -177,6 +183,21 @@ export default function NewInvoicePage() {
               value={form.vat_rate}
               onChange={v => setForm({ ...form, vat_rate: Number(v) || 0 })}
             />
+          </div>
+          {/* Allocation number — required from 1.6.2026 for >= 5,000 NIS */}
+          <div>
+            <Field
+              label={`מספר הקצאה (נדרש עבור חשבוניות ≥ ₪${ALLOC_THRESHOLD.toLocaleString('he-IL')} מ-1.6.2026)`}
+              value={form.allocation_number}
+              onChange={v => setForm({ ...form, allocation_number: v })}
+              placeholder="לדוגמה: 1234567890"
+            />
+            {subtotal >= ALLOC_THRESHOLD && !form.allocation_number && (
+              <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                ⚠️ חשבונית זו עוברת את סף ₪{ALLOC_THRESHOLD.toLocaleString('he-IL')} — יש להזין מספר הקצאה מרשות המסים לפני ההפקה.
+                <a href="https://www.gov.il/he/service/allocation_number_for_tax_invoice" target="_blank" rel="noopener noreferrer" className="underline">קבל מספר הקצאה ←</a>
+              </p>
+            )}
           </div>
         </div>
 

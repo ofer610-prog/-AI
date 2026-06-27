@@ -22,8 +22,8 @@ export async function GET(request) {
   let query = supabase
     .from('invoices')
     .select(lawyerId
-      ? 'id, number, client_id, client_name, amount, issue_date, due_date, status, notes, last_reminder_sent, reminder_count, clients(name, phone, email), matters!inner(title, responsible_lawyer_id)'
-      : 'id, number, client_id, client_name, amount, issue_date, due_date, status, notes, last_reminder_sent, reminder_count, clients(name, phone, email), matters(title, responsible_lawyer_id)')
+      ? 'id, number, client_id, client_name, amount, subtotal, issue_date, due_date, status, notes, allocation_number, last_reminder_sent, reminder_count, clients(name, phone, email), matters!inner(title, responsible_lawyer_id)'
+      : 'id, number, client_id, client_name, amount, subtotal, issue_date, due_date, status, notes, allocation_number, last_reminder_sent, reminder_count, clients(name, phone, email), matters(title, responsible_lawyer_id)')
     .eq('organization_id', org.id)
     .order('issue_date', { ascending: false });
 
@@ -98,8 +98,12 @@ export async function POST(request) {
     amount: body.amount != null ? Number(body.amount) : total,
     issue_date: body.issue_date || new Date().toISOString().slice(0, 10),
     due_date: body.due_date || new Date().toISOString().slice(0, 10),
-    status: ['open', 'paid', 'cancelled'].includes(body.status) ? body.status : 'open',
+    status: ['draft','sent','open', 'paid', 'cancelled', 'overdue'].includes(body.status) ? body.status : 'open',
     notes: body.notes || null,
+    subtotal: subtotal || null,
+    vat_amount: vatAmount || null,
+    vat_rate: vatRate,
+    allocation_number: body.allocation_number || null,
   };
 
   const { data: invoice, error } = await supabase.from('invoices').insert(payload).select().single();

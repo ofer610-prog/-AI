@@ -165,7 +165,7 @@ export default function InvoicesPage() {
                 <tr>
                   <Th>#</Th><Th>לקוח</Th><Th>בעבור</Th><Th>תיק / עו"ד</Th>
                   <Th>הנפקה</Th><Th>פירעון</Th><Th>סטטוס</Th>
-                  <Th align="left">סכום</Th><Th align="left">פעולות</Th>
+                  <Th align="left">סכום</Th><Th>הקצאה</Th><Th align="left">פעולות</Th>
                 </tr>
               </thead>
               <tbody>
@@ -196,6 +196,14 @@ export default function InvoicesPage() {
                         </select>
                       </Td>
                       <Td align="left" className={`font-semibold ${isOverdue ? 'text-red-700' : ''}`}>{fmtMoney(inv.amount)}</Td>
+                      <Td>
+                        {inv.allocation_number
+                          ? <span className="text-xs text-emerald-700 font-mono">{inv.allocation_number}</span>
+                          : Number(inv.amount || 0) >= 5900
+                            ? <span className="text-xs text-amber-600 font-medium" title="נדרש מספר הקצאה">⚠️ חסר</span>
+                            : <span className="text-xs text-slate-300">—</span>
+                        }
+                      </Td>
                       <Td align="left">
                         <div className="flex items-center gap-2">
                           <button onClick={() => setSendTarget(inv)} title="שלח ללקוח"

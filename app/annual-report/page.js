@@ -20,6 +20,20 @@ const SECTION_COLORS = {
   general: 'bg-gray-100 text-gray-700',
 };
 
+// ITA input-VAT codes per רשות המסים
+const ITA_VAT_CODES = {
+  vehicle:       { code: 'T2', label: 'T2 — רכב (67%)' },
+  telecom:       { code: 'T3', label: 'T3 — נייד (50%)' },
+  software:      { code: 'T7', label: 'T7 — ריברס צ׳ארג׳' },
+  entertainment: { code: 'T4', label: 'T4 — אירוח (0%)' },
+  office:        { code: 'T1', label: 'T1 — תשומות רגיל' },
+  professional:  { code: 'T1', label: 'T1 — תשומות רגיל' },
+  insurance:     { code: 'T6', label: 'T6 — פטור ממע"מ' },
+  rent:          { code: 'T6', label: 'T6 — פטור ממע"מ' },
+  property:      { code: 'T6', label: 'T6 — פטור ממע"מ' },
+  general:       { code: 'T1', label: 'T1 — תשומות רגיל' },
+};
+
 export default function AnnualReportPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState(null);
@@ -358,6 +372,7 @@ export default function AnnualReportPage() {
                       <tr className="bg-slate-50 text-slate-600 text-xs">
                         <th className="text-right px-4 py-3 border-b">קטגוריה</th>
                         <th className="text-right px-4 py-3 border-b">קוד חשבון</th>
+                        <th className="text-right px-4 py-3 border-b">קוד מע"מ ITA</th>
                         <th className="text-left px-4 py-3 border-b">סה״כ הוצאה</th>
                         <th className="text-left px-4 py-3 border-b">% ניכוי</th>
                         <th className="text-left px-4 py-3 border-b">סכום מוכר</th>
@@ -373,6 +388,13 @@ export default function AnnualReportPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-slate-500 text-xs">{cat.account}xx</td>
+                          <td className="px-4 py-3">
+                            {ITA_VAT_CODES[cat.cat] && (
+                              <span className="inline-block text-xs px-1.5 py-0.5 rounded font-mono bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {ITA_VAT_CODES[cat.cat].code}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-left font-medium">₪{NIS(cat.total)}</td>
                           <td className="px-4 py-3 text-left">
                             <span className={`text-xs font-bold ${cat.deductible / cat.total >= 0.9 ? 'text-emerald-600' : cat.deductible / cat.total >= 0.5 ? 'text-amber-600' : 'text-red-600'}`}>
@@ -384,7 +406,7 @@ export default function AnnualReportPage() {
                         </tr>
                       ))}
                       <tr className="bg-slate-50 font-bold text-sm">
-                        <td className="px-4 py-3" colSpan={2}>סה״כ</td>
+                        <td className="px-4 py-3" colSpan={3}>סה״כ</td>
                         <td className="px-4 py-3 text-left">₪{NIS(s.total_expenses)}</td>
                         <td className="px-4 py-3 text-left">{s.total_expenses > 0 ? PCT((s.total_deductible / s.total_expenses) * 100) : '—'}</td>
                         <td className="px-4 py-3 text-left text-emerald-700">₪{NIS(s.total_deductible)}</td>
