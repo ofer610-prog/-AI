@@ -472,6 +472,16 @@ export default function AnnualReportPage() {
                     </div>
                   </div>
                 </div>
+                {/* Quick link to payroll calculator */}
+                <a href="/payroll-calculator" target="_blank"
+                  className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4 hover:bg-blue-100 transition">
+                  <span className="text-2xl">💰</span>
+                  <div>
+                    <div className="font-semibold text-blue-800 text-sm">מחשבון שכר ישראלי 2026</div>
+                    <div className="text-xs text-blue-600">ברוטו → נטו | מדרגות מס | ביטוח לאומי | זיכוי פנסיה 45א</div>
+                  </div>
+                  <span className="mr-auto text-blue-400">←</span>
+                </a>
                 {/* Monthly table for salary/pension/tax */}
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="bg-slate-100 px-5 py-3 font-semibold text-slate-700 text-sm">סיכום חודשי — שכר, פנסיה ומסים</div>
