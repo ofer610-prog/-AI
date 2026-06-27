@@ -73,6 +73,9 @@ export default function DashboardClient({
     { id: 'deadlines',     label: 'דדליינים' },
     isAdmin && { id: 'settings',  label: 'הגדרות' },
     isAdmin && { id: 'payroll_calc', label: '💰 מחשבון שכר', href: '/payroll-calculator' },
+    isAdmin && { id: 'tax_calendar', label: '📅 לוח מועדי מס', href: '/tax-calendar' },
+    isAdmin && { id: 'bank_import', label: '🏦 ייבוא בנק', href: '/bank-import' },
+    isAdmin && { id: 'receipts', label: '🧾 קבלות', href: '/expenses/receipts' },
   ].filter(Boolean);
 
   const gated = (content) => <PinGate title="הנהלת חשבונות וגבייה">{content}</PinGate>;
@@ -237,6 +240,23 @@ function Cockpit({ ctx, setTab }) {
             yearlyRevenue={income?.reduce((a, b) => a + Number(b.amount || 0), 0) || 0}
             year={new Date().getFullYear()}
           />
+
+          {/* Quick links to new tools */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { href: '/payroll-calculator', icon: '💰', label: 'מחשבון שכר', sub: 'ברוטו → נטו 2026' },
+              { href: '/tax-calendar', icon: '📅', label: 'לוח מועדי מס', sub: '32 מועדים 2026' },
+              { href: '/bank-import', icon: '🏦', label: 'ייבוא בנק', sub: 'CSV מכל הבנקים' },
+              { href: '/expenses/receipts', icon: '🧾', label: 'קבלות', sub: 'סריקה + שמירה' },
+            ].map(tool => (
+              <a key={tool.href} href={tool.href}
+                className="bg-white border border-sky-100 rounded-xl p-4 hover:border-sky-300 hover:shadow-sm transition-all text-right block">
+                <div className="text-2xl mb-1">{tool.icon}</div>
+                <div className="text-sm font-semibold text-slate-800">{tool.label}</div>
+                <div className="text-xs text-slate-400">{tool.sub}</div>
+              </a>
+            ))}
+          </div>
         </>
       )}
 

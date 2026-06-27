@@ -333,6 +333,11 @@ export default function ExpensesPage() {
             className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-sm px-4 py-2 rounded-xl">
             {uploading ? '⏳ מייבא…' : '⬆️ ייבוא אקסל'}
           </button>
+          <a href={`/api/office-expenses/export?year=${year}`}
+            className="bg-violet-600 hover:bg-violet-500 text-white text-sm px-4 py-2 rounded-xl whitespace-nowrap"
+            title="ייצא הוצאות לקובץ CSV לפתיחה ב-Excel">
+            📊 ייצוא CSV
+          </a>
           <button onClick={() => setShowReport(s => !s)}
             className="bg-blue-600 hover:bg-blue-500 text-sm px-4 py-2 rounded-xl">
             📤 דוח לרו"ח
