@@ -16,6 +16,7 @@ const DEFAULT = {
   employeeType: 'standard',
   employeeName: '',
   companyName: '',
+  includeKH: true,
   period: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })(),
 };
 
@@ -33,7 +34,7 @@ export default function PayrollCalculatorPage() {
       const r = await fetch('/api/payroll-calculator', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, grossCash: Number(form.grossCash), creditPoints: Number(form.creditPoints), shoviRechev: Number(form.shoviRechev), employeePensionPct: Number(form.employeePensionPct), employerPensionPct: Number(form.employerPensionPct), severancePct: Number(form.severancePct) }),
+        body: JSON.stringify({ ...form, grossCash: Number(form.grossCash), creditPoints: Number(form.creditPoints), shoviRechev: Number(form.shoviRechev), employeePensionPct: Number(form.employeePensionPct), employerPensionPct: Number(form.employerPensionPct), severancePct: Number(form.severancePct), includeKH: form.includeKH }),
       });
       setResult(await r.json());
       setShowPayslip(false);
@@ -102,6 +103,19 @@ export default function PayrollCalculatorPage() {
           <Field label="פנסיה עובד (%)" value={form.employeePensionPct} onChange={v => set('employeePensionPct', v)} type="number" step="0.5" hint="מינימום חוקי 6%" />
           <Field label="פנסיה מעסיק (%)" value={form.employerPensionPct} onChange={v => set('employerPensionPct', v)} type="number" step="0.5" hint="בד״כ 6.5%" />
           <Field label="פיצויים (%)" value={form.severancePct} onChange={v => set('severancePct', v)} type="number" step="0.01" hint="חוק: 8.33%" />
+          <div className="sm:col-span-2">
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.includeKH}
+                onChange={e => set('includeKH', e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-slate-700">
+                כלול קרן השתלמות (עובד 2.5% | מעסיק 7.5% | תקרת שכר מוכר 15,712 ₪/חודש)
+              </span>
+            </label>
+          </div>
         </div>
 
         <button onClick={calculate} disabled={loading}
@@ -187,7 +201,7 @@ function Row({ label, value, sub, bold, green, red, border }) {
 }
 
 function Results({ data }) {
-  const { input, tax, ni, pension, result } = data;
+  const { input, tax, ni, pension, kh, result } = data;
   return (
     <div className="space-y-4">
       {/* Main result */}
@@ -230,16 +244,28 @@ function Results({ data }) {
           <p className="text-xs text-slate-400 mt-2">עלות פנסיה מעסיק: ₪{fmt(pension.employer)} | פיצויים: ₪{fmt(pension.severance)}</p>
         </div>
 
+        {/* Keren Hishtalmut */}
+        {kh?.included && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-3">קרן השתלמות</h3>
+            <Row label="ניכוי עובד (2.5%)" value={fmt(kh.employee)} red />
+            <Row label="הפרשת מעסיק (7.5%)" value={fmt(kh.employer)} />
+            <p className="text-xs text-slate-400 mt-2">תקרת שכר מוכר: ₪{fmt(kh.ceiling)}/חודש | פטורה ממס הכנסה</p>
+          </div>
+        )}
+
         {/* Summary */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-800 mb-3">סיכום ניכויים</h3>
           <Row label="מס הכנסה" value={fmt(tax.incomeTax)} red />
           <Row label="ב״ל + בריאות (עובד)" value={fmt(ni.employee)} red />
           <Row label="פנסיה עובד" value={fmt(pension.employee)} red />
+          {kh?.included && kh.employee > 0 && <Row label="קרן השתלמות עובד (2.5%)" value={fmt(kh.employee)} red />}
           <Row label="סה״כ ניכויים" value={fmt(result.totalDeductions)} bold red border />
           <Row label="שכר נטו" value={fmt(result.netCash)} bold green border />
           <div className="mt-3 pt-3 border-t border-slate-100">
             <Row label="עלות מעסיק כוללת" value={fmt(result.employerCost)} bold />
+            {kh?.included && <p className="text-xs text-slate-400 mt-1">כולל ק"ה מעסיק: ₪{fmt(kh?.employer)}</p>}
           </div>
         </div>
       </div>
@@ -289,7 +315,7 @@ function PayslipRow({ label, value, bold, indent, separator, positive, negative 
 }
 
 function Payslip({ data, companyName, employeeName, period }) {
-  const { input, tax, ni, pension, result } = data;
+  const { input, tax, ni, pension, kh, result } = data;
   return (
     <div
       id="payslip"
@@ -336,6 +362,9 @@ function Payslip({ data, companyName, employeeName, period }) {
               <PayslipRow label="מס הכנסה" value={fmt(tax.incomeTax)} indent negative />
               <PayslipRow label='ביטוח לאומי + מס בריאות' value={fmt(ni.employee)} indent negative />
               <PayslipRow label={`ניכוי פנסיה (${input.employeePensionPct}%)`} value={fmt(pension.employee)} indent negative />
+              {kh?.included && kh.employee > 0 && (
+                <PayslipRow label="קרן השתלמות עובד (2.5%)" value={fmt(kh.employee)} indent negative />
+              )}
               <PayslipRow label='סה"כ ניכויים' value={fmt(result.totalDeductions)} bold negative separator />
 
               {/* נטו */}
@@ -363,6 +392,9 @@ function Payslip({ data, companyName, employeeName, period }) {
               <PayslipRow label={`פנסיה מעסיק (${input.employerPensionPct}%)`} value={fmt(pension.employer)} />
               <PayslipRow label={`פיצויים (${input.severancePct}%)`} value={fmt(pension.severance)} />
               <PayslipRow label='ביטוח לאומי מעסיק' value={fmt(ni.employer)} />
+              {kh?.included && kh.employer > 0 && (
+                <PayslipRow label="קרן השתלמות מעסיק (7.5%)" value={fmt(kh.employer)} />
+              )}
               <tr className="bg-slate-100">
                 <td className="py-2 text-sm font-bold text-slate-800 border-t-2 border-slate-400">עלות מעסיק כוללת</td>
                 <td className="py-2 text-sm font-bold text-slate-800 border-t-2 border-slate-400 text-left font-mono">

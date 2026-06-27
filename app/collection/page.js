@@ -12,6 +12,22 @@ const BUCKET_CONFIG = {
 const fmt = d => d ? new Date(d).toLocaleDateString('he-IL') : '—';
 const money = n => `₪${Number(n||0).toLocaleString('he-IL')}`;
 
+// Payment Ethics Law — 45 calendar days statutory due date when no due_date
+const PAYMENT_ETHICS_DAYS = 45;
+const SMALL_CLAIMS_CEILING = 39900;
+
+function getStatutoryDueDate(inv) {
+  if (inv.due_date) return new Date(inv.due_date);
+  if (!inv.issue_date) return null;
+  const d = new Date(inv.issue_date);
+  d.setDate(d.getDate() + PAYMENT_ETHICS_DAYS);
+  return d;
+}
+
+function isSmallClaims(amount) {
+  return Number(amount || 0) <= SMALL_CLAIMS_CEILING;
+}
+
 // Reminder stages from israeli-client-payment-chaser skill
 const STAGES = [
   { num: 1, label: 'שלב 1', sub: 'ידידותי', days: '≤30 יום', color: 'bg-amber-50 border-amber-300 text-amber-700', channel: 'whatsapp' },
@@ -289,11 +305,24 @@ export default function CollectionPage() {
                                 {inv.number ? `#${inv.number}` : 'ללא מספר'}
                                 {inv.notes ? <span className="text-slate-400 font-normal mr-2">— {inv.notes}</span> : ''}
                               </p>
-                              <p className="text-xs text-slate-400">
-                                פירעון: {fmt(inv.due_date)}
-                                {inv.daysLate > 0 && <span className="text-red-600 font-medium mr-2">({inv.daysLate} ימים)</span>}
-                                {sentDaysAgo !== null && <span className="mr-2">· תזכורת לפני {sentDaysAgo} ימים ({inv.reminder_count || 1}×)</span>}
+                              <p className="text-xs text-slate-400 flex flex-wrap gap-x-2 items-center">
+                                <span>פירעון: {fmt(inv.due_date) !== '—' ? fmt(inv.due_date) : `${fmt(getStatutoryDueDate(inv)?.toISOString()?.split('T')[0])} (חוק)`}</span>
+                                {!inv.due_date && <span className="text-amber-600 font-medium">⚖️ מועד סטטוטורי</span>}
+                                {inv.daysLate > 0 && <span className="text-red-600 font-medium">({inv.daysLate} ימים)</span>}
+                                {sentDaysAgo !== null && <span>· תזכורת לפני {sentDaysAgo} ימים ({inv.reminder_count || 1}×)</span>}
                               </p>
+                              <div className="flex gap-1.5 mt-0.5 flex-wrap">
+                                {isSmallClaims(inv.amount) && inv.daysLate > 30 && (
+                                  <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                    ⚖️ תביעות קטנות
+                                  </span>
+                                )}
+                                {!inv.due_date && (
+                                  <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
+                                    חוק אמצעי תשלום
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <p className="font-bold text-slate-900 flex-shrink-0">{money(inv.amount)}</p>
                             {inv.clients?.phone && (
@@ -339,7 +368,12 @@ export default function CollectionPage() {
                       <td className="px-4 py-3 text-slate-500">{m.case_number || m.title || '—'}</td>
                       <td className="px-4 py-3">{money(m.agreed_fee)}</td>
                       <td className="px-4 py-3 text-green-700">{money(m.collected_amount)}</td>
-                      <td className="px-4 py-3 font-bold text-red-700">{money(balance)}</td>
+                      <td className="px-4 py-3 font-bold text-red-700">
+                        {money(balance)}
+                        {isSmallClaims(balance) && balance > 0 && (
+                          <span className="mr-1.5 text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">⚖️ קטנות</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
                           {m.payment_status || 'פתוח'}

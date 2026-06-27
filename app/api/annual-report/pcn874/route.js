@@ -19,6 +19,33 @@ const MONTHS_HE = ['','ינואר','פברואר','מרץ','אפריל','מאי'
 const VAT_RATE = 0.18;
 const AGGREGATE_THRESHOLD = 5000; // NIS pre-VAT
 
+// Per-category VAT deductibility (% of input VAT that can be deducted)
+// vehicle 67%, telecom 50-100%, foreign software 0%, entertainment 0%, general 100%
+const SECTION_VAT_PCT = {
+  vehicle:       67,
+  telecom:       50,
+  software:       0, // foreign supplier — reverse charge, no local VAT input
+  entertainment:  0,
+  office:       100,
+  professional: 100,
+  insurance:      0,
+  rent:           0,
+  property:       0,
+  general:      100,
+};
+
+function sectionFromExpense(exp) {
+  // Map office_expenses.section to our category keys
+  const s = (exp.section || '').toLowerCase();
+  if (['vehicle','car','fuel','דלק'].some(k => s.includes(k))) return 'vehicle';
+  if (['telecom','phone','internet','mobile'].some(k => s.includes(k))) return 'telecom';
+  if (['software','cloud','saas'].some(k => s.includes(k))) return 'software';
+  if (['entertain','meals'].some(k => s.includes(k))) return 'entertainment';
+  if (['insurance'].some(k => s.includes(k))) return 'insurance';
+  if (['rent'].some(k => s.includes(k))) return 'rent';
+  return 'general';
+}
+
 export async function GET(request) {
   const profile = await requireAdmin();
   if (!profile) return new Response('Unauthorized', { status: 401 });
@@ -95,16 +122,23 @@ export async function GET(request) {
 
   // Input VAT (purchases) — office expenses
   rows.push([], ['--- מע"מ תשומות (קניות) ---']);
-  rows.push(['סוג','תיאור','חודש','סכום','מע"מ משוער (18%)','הערה']);
+  rows.push(['סוג','תיאור','חודש','סכום','מע"מ תשומות','% ניכוי','הערה']);
   for (const exp of expenses) {
     const amt = Number(exp.amount || 0);
-    const inputVat = amt * VAT_RATE * 0.8; // ~80% eligible per skill
-    rows.push(['P', exp.item_name, MONTHS_HE[exp.month], fmt(amt), fmt(inputVat), '~80% ניכוי']);
+    const section = sectionFromExpense(exp);
+    const vatPct = SECTION_VAT_PCT[section] ?? 100;
+    const inputVat = amt * VAT_RATE * (vatPct / 100);
+    const note = vatPct === 0 ? 'לא מוכר' : vatPct === 100 ? 'מוכר במלואו' : `${vatPct}% ניכוי`;
+    rows.push(['P', exp.item_name, MONTHS_HE[exp.month], fmt(amt), fmt(inputVat), `${vatPct}%`, note]);
   }
 
   // Totals
   const totalOutputVat = detailed.reduce((s, d) => s + d.vat, 0) + aggVat;
-  const totalInputVat = expenses.reduce((s, e) => s + Number(e.amount || 0) * VAT_RATE * 0.8, 0);
+  const totalInputVat = expenses.reduce((s, e) => {
+    const section = sectionFromExpense(e);
+    const vatPct = SECTION_VAT_PCT[section] ?? 100;
+    return s + Number(e.amount || 0) * VAT_RATE * (vatPct / 100);
+  }, 0);
   rows.push([], ['','','','','',
     'מע"מ עסקאות (פלט)', fmt(totalOutputVat), '',
   ]);

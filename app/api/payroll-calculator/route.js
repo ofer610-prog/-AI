@@ -31,6 +31,11 @@ const PENSION_CREDIT_SALARY_CEILING = 9700;
 const PENSION_CREDIT_RATE           = 0.35;
 const PENSION_CREDIT_PCT            = 0.07;
 
+// Keren Hishtalmut 2026 — recognized salary ceiling 15,712 NIS/month
+const KH_SALARY_CEILING  = 15712;
+const KH_EMPLOYEE_PCT    = 0.025;
+const KH_EMPLOYER_PCT    = 0.075;
+
 function calcTax(taxableGross) {
   let tax = 0;
   let prev = 0;
@@ -76,6 +81,7 @@ export async function POST(request) {
     employerPensionPct= 6.5,    // employer pension %
     severancePct      = 8.33,   // tzva'at pitzuyin %
     employeeType      = 'standard', // standard | under18 | pensioner
+    includeKH         = true,   // keren hishtalmut opt-in
   } = body;
 
   const gross = Number(grossCash);
@@ -102,12 +108,17 @@ export async function POST(request) {
   const severanceReserve  = gross * (Number(severancePct) / 100);
   const employerNI        = ni.employer;
 
+  // ── Keren Hishtalmut ────────────────────────────────────────────
+  const khBase = Math.min(gross, KH_SALARY_CEILING);
+  const khEmployee = includeKH ? khBase * KH_EMPLOYEE_PCT : 0;
+  const khEmployer = includeKH ? khBase * KH_EMPLOYER_PCT : 0;
+
   // ── Net ─────────────────────────────────────────────────────────
-  const totalDeductions = incomeTax + ni.employee + employeePension;
+  const totalDeductions = incomeTax + ni.employee + employeePension + khEmployee;
   const netCash = gross - totalDeductions;
 
   // ── Employer Cost ────────────────────────────────────────────────
-  const employerCost = gross + employerNI + employerPension + severanceReserve;
+  const employerCost = gross + employerNI + employerPension + severanceReserve + khEmployer;
 
   // ── Effective Rates ──────────────────────────────────────────────
   const effectiveTaxRate = taxableGross > 0 ? (incomeTax / taxableGross) * 100 : 0;
@@ -132,6 +143,12 @@ export async function POST(request) {
       employer: round(employerPension),
       severance: round(severanceReserve),
       credit: round(pensionCredit),
+    },
+    kh: {
+      employee: round(khEmployee),
+      employer: round(khEmployer),
+      included: includeKH,
+      ceiling: KH_SALARY_CEILING,
     },
     result: {
       netCash: round(netCash),

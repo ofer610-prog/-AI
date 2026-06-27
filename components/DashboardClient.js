@@ -1290,23 +1290,23 @@ function AIAdvisor({ ctx, onClose, profile }) {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:left-6 md:bottom-6 md:right-auto md:w-[420px] h-[600px] max-h-[80vh] bg-white border border-sky-200 rounded-t-xl md:rounded-xl shadow-2xl z-40 flex flex-col">
+    <div dir="rtl" className="fixed bottom-0 left-0 right-0 md:right-6 md:bottom-6 md:left-auto md:w-[420px] h-[600px] max-h-[80vh] bg-white border border-sky-200 rounded-t-xl md:rounded-xl shadow-2xl z-40 flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-sky-100 bg-slate-800 text-white rounded-t-xl">
         <div className="flex items-center gap-2"><Sparkles className="w-4 h-4" /><span className="font-semibold text-sm">יועץ AI</span></div>
         <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] px-4 py-2.5 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-slate-800 text-white' : 'bg-sky-50'}`}>{m.content}</div>
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] px-4 py-2.5 rounded-lg text-sm whitespace-pre-wrap text-right ${m.role === 'user' ? 'bg-slate-800 text-white rounded-tl-none' : 'bg-sky-50 text-slate-800 rounded-tr-none'}`}>{m.content}</div>
           </div>
         ))}
-        {sending && <div className="flex justify-end"><div className="bg-sky-50 text-slate-500 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> חושב...</div></div>}
+        {sending && <div className="flex justify-start"><div className="bg-sky-50 text-slate-500 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> חושב...</div></div>}
         <div ref={endRef} />
       </div>
       <div className="border-t border-sky-100 p-3">
         <div className="flex gap-2">
-          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="שאל אותי..." rows={2} className="flex-1 px-3 py-2 border border-sky-200 rounded-md text-sm resize-none focus:outline-none focus:border-sky-600" />
+          <textarea dir="rtl" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="שאל אותי..." rows={2} className="flex-1 px-3 py-2 border border-sky-200 rounded-md text-sm resize-none focus:outline-none focus:border-sky-600 text-right" />
           <button onClick={send} disabled={sending || !input.trim()} className="px-3 bg-slate-800 text-white rounded-md disabled:opacity-50"><Send className="w-4 h-4" /></button>
         </div>
       </div>
