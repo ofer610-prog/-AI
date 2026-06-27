@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import PinGate from '@/components/PinGate';
+import OsekPaturMonitor from '@/components/OsekPaturMonitor';
 import {
   fmt, fmtMoney, daysBetween, today, getDeadlines, agingBucket, forecastTaxes,
   getGreeting, MATTER_TYPES, MATTER_STATUS, ROLE_LABELS, DEFAULT_RATES,
@@ -232,6 +233,10 @@ function Cockpit({ ctx, setTab }) {
               <div><div className="text-xs text-slate-500 mb-1">סה״כ ל-3 חודשים</div><div className="text-2xl font-bold">{fmtMoney(forecast.next3Months)}</div></div>
             </div>
           </div>
+          <OsekPaturMonitor
+            yearlyRevenue={income?.reduce((a, b) => a + Number(b.amount || 0), 0) || 0}
+            year={new Date().getFullYear()}
+          />
         </>
       )}
 

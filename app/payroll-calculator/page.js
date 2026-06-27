@@ -4,6 +4,8 @@ import { useState } from 'react';
 const fmt = (n) => n?.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—';
 const fmtN = (n) => n?.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—';
 
+const MONTHS_HE = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+
 const DEFAULT = {
   grossCash: 15000,
   creditPoints: 2.25,
@@ -12,12 +14,16 @@ const DEFAULT = {
   employerPensionPct: 6.5,
   severancePct: 8.33,
   employeeType: 'standard',
+  employeeName: '',
+  companyName: '',
+  period: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })(),
 };
 
 export default function PayrollCalculatorPage() {
   const [form, setForm] = useState(DEFAULT);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showPayslip, setShowPayslip] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -30,13 +36,35 @@ export default function PayrollCalculatorPage() {
         body: JSON.stringify({ ...form, grossCash: Number(form.grossCash), creditPoints: Number(form.creditPoints), shoviRechev: Number(form.shoviRechev), employeePensionPct: Number(form.employeePensionPct), employerPensionPct: Number(form.employerPensionPct), severancePct: Number(form.severancePct) }),
       });
       setResult(await r.json());
+      setShowPayslip(false);
     } finally {
       setLoading(false);
     }
   }
 
+  function handlePrint() {
+    setShowPayslip(true);
+    setTimeout(() => window.print(), 150);
+  }
+
+  // Parse period for display
+  const periodDisplay = (() => {
+    if (!form.period) return '';
+    const [y, m] = form.period.split('-');
+    return `${MONTHS_HE[parseInt(m,10)-1]} ${y}`;
+  })();
+
   return (
     <div className="min-h-screen bg-slate-50" dir="rtl">
+      {/* Print-only CSS injected via style tag */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #payslip, #payslip * { visibility: visible; }
+          #payslip { position: fixed; top: 0; right: 0; width: 100%; }
+        }
+      `}</style>
+
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">מחשבון שכר ישראלי 2026</h1>
@@ -45,6 +73,18 @@ export default function PayrollCalculatorPage() {
 
         {/* Inputs */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {/* Payslip metadata fields */}
+          <Field label="שם חברה / מעסיק" value={form.companyName} onChange={v => set('companyName', v)} placeholder="לדוגמה: משרד עו״ד כהן ושות׳" />
+          <Field label="שם עובד" value={form.employeeName} onChange={v => set('employeeName', v)} placeholder="שם מלא" />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">תקופת שכר</label>
+            <input
+              type="month"
+              value={form.period}
+              onChange={e => set('period', e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <Field label="שכר ברוטו (₪/חודש)" value={form.grossCash} onChange={v => set('grossCash', v)} type="number" />
           <Field label="נקודות זיכוי" value={form.creditPoints} onChange={v => set('creditPoints', v)} type="number" step="0.25"
             hint="גבר תושב: 2.25 | אישה: 2.75 | עולה חדש: 5.25" />
@@ -69,7 +109,46 @@ export default function PayrollCalculatorPage() {
           {loading ? 'מחשב...' : 'חשב שכר'}
         </button>
 
-        {result && <Results data={result} />}
+        {result && (
+          <>
+            <Results data={result} />
+            <div className="flex gap-3">
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm"
+              >
+                🖨️ הדפס תלוש
+              </button>
+              <button
+                onClick={() => setShowPayslip(v => !v)}
+                className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold px-5 py-2.5 rounded-xl transition text-sm"
+              >
+                {showPayslip ? '🙈 הסתר תלוש' : '👁️ הצג תלוש'}
+              </button>
+            </div>
+
+            {showPayslip && (
+              <Payslip
+                data={result}
+                companyName={form.companyName}
+                employeeName={form.employeeName}
+                period={periodDisplay}
+              />
+            )}
+          </>
+        )}
+
+        {/* Hidden payslip rendered for printing even when not shown in UI */}
+        {result && !showPayslip && (
+          <div className="hidden print:block">
+            <Payslip
+              data={result}
+              companyName={form.companyName}
+              employeeName={form.employeeName}
+              period={periodDisplay}
+            />
+          </div>
+        )}
 
         <div className="text-xs text-slate-400 text-center pb-4">
           מחשבון זה מבוסס על תקנות 2026 (תיקון 288 למס הכנסה, תיקון 252 לביטוח לאומי). אינו מהווה ייעוץ מקצועי.
@@ -79,7 +158,7 @@ export default function PayrollCalculatorPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', step, hint }) {
+function Field({ label, value, onChange, type = 'text', step, hint, placeholder }) {
   return (
     <div>
       <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -87,6 +166,7 @@ function Field({ label, value, onChange, type = 'text', step, hint }) {
         type={type}
         step={step}
         value={value}
+        placeholder={placeholder}
         onChange={e => onChange(e.target.value)}
         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
@@ -188,6 +268,132 @@ function Results({ data }) {
           </tbody>
         </table>
       </details>
+    </div>
+  );
+}
+
+// ─── Payslip (תלוש שכר) ──────────────────────────────────────────────────────
+
+function PayslipRow({ label, value, bold, indent, separator, positive, negative }) {
+  return (
+    <>
+      {separator && <tr><td colSpan={2} className="py-0"><div className="border-t border-slate-300 my-1" /></td></tr>}
+      <tr className={bold ? 'font-bold bg-slate-50' : ''}>
+        <td className={`py-1.5 text-sm border-b border-slate-100 ${indent ? 'pr-6' : ''}`}>{label}</td>
+        <td className={`py-1.5 text-sm border-b border-slate-100 text-left font-mono ${positive ? 'text-emerald-700' : negative ? 'text-red-600' : 'text-slate-800'}`}>
+          {positive && '+'}{negative && '-'}₪{value}
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function Payslip({ data, companyName, employeeName, period }) {
+  const { input, tax, ni, pension, result } = data;
+  return (
+    <div
+      id="payslip"
+      dir="rtl"
+      className="bg-white border-2 border-slate-300 rounded-xl p-6 text-slate-800 font-sans"
+      style={{ fontFamily: 'Arial, sans-serif' }}
+    >
+      {/* Header */}
+      <div className="border-b-2 border-slate-400 pb-4 mb-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{companyName || 'שם החברה'}</h2>
+            <p className="text-sm text-slate-500 mt-0.5">תלוש שכר — {period || 'תקופה לא צוינה'}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-500 uppercase tracking-wider">עובד</p>
+            <p className="text-base font-semibold">{employeeName || 'שם העובד'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left: Employee deductions */}
+        <div>
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th colSpan={2} className="text-right text-xs font-semibold uppercase tracking-wider text-white bg-slate-700 px-3 py-1.5 rounded-t">
+                  הכנסות וניכויים
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* הכנסות */}
+              <tr className="bg-slate-100"><td colSpan={2} className="text-xs font-bold text-slate-600 py-1 pr-1">הכנסות</td></tr>
+              <PayslipRow label="שכר בסיס" value={fmt(input.grossCash)} indent positive />
+              {input.shoviRechev > 0 && (
+                <PayslipRow label="שווי רכב" value={fmt(input.shoviRechev)} indent positive />
+              )}
+              <PayslipRow label='סה"כ ברוטו' value={fmt(input.taxableGross ?? input.grossCash)} bold positive />
+
+              {/* ניכויים */}
+              <tr className="bg-slate-100"><td colSpan={2} className="text-xs font-bold text-slate-600 py-1 pr-1 pt-3">ניכויים</td></tr>
+              <PayslipRow label="מס הכנסה" value={fmt(tax.incomeTax)} indent negative />
+              <PayslipRow label='ביטוח לאומי + מס בריאות' value={fmt(ni.employee)} indent negative />
+              <PayslipRow label={`ניכוי פנסיה (${input.employeePensionPct}%)`} value={fmt(pension.employee)} indent negative />
+              <PayslipRow label='סה"כ ניכויים' value={fmt(result.totalDeductions)} bold negative separator />
+
+              {/* נטו */}
+              <tr className="bg-emerald-50">
+                <td className="py-2 text-sm font-bold text-emerald-800 border-t-2 border-emerald-400">שכר נטו לתשלום</td>
+                <td className="py-2 text-sm font-bold text-emerald-800 border-t-2 border-emerald-400 text-left font-mono">
+                  ₪{fmt(result.netCash)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Right: Employer portion */}
+        <div>
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th colSpan={2} className="text-right text-xs font-semibold uppercase tracking-wider text-white bg-slate-600 px-3 py-1.5 rounded-t">
+                  חלק מעסיק (לידיעה)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <PayslipRow label={`פנסיה מעסיק (${input.employerPensionPct}%)`} value={fmt(pension.employer)} />
+              <PayslipRow label={`פיצויים (${input.severancePct}%)`} value={fmt(pension.severance)} />
+              <PayslipRow label='ביטוח לאומי מעסיק' value={fmt(ni.employer)} />
+              <tr className="bg-slate-100">
+                <td className="py-2 text-sm font-bold text-slate-800 border-t-2 border-slate-400">עלות מעסיק כוללת</td>
+                <td className="py-2 text-sm font-bold text-slate-800 border-t-2 border-slate-400 text-left font-mono">
+                  ₪{fmt(result.employerCost)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Summary box */}
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs space-y-1">
+            <div className="flex justify-between">
+              <span className="text-slate-500">שיעור מס אפקטיבי:</span>
+              <span className="font-mono font-semibold">{fmtN(tax.effectiveTaxRate)}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">זיכוי נקודות זיכוי:</span>
+              <span className="font-mono font-semibold">₪{fmt(tax.creditPointsDeduction)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">זיכוי 45א (פנסיה):</span>
+              <span className="font-mono font-semibold">₪{fmt(tax.pensionCredit)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-slate-300 mt-5 pt-3 text-center text-xs text-slate-400">
+        תלוש זה הופק ע&quot;י מחשבון שכר | אינו מסמך חשבונאי רשמי
+      </div>
     </div>
   );
 }
