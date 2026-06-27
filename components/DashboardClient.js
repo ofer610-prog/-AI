@@ -71,6 +71,7 @@ export default function DashboardClient({
     isAdmin && { id: 'team',      label: 'צוות' },
     { id: 'deadlines',     label: 'דדליינים' },
     isAdmin && { id: 'settings',  label: 'הגדרות' },
+    isAdmin && { id: 'payroll_calc', label: '💰 מחשבון שכר', href: '/payroll-calculator' },
   ].filter(Boolean);
 
   const gated = (content) => <PinGate title="הנהלת חשבונות וגבייה">{content}</PinGate>;
