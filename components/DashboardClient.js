@@ -404,12 +404,27 @@ function KPI({ label, value, icon: Icon, accent = 'sky', subtext }) {
 }
 
 // ============================================================================
-// Gmail Panel — review pending items, connect Gmail
+// Gmail Panel — review pending items, connect Gmail + Outlook
 // ============================================================================
+
+/** Parse a markdown-style link from ai_notes: [text](url) | preview */
+function parseAiNotesLink(aiNotes = '') {
+  if (!aiNotes.startsWith('[')) return { url: null, preview: aiNotes };
+  const linkMatch = aiNotes.match(/^\[([^\]]*)\]\(([^)]+)\)\s*\|?\s*([\s\S]*)$/);
+  if (!linkMatch) return { url: null, preview: aiNotes };
+  return { url: linkMatch[2], preview: linkMatch[3].trim() };
+}
+
 function GmailPanel({ ctx, onRefresh }) {
   const { gmailPending, organization } = ctx;
   const [syncing, setSyncing] = useState(false);
+  const [subTab, setSubTab] = useState('gmail');
+  const [outlookScanning, setOutlookScanning] = useState(false);
   const supabase = createClient();
+
+  // Split items by source
+  const gmailItems   = gmailPending.filter(i => !i.gmail_message_id?.startsWith('outlook_'));
+  const outlookItems = gmailPending.filter(i =>  i.gmail_message_id?.startsWith('outlook_'));
 
   const connectGmail = () => {
     window.location.href = '/api/auth/google/connect';
@@ -428,7 +443,42 @@ function GmailPanel({ ctx, onRefresh }) {
     setSyncing(false);
   };
 
+  const triggerOutlookScan = async () => {
+    setOutlookScanning(true);
+    try {
+      const res = await fetch('/api/cron/scan-outlook?days=90', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) alert('שגיאה: ' + data.error);
+      else alert(`סריקת Outlook הושלמה: ${data.pending_review || 0} ממתינות לסיווג`);
+      onRefresh();
+    } catch (e) { alert('שגיאה: ' + e.message); }
+    setOutlookScanning(false);
+  };
+
   const approveItem = async (item) => {
+    // Outlook items → expense_documents
+    if (item.gmail_message_id?.startsWith('outlook_')) {
+      await supabase.from('expense_documents').insert({
+        organization_id: organization.id,
+        gmail_message_id: item.gmail_message_id,
+        vendor: item.extracted_description || item.from_email,
+        amount: item.extracted_amount,
+        doc_date: item.extracted_date || item.date?.slice(0, 10),
+        expense_year: new Date(item.extracted_date || item.date).getFullYear(),
+        expense_month_num: new Date(item.extracted_date || item.date).getMonth() + 1,
+        expense_item: item.extracted_description || item.subject,
+        expense_section: 'office',
+        category: item.classification === 'salary' ? 'salary' : 'office',
+        description: item.subject,
+        status: 'approved',
+        file_name: item.subject,
+      });
+      await supabase.from('gmail_processed').update({ status: 'imported' }).eq('id', item.id);
+      onRefresh();
+      return;
+    }
+
+    // Gmail items → existing logic
     const targetTable = item.classification === 'bank-notification' ? 'bank_transactions'
       : item.extracted_amount && (item.classification === 'invoice') ? 'expense'
       : 'income';
@@ -459,6 +509,62 @@ function GmailPanel({ ctx, onRefresh }) {
   const ignoreItem = async (item) => {
     await supabase.from('gmail_processed').update({ status: 'ignored' }).eq('id', item.id);
     onRefresh();
+  };
+
+  const renderItemCard = (item) => {
+    const isOutlook = item.gmail_message_id?.startsWith('outlook_');
+    const sourceBadge = isOutlook ? '📬' : '📧';
+
+    // Parse link from ai_notes
+    const { url: emailUrl, preview: bodyPreview } = parseAiNotesLink(item.ai_notes || '');
+
+    // For Gmail items, build Gmail link if no link in ai_notes
+    const gmailUrl = !isOutlook && !emailUrl && item.gmail_message_id
+      ? `https://mail.google.com/mail/#all/${item.gmail_message_id}`
+      : null;
+
+    const linkUrl   = emailUrl || gmailUrl;
+    const linkLabel = isOutlook ? '🔗 פתח מייל' : '🔗 פתח ב-Gmail';
+
+    return (
+      <div key={item.id} className="bg-white border border-sky-100 rounded-lg p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-base">{sourceBadge}</span>
+              <span className="text-xs px-2 py-0.5 bg-sky-50 rounded">{item.classification}</span>
+              <span className="text-xs text-slate-500">דיוק: {item.ai_confidence}</span>
+              <span className="text-xs text-slate-400">{fmt(item.date)}</span>
+              {linkUrl && (
+                <a
+                  href={linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {linkLabel}
+                </a>
+              )}
+            </div>
+            <div className="text-sm font-medium">{item.subject}</div>
+            <div className="text-xs text-slate-500 mt-1">מאת: {item.from_email}</div>
+            {item.extracted_amount && (
+              <div className="mt-2 text-sm">
+                <span className="font-semibold">{fmtMoney(item.extracted_amount)}</span>
+                {item.extracted_description && <span className="text-slate-600"> • {item.extracted_description}</span>}
+              </div>
+            )}
+            {bodyPreview && (
+              <div className="text-xs text-slate-400 italic mt-1 truncate max-w-xs">{bodyPreview}</div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <button onClick={() => approveItem(item)} className="px-3 py-1 bg-emerald-700 text-white text-xs rounded">אשר וייבא</button>
+            <button onClick={() => ignoreItem(item)} className="px-3 py-1 bg-sky-50 text-slate-700 text-xs rounded">דלג</button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -498,38 +604,56 @@ function GmailPanel({ ctx, onRefresh }) {
         </div>
       )}
 
-      {gmailPending.length === 0 ? (
-        <div className="bg-white border border-sky-100 rounded-lg p-8 text-center text-slate-400">
-          {organization.gmail_connected ? 'אין פריטים שדורשים אישור' : 'חבר את Gmail כדי להתחיל'}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {gmailPending.map(item => (
-            <div key={item.id} className="bg-white border border-sky-100 rounded-lg p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs px-2 py-0.5 bg-sky-50 rounded">{item.classification}</span>
-                    <span className="text-xs text-slate-500">דיוק: {item.ai_confidence}</span>
-                    <span className="text-xs text-slate-400">{fmt(item.date)}</span>
-                  </div>
-                  <div className="text-sm font-medium">{item.subject}</div>
-                  <div className="text-xs text-slate-500 mt-1">מאת: {item.from_email}</div>
-                  {item.extracted_amount && (
-                    <div className="mt-2 text-sm">
-                      <span className="font-semibold">{fmtMoney(item.extracted_amount)}</span>
-                      {item.extracted_description && <span className="text-slate-600"> • {item.extracted_description}</span>}
-                    </div>
-                  )}
-                  {item.ai_notes && <div className="text-xs text-slate-400 italic mt-1">{item.ai_notes}</div>}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button onClick={() => approveItem(item)} className="px-3 py-1 bg-emerald-700 text-white text-xs rounded">אשר וייבא</button>
-                  <button onClick={() => ignoreItem(item)} className="px-3 py-1 bg-sky-50 text-slate-700 text-xs rounded">דלג</button>
-                </div>
-              </div>
+      {/* Sub-tabs: Gmail / Outlook */}
+      <div className="flex border-b border-slate-200 gap-1">
+        <button
+          onClick={() => setSubTab('gmail')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab === 'gmail' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          📧 Gmail ({gmailItems.length})
+        </button>
+        <button
+          onClick={() => setSubTab('outlook')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab === 'outlook' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          📬 Outlook ({outlookItems.length})
+        </button>
+      </div>
+
+      {/* Gmail sub-tab */}
+      {subTab === 'gmail' && (
+        gmailItems.length === 0 ? (
+          <div className="bg-white border border-sky-100 rounded-lg p-8 text-center text-slate-400">
+            {organization.gmail_connected ? 'אין פריטים שדורשים אישור ב-Gmail' : 'חבר את Gmail כדי להתחיל'}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {gmailItems.map(item => renderItemCard(item))}
+          </div>
+        )
+      )}
+
+      {/* Outlook sub-tab */}
+      {subTab === 'outlook' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={triggerOutlookScan}
+              disabled={outlookScanning}
+              className="px-4 py-2 bg-indigo-700 text-white text-sm rounded-md flex items-center gap-2 disabled:opacity-50 hover:bg-indigo-800"
+            >
+              {outlookScanning ? '⏳ סורק...' : '📬 סרוק Outlook (90 יום)'}
+            </button>
+          </div>
+          {outlookItems.length === 0 ? (
+            <div className="bg-white border border-sky-100 rounded-lg p-8 text-center text-slate-400">
+              אין פריטים מ-Outlook שדורשים אישור
             </div>
-          ))}
+          ) : (
+            <div className="space-y-2">
+              {outlookItems.map(item => renderItemCard(item))}
+            </div>
+          )}
         </div>
       )}
     </div>
