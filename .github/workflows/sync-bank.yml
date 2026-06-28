@@ -7,11 +7,14 @@ name: Sync Bank Transactions
 # - The API authenticates with CRON_SECRET (not bank credentials)
 
 on:
-  schedule:
-    # 3x per day — 07:00, 13:00, 17:00 UTC (10:00, 16:00, 20:00 Israel)
-    - cron: '0 7 * * *'
-    - cron: '0 13 * * *'
-    - cron: '0 17 * * *'
+  # Automatic bank scraping is DISABLED by request (security: no stored bank
+  # credentials). The firm uploads a weekly עו"ש Excel/CSV via the Finance page
+  # instead (/api/bank/import-csv → reconciliation alerts). The scraper remains
+  # available for manual runs only; re-enable the schedule below if ever needed.
+  # schedule:
+  #   - cron: '0 7 * * *'
+  #   - cron: '0 13 * * *'
+  #   - cron: '0 17 * * *'
   workflow_dispatch:
     inputs:
       days_back:

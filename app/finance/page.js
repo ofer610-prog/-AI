@@ -938,18 +938,17 @@ function BankImportModal({ onClose, onImported }) {
         </div>
         <div className="p-6">
           <div className="bg-indigo-50 rounded-lg p-4 text-sm text-indigo-800 mb-4 space-y-1">
-            <p className="font-medium">פורמטים נתמכים:</p>
+            <p className="font-medium">העלה דף עו"ש שבועי (Excel או CSV):</p>
             <ul className="list-disc list-inside text-xs space-y-0.5 text-indigo-700">
-              <li>בנק הפועלים — CSV מהאזור האישי</li>
-              <li>לאומי — קובץ גיליון תנועות</li>
-              <li>דיסקונט / מזרחי טפחות / אוצר החייל</li>
-              <li>כל CSV עם עמודות תאריך + זכות/חובה</li>
+              <li>פועלים · לאומי · דיסקונט · מזרחי טפחות · אוצר החייל</li>
+              <li>קובץ Excel ‎(.xlsx/.xls)‎ או CSV — ייצוא תנועות עו"ש מהבנק</li>
+              <li>כל קובץ עם עמודות תאריך + זכות/חובה</li>
             </ul>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded">{error}</div>}
             <label className="block">
-              <span className="text-xs text-slate-500 mb-1 block">בחר קובץ CSV *</span>
+              <span className="text-xs text-slate-500 mb-1 block">בחר קובץ עו"ש (Excel או CSV) *</span>
               <input
                 type="file"
                 accept=".csv,.txt,.xls,.xlsx"
@@ -958,8 +957,8 @@ function BankImportModal({ onClose, onImported }) {
               />
             </label>
             <p className="text-xs text-slate-400">
-              המערכת תזהה אוטומטית את פורמט הבנק, תייבא הכנסות (זיכויים) ותסמן אותן לבדיקה.
-              תנועות כפולות ידולגו.
+              המערכת תזהה אוטומטית את פורמט הבנק, תייבא הכנסות (זיכויים) ותתריע על
+              הכנסות שאין להן חשבונית תואמת. תנועות כפולות ידולגו.
             </p>
             <div className="flex gap-3 pt-2">
               <button
