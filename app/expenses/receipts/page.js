@@ -163,7 +163,7 @@ export default function ReceiptsPage() {
   const resultText = result?.error
     ? result.error
     : result?._outlook
-      ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. יובאו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}.`
+      ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. נוספו חדשים: ${result.pending_review || 0}. סה״כ בתור לסיווג: ${result.total_queue ?? '?'}.`
       : result?._deep
         ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
         : result
@@ -254,7 +254,16 @@ export default function ReceiptsPage() {
             </div>
           </div>
         )}
-        {resultText && <div className={`rounded-2xl p-4 border ${result?.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>{resultText}</div>}
+        {resultText && (
+          <div className={`rounded-2xl p-4 border ${result?.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+            {resultText}
+            {result?._outlook && (result?.total_queue > 0) && (
+              <a href="/dashboard?tab=gmail" className="block mt-2 text-sm font-semibold underline text-indigo-700">
+                ← עבור לדשבורד לסיווג {result.total_queue} פריטים
+              </a>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card title="מסמכים" value={rows.length} />

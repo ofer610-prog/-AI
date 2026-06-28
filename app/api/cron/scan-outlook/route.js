@@ -55,7 +55,11 @@ export async function POST(request) {
 
   try {
     const result = await scanOutlookOrg(sb, org, days);
-    return Response.json({ ok: true, days, ...result });
+    const { count: totalQueue } = await sb.from('gmail_processed')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', org.id)
+      .eq('status', 'pending-review');
+    return Response.json({ ok: true, days, total_queue: totalQueue || 0, ...result });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
