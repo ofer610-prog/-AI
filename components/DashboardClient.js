@@ -18,8 +18,8 @@ import {
 } from '@/lib/helpers';
 
 export default function DashboardClient({
-  profile, organization, clients, matters, income, expense, invoices,
-  timesheet, team, alerts, gmailPending,
+  profile, organization, clients, matters, income = [], expense = [], invoices = [],
+  timesheet = [], team = [], alerts = [], gmailPending = [],
 }) {
   const [tab, setTab] = useState('cockpit');
   const [chatOpen, setChatOpen] = useState(false);
@@ -237,7 +237,7 @@ function Cockpit({ ctx, setTab }) {
             </div>
           </div>
           <OsekPaturMonitor
-            yearlyRevenue={income?.reduce((a, b) => a + Number(b.amount || 0), 0) || 0}
+            yearlyRevenue={income.reduce((a, b) => a + Number(b.amount || 0), 0)}
             year={new Date().getFullYear()}
           />
 
