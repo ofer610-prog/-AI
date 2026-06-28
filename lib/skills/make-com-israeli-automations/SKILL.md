@@ -246,9 +246,10 @@ The advance payment is typically a percentage of revenue set by the Tax Authorit
 
 **Annual Reporting**
 
-Annual tax return deadlines vary by filing method:
-- Online filing: April 30
-- Accountant filing: extended to May 31 or later (varies by year)
+Annual tax return deadlines vary by filing method (individuals/עוסקים):
+- Paper filing: May 31
+- Online filing: June 30
+- Accountant (מייצג) clients: extended further under the representatives' arrangement (מועד הארכות), often into the following year — varies annually
 
 For annual automations, schedule a scenario to run on January 1 that aggregates the previous year's data.
 

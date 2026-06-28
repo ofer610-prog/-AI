@@ -19,7 +19,12 @@ export async function GET(request) {
     .order('charge_date', { ascending: false });
 
   if (status) q = q.eq('alert_status', status);
-  if (month) q = q.gte('charge_date', `${month}-01`).lte('charge_date', `${month}-31`);
+  if (month) {
+    // Upper bound = first day of the next month (avoids invalid dates like 2026-02-31)
+    const [y, m] = month.split('-').map(Number);
+    const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    q = q.gte('charge_date', `${month}-01`).lt('charge_date', next);
+  }
 
   const { data, error } = await q;
   if (error) return Response.json({ error: error.message }, { status: 500 });

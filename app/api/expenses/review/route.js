@@ -53,10 +53,12 @@ export async function PATCH(request) {
     if (vendor) updates.vendor = vendor;
     if (amount !== undefined) updates.amount = Number(amount);
     if (doc_date) {
+      // Derive year/month by string slicing — new Date('YYYY-MM-DD') parses as
+      // UTC and would shift the month on servers west of UTC.
       updates.doc_date = doc_date;
       updates.month = doc_date.slice(0, 7);
-      updates.expense_year = new Date(doc_date).getFullYear();
-      updates.expense_month_num = new Date(doc_date).getMonth() + 1;
+      updates.expense_year = Number(doc_date.slice(0, 4));
+      updates.expense_month_num = Number(doc_date.slice(5, 7));
     }
 
     const { data: doc, error } = await sb.from('expense_documents')

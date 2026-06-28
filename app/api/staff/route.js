@@ -1,13 +1,12 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin as requireAdminProfile } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
+// Gate on the shared role-checking helper (admin/accountant only), then expose
+// the service client + orgId in the shape the handlers below expect.
 async function requireAdmin() {
-  const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await sb
-    .from('profiles').select('id, organization_id, role, full_name').eq('id', user.id).single();
+  const profile = await requireAdminProfile();
   if (!profile) return null;
   return { sb: createServiceClient(), profile, orgId: profile.organization_id };
 }

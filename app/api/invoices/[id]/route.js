@@ -1,22 +1,15 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin, forbidden } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
-async function getOrgId(supabase) {
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('id')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single();
-  return org?.id || null;
-}
-
 export async function GET(request, { params }) {
+  const profile = await requireAdmin();
+  if (!profile) return forbidden();
   const supabase = createServiceClient();
   const { id } = await params;
 
-  const orgId = await getOrgId(supabase);
+  const orgId = profile.organization_id;
   if (!orgId) return Response.json({ error: 'No organization' }, { status: 404 });
 
   const { data, error } = await supabase
@@ -32,11 +25,13 @@ export async function GET(request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const profile = await requireAdmin();
+  if (!profile) return forbidden();
   const supabase = createServiceClient();
   const { id } = await params;
   const body = await request.json();
 
-  const orgId = await getOrgId(supabase);
+  const orgId = profile.organization_id;
   if (!orgId) return Response.json({ error: 'No organization' }, { status: 404 });
 
   const allowed = ['status', 'notes', 'due_date', 'paid_date', 'amount'];
@@ -60,10 +55,12 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const profile = await requireAdmin();
+  if (!profile) return forbidden();
   const supabase = createServiceClient();
   const { id } = await params;
 
-  const orgId = await getOrgId(supabase);
+  const orgId = profile.organization_id;
   if (!orgId) return Response.json({ error: 'No organization' }, { status: 404 });
 
   const { error } = await supabase

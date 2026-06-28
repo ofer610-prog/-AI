@@ -26,7 +26,6 @@ export async function GET(request) {
     .from('events')
     .select('id, title, start_time, attendee_name, attendee_phone, location, event_type, organization_id, organizations(name)')
     .is('reminder_sent', null)
-    .neq('reminder_sent', true)
     .gte('start_time', from.toISOString())
     .lte('start_time', to.toISOString());
 
