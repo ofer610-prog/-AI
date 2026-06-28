@@ -101,6 +101,14 @@ export default function AppNav() {
               }`}>
               📅 מס
             </Link>
+            <Link href="/annual-report"
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
+                isActive('/annual-report')
+                  ? 'bg-indigo-500 border-indigo-400 text-white font-bold'
+                  : 'border-indigo-500/60 text-indigo-300 hover:bg-indigo-500 hover:text-white'
+              }`}>
+              📊 דוח שנתי
+            </Link>
             <Link href="/command"
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border ${
                 isActive('/command') || isActive('/finance') || isActive('/expenses')

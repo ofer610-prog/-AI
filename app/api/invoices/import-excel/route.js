@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdmin, forbidden } from '@/lib/adminAuth';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
@@ -169,6 +170,9 @@ function mapRow(row, mapping) {
 // --- Route ---------------------------------------------------------------
 
 export async function POST(request) {
+  const profile = await requireAdmin();
+  if (!profile) return forbidden();
+
   const { searchParams } = new URL(request.url);
   const previewOnly = searchParams.get('preview') === 'true';
 
@@ -229,11 +233,10 @@ export async function POST(request) {
 
     // --- Import mode ---
     const sb = createServiceClient();
-    const { data: orgs, error: orgErr } = await sb.from('organizations').select('id').order('created_at', { ascending: true });
-    if (orgErr || !orgs || !orgs.length) {
+    const orgId = profile.organization_id;
+    if (!orgId) {
       return Response.json({ success: false, error: 'לא נמצא ארגון במערכת' }, { status: 404 });
     }
-    const orgId = orgs[0].id;
 
     // Load existing clients (name -> id) and existing invoice numbers for dedupe
     const [{ data: existingClients }, { data: existingInvoices }] = await Promise.all([

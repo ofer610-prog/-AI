@@ -1,7 +1,11 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 import * as XLSX from 'xlsx';
-import pdfParse from 'pdf-parse';
+// pdf-parse is CommonJS; dynamic import avoids ESM default-export mismatch
+async function loadPdfParse() {
+  const mod = await import('pdf-parse');
+  return mod.default || mod;
+}
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -143,6 +147,7 @@ async function isDuplicate(sb, orgId, charge) {
 
 // ── Parse a PDF bank statement into normalised rows ──────────────────────────
 async function parsePdf(buffer) {
+  const pdfParse = await loadPdfParse();
   const data = await pdfParse(buffer);
   const lines = data.text.split('\n').map(l => l.trim()).filter(Boolean);
   const rows = [];

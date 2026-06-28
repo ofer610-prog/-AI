@@ -12,6 +12,35 @@ import {
 const fmtMoney = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 const fmt = (d) => d ? new Date(d).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
+function getUpcomingDeadlines() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1; // 1-based
+  // VAT bi-monthly: report due 19th of month after period ends (odd months)
+  // PCN874 filers: 23rd
+  const deadlines = [];
+  // Next VAT deadline: 19th of next odd month
+  const vatMonth = m % 2 === 0 ? m + 1 : m + 2;
+  const vatDate = new Date(y, vatMonth - 1, 19);
+  const daysTillVat = Math.round((vatDate - now) / 86400000);
+  if (daysTillVat >= 0 && daysTillVat <= 30) {
+    deadlines.push({ label: 'מע"מ דו-חודשי', date: vatDate, days: daysTillVat, urgent: daysTillVat <= 7 });
+  }
+  // Bituach Leumi advance: 15th of each month
+  const blDate = new Date(y, m - 1, 15);
+  const daysTillBL = Math.round((blDate - now) / 86400000);
+  if (daysTillBL >= 0 && daysTillBL <= 20) {
+    deadlines.push({ label: 'מקדמת ביטוח לאומי', date: blDate, days: daysTillBL, urgent: daysTillBL <= 5 });
+  }
+  // Income tax advance: 15th of each month
+  const itDate = new Date(y, m - 1, 15);
+  const daysTillIT = Math.round((itDate - now) / 86400000);
+  if (daysTillIT >= 0 && daysTillIT <= 20) {
+    deadlines.push({ label: 'מקדמת מס הכנסה', date: itDate, days: daysTillIT, urgent: daysTillIT <= 5 });
+  }
+  return deadlines;
+}
+
 const METHOD_LABELS = {
   bank_transfer: 'העברה בנקאית',
   check: "צ'ק",
@@ -34,13 +63,34 @@ export default function FinancePage() {
   const [showBankImport, setShowBankImport] = useState(false);
   const [bankImportResult, setBankImportResult] = useState(null);
   const [sendModal, setSendModal] = useState(null); // { invoice }
+  const [monthExpenses, setMonthExpenses] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
     loadData();
     loadAlerts();
     loadBankAlerts();
+    loadMonthExpenses();
   }, []);
+
+  const loadMonthExpenses = async () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    try {
+      const res = await fetch(`/api/office-expenses?year=${year}`);
+      const data = await res.json();
+      const entries = data.entries || [];
+      const thisMonth = entries.filter(e => Number(e.month) === month);
+      const total = thisMonth.reduce((s, e) => s + Number(e.amount || 0), 0);
+      const bySection = {};
+      for (const e of thisMonth) {
+        if (!bySection[e.section]) bySection[e.section] = 0;
+        bySection[e.section] += Number(e.amount || 0);
+      }
+      setMonthExpenses({ total, bySection, month, year });
+    } catch {}
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -213,6 +263,24 @@ export default function FinancePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Upcoming tax deadlines banner */}
+        {(() => {
+          const deadlines = getUpcomingDeadlines();
+          if (!deadlines.length) return null;
+          return (
+            <div className="flex flex-wrap gap-2">
+              {deadlines.map((d, i) => (
+                <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border ${d.urgent ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                  ⏰ <span>{d.label}</span>
+                  <span className="font-bold">{d.days === 0 ? 'היום!' : `בעוד ${d.days} ימים`}</span>
+                  <span className="opacity-70">({fmt(d.date.toISOString())})</span>
+                  <Link href="/tax-calendar" className="underline opacity-80 hover:opacity-100">לוח מועדים ←</Link>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Cligal sync result */}
         {cligalResult && (
           <div className={`rounded-lg px-4 py-3 text-sm flex items-center gap-3 ${cligalResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
@@ -221,6 +289,28 @@ export default function FinancePage() {
               : <><CheckCircle className="w-4 h-4 shrink-0" /> סנכרון הצליח — נוספו {cligalResult.inserted || 0}, עודכנו {cligalResult.updated || 0} חשבוניות</>
             }
             <button onClick={() => setCligalResult(null)} className="mr-auto text-xs opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
+
+        {/* Monthly P&L mini-panel */}
+        {monthExpenses && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <p className="text-xs text-slate-500 mb-1">הכנסות החודש (גבייה)</p>
+              <p className="text-2xl font-bold text-emerald-700">{fmtMoney(summary?.month_income)}</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-xs text-slate-500 mb-1">הוצאות החודש</p>
+              <p className="text-2xl font-bold text-red-700">{fmtMoney(monthExpenses.total)}</p>
+              <p className="text-xs text-slate-400 mt-1">{Object.entries(monthExpenses.bySection).slice(0,3).map(([s,v]) => `${s}: ₪${Math.round(v).toLocaleString('he-IL')}`).join(' · ')}</p>
+            </div>
+            <div className={`border rounded-xl p-4 ${(summary?.month_income || 0) - monthExpenses.total >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
+              <p className="text-xs text-slate-500 mb-1">רווח נקי (הכנסות פחות הוצאות)</p>
+              <p className={`text-2xl font-bold ${(summary?.month_income || 0) - monthExpenses.total >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                {fmtMoney((summary?.month_income || 0) - monthExpenses.total)}
+              </p>
+              <Link href="/annual-report" className="text-xs text-slate-400 underline hover:text-slate-600">דוח שנתי מלא ←</Link>
+            </div>
           </div>
         )}
 
@@ -848,18 +938,17 @@ function BankImportModal({ onClose, onImported }) {
         </div>
         <div className="p-6">
           <div className="bg-indigo-50 rounded-lg p-4 text-sm text-indigo-800 mb-4 space-y-1">
-            <p className="font-medium">פורמטים נתמכים:</p>
+            <p className="font-medium">העלה דף עו"ש שבועי (Excel או CSV):</p>
             <ul className="list-disc list-inside text-xs space-y-0.5 text-indigo-700">
-              <li>בנק הפועלים — CSV מהאזור האישי</li>
-              <li>לאומי — קובץ גיליון תנועות</li>
-              <li>דיסקונט / מזרחי טפחות / אוצר החייל</li>
-              <li>כל CSV עם עמודות תאריך + זכות/חובה</li>
+              <li>פועלים · לאומי · דיסקונט · מזרחי טפחות · אוצר החייל</li>
+              <li>קובץ Excel ‎(.xlsx/.xls)‎ או CSV — ייצוא תנועות עו"ש מהבנק</li>
+              <li>כל קובץ עם עמודות תאריך + זכות/חובה</li>
             </ul>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded">{error}</div>}
             <label className="block">
-              <span className="text-xs text-slate-500 mb-1 block">בחר קובץ CSV *</span>
+              <span className="text-xs text-slate-500 mb-1 block">בחר קובץ עו"ש (Excel או CSV) *</span>
               <input
                 type="file"
                 accept=".csv,.txt,.xls,.xlsx"
@@ -868,8 +957,8 @@ function BankImportModal({ onClose, onImported }) {
               />
             </label>
             <p className="text-xs text-slate-400">
-              המערכת תזהה אוטומטית את פורמט הבנק, תייבא הכנסות (זיכויים) ותסמן אותן לבדיקה.
-              תנועות כפולות ידולגו.
+              המערכת תזהה אוטומטית את פורמט הבנק, תייבא הכנסות (זיכויים) ותתריע על
+              הכנסות שאין להן חשבונית תואמת. תנועות כפולות ידולגו.
             </p>
             <div className="flex gap-3 pt-2">
               <button

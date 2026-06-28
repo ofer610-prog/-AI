@@ -4,6 +4,7 @@ import AppNav from '@/components/AppNav';
 import LawyerSidebar from '@/components/LawyerSidebar';
 import GoogleExpenseConnect from '@/components/GoogleExpenseConnect';
 import FormFocusKeeper from '@/components/FormFocusKeeper';
+import OutlookExpenseConnect from '@/components/OutlookExpenseConnect';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -28,6 +29,7 @@ export default function RootLayout({ children }) {
         <LawyerSidebar />
         <NotificationBell />
         <GoogleExpenseConnect />
+        <OutlookExpenseConnect />
       </body>
     </html>
   );

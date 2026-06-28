@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +9,8 @@ export const dynamic = 'force-dynamic';
  * actionable recommendations (collections, stuck tasks, tax prep, risks).
  */
 export async function POST(request) {
-  if (!(await requireAdmin())) return Response.json({ error: 'Forbidden' }, { status: 403 });
+  const profile = await requireAdmin();
+  if (!profile) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   if (!process.env.GEMINI_API_KEY) {
     return Response.json({ error: 'AI not configured' }, { status: 503 });
@@ -21,11 +21,6 @@ export async function POST(request) {
   if (!snapshot || !snapshot.lawyers) {
     return Response.json({ error: 'snapshot required (POST the /api/command payload)' }, { status: 400 });
   }
-
-  const sb = createServiceClient();
-  const { data: profile } = await sb
-    .from('profiles').select('organization_id, full_name').eq('id', user.id).single();
-  if (!profile) return Response.json({ error: 'No profile' }, { status: 403 });
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
