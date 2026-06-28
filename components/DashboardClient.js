@@ -415,11 +415,18 @@ function parseAiNotesLink(aiNotes = '') {
   return { url: linkMatch[2], preview: linkMatch[3].trim() };
 }
 
+const PAGE_SIZE = 20;
+
 function GmailPanel({ ctx, onRefresh }) {
   const { gmailPending, organization } = ctx;
   const [syncing, setSyncing] = useState(false);
   const [subTab, setSubTab] = useState('gmail');
   const [outlookScanning, setOutlookScanning] = useState(false);
+  const [sortBy, setSortBy] = useState('date');
+  const [filterAmount, setFilterAmount] = useState(false);
+  const [gmailPage, setGmailPage] = useState(0);
+  const [outlookPage, setOutlookPage] = useState(0);
+  const [bulkIgnoring, setBulkIgnoring] = useState(false);
   const supabase = createClient();
 
   // Split items by source
@@ -509,6 +516,84 @@ function GmailPanel({ ctx, onRefresh }) {
   const ignoreItem = async (item) => {
     await supabase.from('gmail_processed').update({ status: 'ignored' }).eq('id', item.id);
     onRefresh();
+  };
+
+  const bulkIgnoreNoAmount = async (items) => {
+    setBulkIgnoring(true);
+    const noAmount = items.filter(i => !i.extracted_amount);
+    if (!noAmount.length) { setBulkIgnoring(false); return; }
+    const ids = noAmount.map(i => i.id);
+    await supabase.from('gmail_processed').update({ status: 'ignored' }).in('id', ids);
+    setBulkIgnoring(false);
+    onRefresh();
+  };
+
+  const sortAndFilter = (items) => {
+    let list = filterAmount ? items.filter(i => i.extracted_amount) : items;
+    if (sortBy === 'amount') list = [...list].sort((a, b) => (b.extracted_amount || 0) - (a.extracted_amount || 0));
+    else list = [...list].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    return list;
+  };
+
+  const renderTabItems = (items, page, setPage) => {
+    const processed = sortAndFilter(items);
+    const totalPages = Math.ceil(processed.length / PAGE_SIZE);
+    const pageItems = processed.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const noAmountCount = items.filter(i => !i.extracted_amount).length;
+
+    return (
+      <div className="space-y-3">
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-100">
+          <span className="text-xs text-slate-500">{processed.length} פריטים</span>
+          <div className="flex gap-1 mr-auto">
+            <button
+              onClick={() => { setSortBy('date'); setPage(0); }}
+              className={`px-2 py-1 text-xs rounded ${sortBy === 'date' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
+            >תאריך</button>
+            <button
+              onClick={() => { setSortBy('amount'); setPage(0); }}
+              className={`px-2 py-1 text-xs rounded ${sortBy === 'amount' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
+            >סכום</button>
+            <button
+              onClick={() => { setFilterAmount(f => !f); setPage(0); }}
+              className={`px-2 py-1 text-xs rounded ${filterAmount ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'}`}
+            >עם סכום בלבד</button>
+          </div>
+          {noAmountCount > 0 && (
+            <button
+              onClick={() => bulkIgnoreNoAmount(items)}
+              disabled={bulkIgnoring}
+              className="px-2 py-1 text-xs rounded bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+            >
+              {bulkIgnoring ? 'מדלג...' : `דלג על ${noAmountCount} ללא סכום`}
+            </button>
+          )}
+        </div>
+
+        {/* Cards */}
+        <div className="space-y-2">
+          {pageItems.map(item => renderItemCard(item))}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1 text-xs bg-slate-100 rounded disabled:opacity-40"
+            >הקודם</button>
+            <span className="text-xs text-slate-500">עמוד {page + 1} מתוך {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="px-3 py-1 text-xs bg-slate-100 rounded disabled:opacity-40"
+            >הבא</button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderItemCard = (item) => {
@@ -626,11 +711,7 @@ function GmailPanel({ ctx, onRefresh }) {
           <div className="bg-white border border-sky-100 rounded-lg p-8 text-center text-slate-400">
             {organization.gmail_connected ? 'אין פריטים שדורשים אישור ב-Gmail' : 'חבר את Gmail כדי להתחיל'}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {gmailItems.map(item => renderItemCard(item))}
-          </div>
-        )
+        ) : renderTabItems(gmailItems, gmailPage, setGmailPage)
       )}
 
       {/* Outlook sub-tab */}
@@ -649,11 +730,7 @@ function GmailPanel({ ctx, onRefresh }) {
             <div className="bg-white border border-sky-100 rounded-lg p-8 text-center text-slate-400">
               אין פריטים מ-Outlook שדורשים אישור
             </div>
-          ) : (
-            <div className="space-y-2">
-              {outlookItems.map(item => renderItemCard(item))}
-            </div>
-          )}
+          ) : renderTabItems(outlookItems, outlookPage, setOutlookPage)}
         </div>
       )}
     </div>
