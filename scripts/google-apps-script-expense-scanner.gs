@@ -1,21 +1,20 @@
 /**
  * Google Apps Script — סורק חשבוניות Gmail ושומר ל־Drive.
  *
- * התקנה:
- * 1. פתח https://script.google.com
- * 2. צור פרויקט חדש והדבק את הקובץ הזה.
- * 3. עדכן CONFIG.APP_SCRIPT_SECRET לאותו ערך שתגדיר ב־Vercel בשם APP_SCRIPT_SECRET.
- * 4. הפעל פעם אחת את setupTriggers().
- * 5. הפעל ידנית runExpenseScan() לבדיקה.
+ * כלל קבוע: סורקים רק מיילים שמכילים אחת מ־4 הספרות האחרונות של כרטיסי המשרד:
+ * 1626 או 9434.
+ *
+ * Hotmail/Outlook צריך להעביר את המיילים הרלוונטיים אל Gmail המרכזי,
+ * והסקריפט הזה יסרוק את Gmail המרכזי בלבד.
  */
 
 const CONFIG = {
   SITE_IMPORT_URL: 'https://ai-rosy-theta.vercel.app/api/expenses/app-script-import',
   APP_SCRIPT_SECRET: 'CHANGE_ME_TO_LONG_SECRET',
-  OFFICE_CARD_LAST4: '9434',
+  OFFICE_CARD_LAST4S: ['1626', '9434'],
   ROOT_FOLDER_NAME: 'חשבוניות',
   DUPLICATES_FOLDER_NAME: 'כפילויות לבדיקה',
-  MAX_THREADS_PER_RUN: 25,
+  MAX_THREADS_PER_RUN: 50,
   DAYS_BACK_FIRST_RUN: 120,
 };
 
@@ -31,11 +30,11 @@ function runExpenseScan() {
   const lastScan = props.getProperty('last_scan_after');
   const afterDate = lastScan ? new Date(lastScan) : new Date(Date.now() - CONFIG.DAYS_BACK_FIRST_RUN * 86400000);
   const after = formatGmailDate(afterDate);
+  const cards = getOfficeCards_();
 
   const query = [
     'after:' + after,
-    '(' + CONFIG.OFFICE_CARD_LAST4 + ' OR "' + CONFIG.OFFICE_CARD_LAST4 + '")',
-    '(חשבונית OR קבלה OR invoice OR receipt OR payment OR תשלום OR order OR אישור תשלום OR has:attachment)'
+    cardQuery_(cards)
   ].join(' ');
 
   const threads = GmailApp.search(query, 0, CONFIG.MAX_THREADS_PER_RUN);
@@ -55,7 +54,8 @@ function runExpenseScan() {
       const from = msg.getFrom() || '';
       const body = stripHtml_(msg.getPlainBody() || msg.getBody() || '');
       const combined = [subject, from, body].join(' ');
-      if (!containsCard_(combined, CONFIG.OFFICE_CARD_LAST4)) return;
+      const matchedCard = findCard_(combined, cards);
+      if (!matchedCard) return;
       if (!isInvoiceLike_(combined, msg.getAttachments().length > 0)) return;
 
       const vendor = detectVendor_(combined, from);
@@ -71,7 +71,7 @@ function runExpenseScan() {
       let savedFiles = [];
 
       attachments.forEach(att => {
-        const name = sanitizeFileName_([docDate, vendor, att.getName()].join(' - '));
+        const name = sanitizeFileName_([docDate, vendor, 'כרטיס ' + matchedCard, att.getName()].join(' - '));
         if (fileExists_(topicFolder, name)) {
           const existing = topicFolder.getFilesByName(name).next();
           savedFiles.push({ file: existing, duplicate: true });
@@ -82,7 +82,7 @@ function runExpenseScan() {
       });
 
       if (!savedFiles.length) {
-        const htmlName = sanitizeFileName_([docDate, vendor, subject].join(' - ')) + '.html';
+        const htmlName = sanitizeFileName_([docDate, vendor, 'כרטיס ' + matchedCard, subject].join(' - ')) + '.html';
         if (fileExists_(topicFolder, htmlName)) {
           savedFiles.push({ file: topicFolder.getFilesByName(htmlName).next(), duplicate: true });
         } else {
@@ -113,7 +113,8 @@ function runExpenseScan() {
           file_type: saved.duplicate ? 'drive_duplicate_review' : 'drive_receipt',
           status: saved.duplicate ? 'duplicate_review' : (topic === 'ממתין לסיווג' ? 'needs_review' : 'approved'),
           needs_review: topic === 'ממתין לסיווג',
-          payer: 'office'
+          payer: 'office',
+          card_last4: matchedCard
         });
       });
 
@@ -125,6 +126,26 @@ function runExpenseScan() {
   props.setProperty('last_scan_after', newestDate.toISOString());
   props.setProperty('last_run_at', new Date().toISOString());
   props.setProperty('last_found_count', String(invoices.length));
+  props.setProperty('last_cards', cards.join(','));
+}
+
+function getOfficeCards_() {
+  return (CONFIG.OFFICE_CARD_LAST4S || [])
+    .map(c => String(c || '').replace(/\D/g, ''))
+    .filter(c => /^\d{4}$/.test(c));
+}
+
+function cardQuery_(cards) {
+  return '(' + cards.map(c => c + ' OR "' + c + '"').join(' OR ') + ')';
+}
+
+function findCard_(text, cards) {
+  const t = String(text || '');
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    if (new RegExp('(^|\\D)' + card + '(\\D|$)').test(t)) return card;
+  }
+  return null;
 }
 
 function sendToSite_(invoices) {
@@ -157,10 +178,6 @@ function sanitizeFileName_(s) {
   return String(s || 'כללי').replace(/[\\/:*?"<>|#%{}~&]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140) || 'כללי';
 }
 
-function containsCard_(text, card) {
-  return new RegExp('(^|\\D)' + card + '(\\D|$)').test(String(text || ''));
-}
-
 function isInvoiceLike_(text, hasAttachment) {
   const low = String(text || '').toLowerCase();
   return hasAttachment || ['חשבונית', 'קבלה', 'אישור תשלום', 'invoice', 'receipt', 'payment', 'order', 'tax invoice'].some(w => low.indexOf(w.toLowerCase()) >= 0);
@@ -171,6 +188,7 @@ function detectVendor_(text, from) {
   if (low.indexOf('egovpayments') >= 0 || low.indexOf('ecom.gov.il') >= 0 || low.indexOf('justice') >= 0) return 'משרד המשפטים – נסח טאבו';
   if (low.indexOf('google') >= 0) return 'google';
   if (low.indexOf('anthropic') >= 0 || low.indexOf('claude') >= 0) return 'Anthropic';
+  if (low.indexOf('openai') >= 0 || low.indexOf('chatgpt') >= 0) return 'OpenAI';
   if (low.indexOf('חברת חשמל') >= 0 || low.indexOf('electric') >= 0) return 'חשמל';
   return String(from || '').replace(/<.*?>/g, '').trim() || 'ספק לא ידוע';
 }
@@ -180,6 +198,7 @@ function detectTopic_(text, vendor) {
   if (/egovpayments|ecom\.gov\.il|justice|טאבו|נסח|מקרקעין/i.test(low)) return 'אגרות טאבו';
   if (/google|play/i.test(low)) return 'Google Play';
   if (/anthropic|claude/i.test(low)) return 'Anthropic';
+  if (/openai|chatgpt/i.test(low)) return 'OpenAI';
   if (/חברת חשמל|electric/i.test(low)) return 'חשמל צריכה';
   if (vendor && vendor !== 'ספק לא ידוע') return vendor;
   return 'ממתין לסיווג';
