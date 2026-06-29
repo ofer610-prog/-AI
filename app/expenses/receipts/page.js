@@ -16,6 +16,19 @@ const EXPENSE_SECTIONS = [
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const money = n => Number(n || 0).toLocaleString('he-IL', { maximumFractionDigits: 2 });
 
+function sourceOf(d) {
+  if (d.gmail_message_id?.startsWith('outlook_') || d.file_type === 'outlook_receipt')
+    return 'outlook';
+  if (d.gmail_message_id || d.file_type === 'gmail_candidate' || d.file_type === 'drive_email_body' || d.file_type === 'drive_receipt')
+    return 'gmail';
+  return 'manual';
+}
+const SOURCE_LABELS = {
+  outlook: { label: 'Outlook', cls: 'bg-blue-100 text-blue-800' },
+  gmail:   { label: 'Gmail',   cls: 'bg-red-100 text-red-700' },
+  manual:  { label: 'ידני',    cls: 'bg-slate-100 text-slate-600' },
+};
+
 function driveFileId(url) {
   const s = String(url || '');
   let m = s.match(/\/file\/d\/([^/]+)/);
@@ -37,6 +50,7 @@ export default function ReceiptsPage() {
   const [result, setResult] = useState(null);
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
+  const [src, setSrc] = useState('all');
   const [preview, setPreview] = useState(null);
   const [edit, setEdit] = useState(null);
   const [missingExpenses, setMissingExpenses] = useState([]);
@@ -128,6 +142,7 @@ export default function ReceiptsPage() {
     const query = q.trim().toLowerCase();
     return docs.filter(d => {
       if (m !== 'all' && Number(d.expense_month_num) !== Number(m)) return false;
+      if (src !== 'all' && sourceOf(d) !== src) return false;
       if (!query) return true;
       return [d.vendor, d.file_name, d.description, d.expense_item, d.status].filter(Boolean).join(' ').toLowerCase().includes(query);
     }).sort((a, b) => (a.status === 'needs_review' ? -1 : b.status === 'needs_review' ? 1 : String(b.doc_date || '').localeCompare(String(a.doc_date || ''))));
@@ -276,17 +291,35 @@ export default function ReceiptsPage() {
           <div className="flex flex-wrap gap-3 items-center mb-4">
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש ספק / נושא / הערה" className="border rounded-xl px-3 py-2 text-sm w-72" />
             <select value={m} onChange={e => setM(e.target.value)} className="border rounded-xl px-3 py-2 text-sm"><option value="all">כל החודשים</option>{MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}</select>
+            <select value={src} onChange={e => setSrc(e.target.value)} className="border rounded-xl px-3 py-2 text-sm">
+              <option value="all">כל המקורות</option>
+              <option value="outlook">Outlook בלבד</option>
+              <option value="gmail">Gmail בלבד</option>
+              <option value="manual">ידני בלבד</option>
+            </select>
           </div>
           {loading ? <div className="py-12 text-center text-slate-400">טוען…</div> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
-                <thead><tr className="bg-slate-100 text-slate-600"><th className="text-right p-2 border-b">סטטוס</th><th className="text-right p-2 border-b">תאריך</th><th className="text-right p-2 border-b">ספק</th><th className="text-right p-2 border-b">נושא</th><th className="text-left p-2 border-b">סכום</th><th className="text-right p-2 border-b">פעולות</th></tr></thead>
-                <tbody>{rows.map(d => <tr key={d.id} className={d.status === 'needs_review' ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500' : d.status === 'duplicate_review' ? 'bg-purple-50 hover:bg-purple-100 border-r-4 border-purple-500' : 'hover:bg-slate-50'}>
+                <thead><tr className="bg-slate-100 text-slate-600">
+                  <th className="text-right p-2 border-b">סטטוס</th>
+                  <th className="text-right p-2 border-b">מקור</th>
+                  <th className="text-right p-2 border-b">תאריך</th>
+                  <th className="text-right p-2 border-b">ספק</th>
+                  <th className="text-right p-2 border-b">נושא</th>
+                  <th className="text-left p-2 border-b">סכום</th>
+                  <th className="text-right p-2 border-b">פעולות</th>
+                </tr></thead>
+                <tbody>{rows.map(d => {
+                  const s = sourceOf(d);
+                  const sl = SOURCE_LABELS[s];
+                  return <tr key={d.id} className={d.status === 'needs_review' ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500' : d.status === 'duplicate_review' ? 'bg-purple-50 hover:bg-purple-100 border-r-4 border-purple-500' : 'hover:bg-slate-50'}>
                   <td className="p-2 border-b whitespace-nowrap">{d.status === 'needs_review' ? <span className="text-orange-700 font-bold">ממתין לסיווג</span> : d.status === 'duplicate_review' ? <span className="text-purple-700 font-bold">כפילות לבדיקה</span> : <span className="text-emerald-700">מאושר</span>}</td>
+                  <td className="p-2 border-b whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sl.cls}`}>{sl.label}</span></td>
                   <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
                   <td className="p-2 border-b font-medium">{d.vendor || '—'}</td>
-                  <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[520px]">{d.description || ''}</div></td>
-                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">₪{money(d.amount)}</td>
+                  <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[440px]">{d.description || ''}</div></td>
+                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">₪{money(d.amount)}{d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}</td>
                   <td className="p-2 border-b whitespace-nowrap flex gap-2">
                     <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200">צפייה</button>
                     {gmailUrl(d) && <a href={gmailUrl(d)} target="_blank" rel="noreferrer" className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100">גוף המייל</a>}
@@ -294,7 +327,8 @@ export default function ReceiptsPage() {
                     {d.status === 'needs_review' && <button onClick={() => setEdit({ id: d.id, vendor: d.vendor || '', amount: d.amount || '', doc_date: d.doc_date || new Date().toISOString().slice(0,10), expense_item: '', expense_section: 'office' })} className="px-2 py-1 rounded-lg bg-orange-500 text-white">סווג</button>}
                     <button onClick={() => rejectDoc(d)} className="px-2 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100">הסר</button>
                   </td>
-                </tr>)}</tbody>
+                </tr>;
+                })}</tbody>
               </table>
               {!rows.length && <div className="py-10 text-center text-slate-400">אין מסמכים להצגה.</div>}
             </div>)}
