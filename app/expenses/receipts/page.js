@@ -55,8 +55,7 @@ export default function ReceiptsPage() {
   const [edit, setEdit] = useState(null);
   const [missingExpenses, setMissingExpenses] = useState([]);
   const [missingDismissed, setMissingDismissed] = useState(false);
-  const [uploadScan, setUploadScan] = useState(null); // { file, state: 'scanning'|'done'|'error', result }
-  const fileInputRef = useRef(null);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,41 +88,6 @@ export default function ReceiptsPage() {
     }
   }, [load]);
 
-  // One-time comprehensive backfill — scans ~4 months and stores everything
-  // permanently. Safe to re-run (duplicate detection skips existing receipts).
-  const deepScan = useCallback(async () => {
-    if (!confirm('סריקה עמוקה תסרוק את כל ה-Gmail מ-4 החודשים האחרונים ותשמור את כל החשבוניות הישנות באתר באופן קבוע. הפעולה עשויה לקחת עד דקה. להתחיל?')) return;
-    setScanState('running');
-    setResult(null);
-    try {
-      const res = await fetch('/api/expenses/deep-scan?days=120', { method: 'POST', cache: 'no-store' });
-      const data = await res.json().catch(() => ({}));
-      setResult(data.error ? data : { _deep: true, ...data });
-      setScanState(res.ok ? 'done' : 'error');
-      setLastScan(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
-      await load();
-    } catch {
-      setScanState('error');
-      setResult({ error: 'הסריקה העמוקה ארכה זמן רב. ייתכן שחלק מהחשבוניות כבר נשמרו — רענן את העמוד ונסה שוב להשלמה.' });
-    }
-  }, [load]);
-
-  const scanReceiptFile = useCallback(async (file) => {
-    setUploadScan({ file, state: 'scanning', result: null });
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const res = await fetch('/api/expenses/scan-receipt', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setUploadScan(s => ({ ...s, state: 'error', result: data }));
-      } else {
-        setUploadScan(s => ({ ...s, state: 'done', result: data.result }));
-      }
-    } catch (e) {
-      setUploadScan(s => ({ ...s, state: 'error', result: { error: e.message } }));
-    }
-  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -241,14 +205,6 @@ export default function ReceiptsPage() {
             {scanState === 'running' ? '⏳ סורק…' : '📧 סרוק Gmail'}
           </button>
           <button
-            onClick={deepScan}
-            disabled={scanState === 'running'}
-            className="bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
-            title="סריקה חד-פעמית של 4 חודשים אחורה לאכלוס כל החשבוניות הישנות"
-          >
-            📥 סריקה עמוקה
-          </button>
-          <button
             onClick={async () => {
               setScanState('running'); setResult(null);
               try {
@@ -262,33 +218,9 @@ export default function ReceiptsPage() {
             }}
             disabled={scanState === 'running'}
             className="bg-blue-700 hover:bg-blue-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
-            title="סרוק Outlook / Hotmail לתלושי שכר, מסים וחשבוניות"
+            title="סרוק Outlook / Hotmail לפי מספרי כרטיס אשראי"
           >
-            📨 סרוק Outlook
-          </button>
-          <button
-            onClick={async () => {
-              setScanState('running'); setResult(null);
-              try {
-                const res = await fetch('/api/expenses/scan-drive', { method: 'POST', cache: 'no-store' });
-                const data = await res.json();
-                setResult(data.error ? data : { _drive: true, ...data });
-                setScanState(res.ok ? 'done' : 'error');
-                await load();
-              } catch { setScanState('error'); }
-            }}
-            disabled={scanState === 'running'}
-            className="bg-teal-700 hover:bg-teal-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
-            title="סרוק תיקיית הוצאות ב-Drive לחשבוניות חדשות"
-          >
-            📁 סרוק Drive
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-violet-700 hover:bg-violet-600 px-4 py-2 rounded-xl text-sm font-semibold"
-            title="העלה קבלה או חשבונית (PDF / תמונה) לזיהוי AI"
-          >
-            🧾 סרוק קבלה
+            {scanState === 'running' ? '⏳ סורק…' : '📨 סרוק Outlook'}
           </button>
           <a
             href={`/api/expenses/export-csv?year=${year}`}
@@ -298,8 +230,7 @@ export default function ReceiptsPage() {
           >
             📊 ייצוא CSV
           </a>
-          <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) scanReceiptFile(f); e.target.value = ''; }} />
+
         </div>
       </header>
 
@@ -469,32 +400,6 @@ export default function ReceiptsPage() {
         </Modal>
       )}
 
-      {uploadScan && (
-        <Modal title="סריקת קבלה / חשבונית" onClose={() => setUploadScan(null)}>
-          {uploadScan.state === 'scanning' && (
-            <div className="py-10 text-center text-slate-500">
-              <div className="text-4xl mb-3 animate-bounce">🧾</div>
-              <div className="font-semibold">מנתח את המסמך…</div>
-              <div className="text-sm text-slate-400 mt-1">{uploadScan.file?.name}</div>
-            </div>
-          )}
-          {uploadScan.state === 'error' && (
-            <div className="py-6 text-center text-red-700">
-              <div className="text-3xl mb-2">⚠️</div>
-              <div className="font-bold">שגיאה בסריקה</div>
-              <div className="text-sm mt-1">{uploadScan.result?.error || 'שגיאה לא ידועה'}</div>
-            </div>
-          )}
-          {uploadScan.state === 'done' && uploadScan.result && (
-            <ReceiptScanResult
-              result={uploadScan.result}
-              fileName={uploadScan.file?.name}
-              topics={topics}
-              onSaved={() => { setUploadScan(null); load(); }}
-            />
-          )}
-        </Modal>
-      )}
     </div>
   );
 }
