@@ -146,7 +146,7 @@ export default function ReceiptsPage() {
       if (!query) return true;
       return [d.vendor, d.file_name, d.description, d.expense_item, d.status].filter(Boolean).join(' ').toLowerCase().includes(query);
     }).sort((a, b) => (a.status === 'needs_review' ? -1 : b.status === 'needs_review' ? 1 : String(b.doc_date || '').localeCompare(String(a.doc_date || ''))));
-  }, [docs, q, m]);
+  }, [docs, q, m, src]);
 
   const pending = rows.filter(d => d.status === 'needs_review').length;
   const total = rows.filter(d => d.status !== 'needs_review' && d.status !== 'duplicate_review').reduce((s, d) => s + Number(d.amount || 0), 0);
