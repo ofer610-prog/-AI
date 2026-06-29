@@ -28,11 +28,6 @@
   }
 }
 
-/* The active Google connection UI is the status light component. Hide direct connect buttons. */
-a[href="/api/google/connect"],
-a[href="/api/auth/google/connect"] {
-  display: none !important;
-}
 
 /* Hide the old manual Gmail scan button on /expenses. Auto scan now runs in the quick invoice panel. */
 button[title="סרוק מיילים לחשבוניות"],

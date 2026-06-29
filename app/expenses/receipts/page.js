@@ -173,6 +173,12 @@ export default function ReceiptsPage() {
 
   const scanLabel = scanState === 'running' ? '⏳ סורק חשבוניות…' : scanState === 'done' ? '✅ הסריקה הסתיימה' : scanState === 'error' ? '⚠️ שגיאת סריקה' : '✅ מוכן';
   const scanClass = scanState === 'running' ? 'bg-red-600 text-white' : scanState === 'done' || scanState === 'idle' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white';
+  const gmailNeedsReconnect = result?.error && (
+    String(result.error).toLowerCase().includes('invalid_grant') ||
+    String(result.error).toLowerCase().includes('token') ||
+    String(result.error).toLowerCase().includes('unauthorized')
+  );
+
   const resultText = result?.error
     ? result.error
     : result?._outlook
@@ -235,6 +241,19 @@ export default function ReceiptsPage() {
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
+        {gmailNeedsReconnect && (
+          <div className="rounded-2xl p-4 border bg-red-50 border-red-300 text-red-900 flex items-center gap-4">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <div className="font-bold">חיבור Gmail פג תוקף — יש לחבר מחדש</div>
+              <div className="text-sm text-red-700 mt-0.5">{result?.error}</div>
+            </div>
+            <a href="/api/auth/google/connect?return_to=/expenses/receipts"
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap">
+              🔗 חבר Gmail מחדש
+            </a>
+          </div>
+        )}
         {pending > 0 && <div className="rounded-2xl p-4 border bg-orange-100 border-orange-300 text-orange-900 font-bold">⚠️ {pending} חשבוניות ממתינות לאישורך. רק חשבוניות שאישרת נספרות כהוצאה מוכרת.</div>}
 
         {missingExpenses.length > 0 && !missingDismissed && (
