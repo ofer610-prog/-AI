@@ -213,11 +213,13 @@ export default function ReceiptsPage() {
     ? result.error
     : result?._outlook
       ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. יובאו אוטומטית: ${result.auto_imported || 0}. נשלחו לסיווג: ${result.pending_review || 0}. סה״כ בתור: ${result.total_queue ?? '?'}.`
-      : result?._deep
-        ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
-        : result
-          ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
-          : '';
+      : result?._drive
+        ? `סריקת Drive: נמצאו ${result.found || 0} קבצים. נוספו ${result.added || 0} חדשים. כפילויות: ${result.duplicates || 0}.`
+        : result?._deep
+          ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
+          : result
+            ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
+            : '';
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-16">
@@ -265,12 +267,37 @@ export default function ReceiptsPage() {
             📨 סרוק Outlook
           </button>
           <button
+            onClick={async () => {
+              setScanState('running'); setResult(null);
+              try {
+                const res = await fetch('/api/expenses/scan-drive', { method: 'POST', cache: 'no-store' });
+                const data = await res.json();
+                setResult(data.error ? data : { _drive: true, ...data });
+                setScanState(res.ok ? 'done' : 'error');
+                await load();
+              } catch { setScanState('error'); }
+            }}
+            disabled={scanState === 'running'}
+            className="bg-teal-700 hover:bg-teal-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
+            title="סרוק תיקיית הוצאות ב-Drive לחשבוניות חדשות"
+          >
+            📁 סרוק Drive
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             className="bg-violet-700 hover:bg-violet-600 px-4 py-2 rounded-xl text-sm font-semibold"
             title="העלה קבלה או חשבונית (PDF / תמונה) לזיהוי AI"
           >
             🧾 סרוק קבלה
           </button>
+          <a
+            href={`/api/expenses/export-csv?year=${year}`}
+            download
+            className="bg-green-700 hover:bg-green-600 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            title="ייצוא לרו״ח — כל החשבוניות המאושרות בשנה זו"
+          >
+            📊 ייצוא CSV
+          </a>
           <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) scanReceiptFile(f); e.target.value = ''; }} />
         </div>
@@ -321,6 +348,8 @@ export default function ReceiptsPage() {
           <Card title="עם קישור" value={linked} />
         </div>
 
+        <RecurringSection />
+
         <section className="bg-white rounded-2xl border border-slate-200 p-4">
           <div className="flex flex-wrap gap-3 items-center mb-4">
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש ספק / נושא / הערה" className="border rounded-xl px-3 py-2 text-sm w-72" />
@@ -366,9 +395,18 @@ export default function ReceiptsPage() {
                   <td className="p-2 border-b whitespace-nowrap">{statusBadge}</td>
                   <td className="p-2 border-b whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sl.cls}`}>{sl.label}</span></td>
                   <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
-                  <td className="p-2 border-b font-medium">{d.vendor || '—'}</td>
+                  <td className="p-2 border-b font-medium">
+                    {d.vendor || '—'}
+                    {d.doc_number && <div className="text-xs text-slate-400"># {d.doc_number}</div>}
+                  </td>
                   <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[440px]">{d.description || ''}</div></td>
-                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">₪{money(d.amount)}{d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}</td>
+                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">
+                    {d.currency && d.currency !== 'ILS' && d.original_amount
+                      ? <div className="text-xs text-slate-500">{d.currency === 'USD' ? '$' : d.currency === 'EUR' ? '€' : d.currency} {Number(d.original_amount).toLocaleString()}</div>
+                      : null}
+                    ₪{money(d.amount)}
+                    {d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}
+                  </td>
                   <td className="p-2 border-b whitespace-nowrap">
                     <div className="flex flex-wrap gap-1.5">
                       <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs">צפייה</button>
@@ -463,6 +501,53 @@ export default function ReceiptsPage() {
 
 function Card({ title, value, warn }) { return <div className={`rounded-2xl border bg-white ${warn ? 'border-orange-300' : 'border-slate-200'} p-4`}><div className="text-xs text-slate-500 mb-1">{title}</div><div className={`text-2xl font-bold ${warn ? 'text-orange-600' : 'text-slate-800'}`}>{value}</div></div>; }
 function Modal({ title, children, onClose }) { return <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4"><div dir="rtl" className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-5"><div className="flex items-center mb-4"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose} className="mr-auto text-slate-500 hover:text-black">✕</button></div>{children}</div></div>; }
+
+function RecurringSection() {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/expenses/recurring').then(r => r.json()).then(d => {
+      if (d.recurring?.length) setData(d);
+    }).catch(() => {});
+  }, []);
+
+  if (!data?.recurring?.length) return null;
+  const missing = data.recurring.filter(r => !r.arrived_this_month);
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 p-4">
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 w-full text-right">
+        <span className="text-base font-bold">🔄 הוצאות קבועות</span>
+        {missing.length > 0 && <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">{missing.length} חסרות החודש</span>}
+        <span className="mr-auto text-slate-400 text-sm">{open ? '▲' : '▼'} {data.recurring.length} ספקים קבועים</span>
+      </button>
+      {open && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead><tr className="bg-slate-50 text-slate-600">
+              <th className="text-right p-2 border-b">ספק</th>
+              <th className="text-right p-2 border-b">חודשים</th>
+              <th className="text-left p-2 border-b">ממוצע חודשי</th>
+              <th className="text-right p-2 border-b">מצב החודש</th>
+            </tr></thead>
+            <tbody>{data.recurring.map(r => (
+              <tr key={r.key} className={r.arrived_this_month ? 'hover:bg-slate-50' : 'bg-red-50 hover:bg-red-100'}>
+                <td className="p-2 border-b font-medium">{r.vendor}</td>
+                <td className="p-2 border-b text-slate-500">{r.months_seen} מתוך 6</td>
+                <td className="p-2 border-b text-left">{r.avg_amount ? '₪' + Number(r.avg_amount).toLocaleString('he-IL') : '—'}</td>
+                <td className="p-2 border-b">{r.arrived_this_month
+                  ? <span className="text-emerald-600 text-xs font-semibold">✓ הגיע</span>
+                  : <span className="text-red-600 text-xs font-semibold">⚠️ טרם הגיע</span>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 
 const DOC_TYPE_LABELS = { tax_invoice: 'חשבונית מס', tax_invoice_receipt: 'חשבונית מס / קבלה', receipt: 'קבלה', proforma: 'חשבונית עסקה', unknown: 'לא ידוע' };
 const money2 = n => n == null ? '—' : Number(n).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
