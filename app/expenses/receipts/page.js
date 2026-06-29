@@ -138,6 +138,7 @@ export default function ReceiptsPage() {
   }, [year]);
 
   const topics = useMemo(() => [...new Set(entries.map(e => e.item_name).filter(Boolean))].sort(), [entries]);
+  const NEEDS_APPROVAL = new Set(['needs_review', 'linked', 'duplicate_review', 'pending']);
   const rows = useMemo(() => {
     const query = q.trim().toLowerCase();
     return docs.filter(d => {
@@ -145,22 +146,55 @@ export default function ReceiptsPage() {
       if (src !== 'all' && sourceOf(d) !== src) return false;
       if (!query) return true;
       return [d.vendor, d.file_name, d.description, d.expense_item, d.status].filter(Boolean).join(' ').toLowerCase().includes(query);
-    }).sort((a, b) => (a.status === 'needs_review' ? -1 : b.status === 'needs_review' ? 1 : String(b.doc_date || '').localeCompare(String(a.doc_date || ''))));
+    }).sort((a, b) => {
+      const aPend = NEEDS_APPROVAL.has(a.status) ? 0 : 1;
+      const bPend = NEEDS_APPROVAL.has(b.status) ? 0 : 1;
+      if (aPend !== bPend) return aPend - bPend;
+      return String(b.doc_date || '').localeCompare(String(a.doc_date || ''));
+    });
   }, [docs, q, m, src]);
 
-  const pending = rows.filter(d => d.status === 'needs_review').length;
-  const total = rows.filter(d => d.status !== 'needs_review' && d.status !== 'duplicate_review').reduce((s, d) => s + Number(d.amount || 0), 0);
+  const pending = rows.filter(d => NEEDS_APPROVAL.has(d.status)).length;
+  const total = rows.filter(d => d.status === 'approved').reduce((s, d) => s + Number(d.amount || 0), 0);
   const linked = rows.filter(d => d.file_url).length;
 
   const rejectDoc = async (doc) => {
-    if (!confirm('להסיר את החשבונית מהרשימה?')) return;
+    if (!confirm('למחוק חשבונית זו? הפעולה תסיר אותה מהרשימה.')) return;
     await fetch('/api/expenses/review-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, action: 'reject' }) });
     await load();
   };
 
-  const approveDoc = async () => {
-    if (!edit?.expense_item) { alert('יש לבחור תת נושא'); return; }
-    await fetch('/api/expenses/review-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...edit, action: 'approve' }) });
+  const openEdit = (doc, approveMode = false) => {
+    const d = doc;
+    setEdit({
+      id: d.id,
+      vendor: d.vendor || '',
+      amount: d.amount != null ? String(d.amount) : '',
+      vat: d.vat != null ? String(d.vat) : '',
+      doc_date: d.doc_date || new Date().toISOString().slice(0, 10),
+      expense_item: d.expense_item || '',
+      expense_section: d.expense_section || 'office',
+      _approve: approveMode,
+    });
+  };
+
+  const quickApprove = async (doc) => {
+    if (!doc.expense_item) { openEdit(doc, true); return; }
+    const res = await fetch('/api/expenses/review-doc', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: doc.id, action: 'approve', expense_item: doc.expense_item, expense_section: doc.expense_section || 'office', doc_date: doc.doc_date, vendor: doc.vendor, amount: doc.amount, vat: doc.vat }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'שגיאה'); return; }
+    await load();
+  };
+
+  const saveEdit = async (andApprove = false) => {
+    if (andApprove && !edit?.expense_item) { alert('יש לבחור תת נושא לפני אישור'); return; }
+    const action = andApprove ? 'approve' : 'edit';
+    const res = await fetch('/api/expenses/review-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...edit, action }) });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'שגיאה בשמירה'); return; }
     setEdit(null); await load();
   };
 
@@ -179,11 +213,13 @@ export default function ReceiptsPage() {
     ? result.error
     : result?._outlook
       ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. יובאו אוטומטית: ${result.auto_imported || 0}. נשלחו לסיווג: ${result.pending_review || 0}. סה״כ בתור: ${result.total_queue ?? '?'}.`
-      : result?._deep
-        ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
-        : result
-          ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
-          : '';
+      : result?._drive
+        ? `סריקת Drive: נמצאו ${result.found || 0} קבצים. נוספו ${result.added || 0} חדשים. כפילויות: ${result.duplicates || 0}.`
+        : result?._deep
+          ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
+          : result
+            ? `נסרקו ${result.scanned || 0}. יובאו ${result.imported?.length || 0}. ממתינות לסיווג ${result.pending_review?.length || 0}.`
+            : '';
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-16">
@@ -231,19 +267,44 @@ export default function ReceiptsPage() {
             📨 סרוק Outlook
           </button>
           <button
+            onClick={async () => {
+              setScanState('running'); setResult(null);
+              try {
+                const res = await fetch('/api/expenses/scan-drive', { method: 'POST', cache: 'no-store' });
+                const data = await res.json();
+                setResult(data.error ? data : { _drive: true, ...data });
+                setScanState(res.ok ? 'done' : 'error');
+                await load();
+              } catch { setScanState('error'); }
+            }}
+            disabled={scanState === 'running'}
+            className="bg-teal-700 hover:bg-teal-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
+            title="סרוק תיקיית הוצאות ב-Drive לחשבוניות חדשות"
+          >
+            📁 סרוק Drive
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             className="bg-violet-700 hover:bg-violet-600 px-4 py-2 rounded-xl text-sm font-semibold"
             title="העלה קבלה או חשבונית (PDF / תמונה) לזיהוי AI"
           >
             🧾 סרוק קבלה
           </button>
+          <a
+            href={`/api/expenses/export-csv?year=${year}`}
+            download
+            className="bg-green-700 hover:bg-green-600 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            title="ייצוא לרו״ח — כל החשבוניות המאושרות בשנה זו"
+          >
+            📊 ייצוא CSV
+          </a>
           <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) scanReceiptFile(f); e.target.value = ''; }} />
         </div>
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
-        {pending > 0 && <div className="rounded-2xl p-4 border bg-orange-100 border-orange-300 text-orange-900 font-bold">⚠️ {pending} חשבוניות ממתינות לסיווג מנהל. הן לא נספרות כהוצאה רגילה עד אישור.</div>}
+        {pending > 0 && <div className="rounded-2xl p-4 border bg-orange-100 border-orange-300 text-orange-900 font-bold">⚠️ {pending} חשבוניות ממתינות לאישורך. רק חשבוניות שאישרת נספרות כהוצאה מוכרת.</div>}
 
         {missingExpenses.length > 0 && !missingDismissed && (
           <div className="rounded-2xl border border-red-300 bg-red-50 p-4">
@@ -287,6 +348,8 @@ export default function ReceiptsPage() {
           <Card title="עם קישור" value={linked} />
         </div>
 
+        <RecurringSection />
+
         <section className="bg-white rounded-2xl border border-slate-200 p-4">
           <div className="flex flex-wrap gap-3 items-center mb-4">
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש ספק / נושא / הערה" className="border rounded-xl px-3 py-2 text-sm w-72" />
@@ -313,19 +376,46 @@ export default function ReceiptsPage() {
                 <tbody>{rows.map(d => {
                   const s = sourceOf(d);
                   const sl = SOURCE_LABELS[s];
-                  return <tr key={d.id} className={d.status === 'needs_review' ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500' : d.status === 'duplicate_review' ? 'bg-purple-50 hover:bg-purple-100 border-r-4 border-purple-500' : 'hover:bg-slate-50'}>
-                  <td className="p-2 border-b whitespace-nowrap">{d.status === 'needs_review' ? <span className="text-orange-700 font-bold">ממתין לסיווג</span> : d.status === 'duplicate_review' ? <span className="text-purple-700 font-bold">כפילות לבדיקה</span> : <span className="text-emerald-700">מאושר</span>}</td>
+                  const needsApproval = NEEDS_APPROVAL.has(d.status);
+                  const rowCls = d.status === 'needs_review'
+                    ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500'
+                    : d.status === 'linked' || d.status === 'pending'
+                      ? 'bg-amber-50 hover:bg-amber-100 border-r-4 border-amber-400'
+                      : d.status === 'duplicate_review'
+                        ? 'bg-purple-50 hover:bg-purple-100 border-r-4 border-purple-500'
+                        : 'hover:bg-slate-50';
+                  const statusBadge = d.status === 'approved'
+                    ? <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✓ מאושר</span>
+                    : d.status === 'needs_review'
+                      ? <span className="text-orange-700 font-bold text-xs">⚠️ ממתין לסיווג</span>
+                      : d.status === 'duplicate_review'
+                        ? <span className="text-purple-700 font-bold text-xs">כפילות</span>
+                        : <span className="text-amber-700 font-bold text-xs">⏳ ממתין לאישורך</span>;
+                  return <tr key={d.id} className={rowCls}>
+                  <td className="p-2 border-b whitespace-nowrap">{statusBadge}</td>
                   <td className="p-2 border-b whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sl.cls}`}>{sl.label}</span></td>
                   <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
-                  <td className="p-2 border-b font-medium">{d.vendor || '—'}</td>
+                  <td className="p-2 border-b font-medium">
+                    {d.vendor || '—'}
+                    {d.doc_number && <div className="text-xs text-slate-400"># {d.doc_number}</div>}
+                  </td>
                   <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[440px]">{d.description || ''}</div></td>
-                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">₪{money(d.amount)}{d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}</td>
-                  <td className="p-2 border-b whitespace-nowrap flex gap-2">
-                    <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200">צפייה</button>
-                    {gmailUrl(d) && <a href={gmailUrl(d)} target="_blank" rel="noreferrer" className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100">גוף המייל</a>}
-                    {driveFileId(d.file_url) && <button onClick={() => openFolder(d)} className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100">תיקייה</button>}
-                    {d.status === 'needs_review' && <button onClick={() => setEdit({ id: d.id, vendor: d.vendor || '', amount: d.amount || '', doc_date: d.doc_date || new Date().toISOString().slice(0,10), expense_item: '', expense_section: 'office' })} className="px-2 py-1 rounded-lg bg-orange-500 text-white">סווג</button>}
-                    <button onClick={() => rejectDoc(d)} className="px-2 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100">הסר</button>
+                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">
+                    {d.currency && d.currency !== 'ILS' && d.original_amount
+                      ? <div className="text-xs text-slate-500">{d.currency === 'USD' ? '$' : d.currency === 'EUR' ? '€' : d.currency} {Number(d.original_amount).toLocaleString()}</div>
+                      : null}
+                    ₪{money(d.amount)}
+                    {d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}
+                  </td>
+                  <td className="p-2 border-b whitespace-nowrap">
+                    <div className="flex flex-wrap gap-1.5">
+                      <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs">צפייה</button>
+                      {gmailUrl(d) && <a href={gmailUrl(d)} target="_blank" rel="noreferrer" className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs">מייל</a>}
+                      {driveFileId(d.file_url) && <button onClick={() => openFolder(d)} className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs">תיקייה</button>}
+                      <button onClick={() => openEdit(d, false)} className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-medium">✏️ ערוך</button>
+                      {needsApproval && <button onClick={() => quickApprove(d)} className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">✓ אשר</button>}
+                      <button onClick={() => rejectDoc(d)} className="px-2 py-1 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 text-xs font-medium">✕ דחה</button>
+                    </div>
                   </td>
                 </tr>;
                 })}</tbody>
@@ -336,7 +426,48 @@ export default function ReceiptsPage() {
       </main>
 
       {preview && <Modal title="צפייה מהירה" onClose={() => setPreview(null)}><div className="space-y-3"><div className="font-bold">{preview.file_name}</div><iframe src={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} className="w-full h-[70vh] border rounded-xl bg-white" /><div className="flex gap-3 flex-wrap"><a href={`/api/expense-docs/preview?id=${encodeURIComponent(preview.id)}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח צפייה בכרטיסייה חדשה</a>{gmailUrl(preview) && <a href={gmailUrl(preview)} target="_blank" rel="noreferrer" className="text-amber-700 underline font-semibold">פתח גוף המייל</a>}{preview.file_url && <a href={preview.file_url} target="_blank" rel="noreferrer" className="text-sky-600 underline">פתח מקור</a>}{driveFileId(preview.file_url) && <button onClick={() => openFolder(preview)} className="text-indigo-700 underline">פתח תיקייה בדרייב</button>}</div></div></Modal>}
-      {edit && <Modal title="סיווג ואישור חשבונית" onClose={() => setEdit(null)}><div className="grid gap-3"><label className="text-sm">תת נושא<select value={edit.expense_item} onChange={e => setEdit({ ...edit, expense_item: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1"><option value="">בחר תת נושא</option>{topics.map(t => <option key={t} value={t}>{t}</option>)}</select></label><label className="text-sm">ספק<input value={edit.vendor} onChange={e => setEdit({ ...edit, vendor: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><label className="text-sm">סכום<input value={edit.amount} onChange={e => setEdit({ ...edit, amount: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><label className="text-sm">תאריך<input type="date" value={edit.doc_date} onChange={e => setEdit({ ...edit, doc_date: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" /></label><button onClick={approveDoc} className="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold">אשר ושמור</button></div></Modal>}
+      {edit && (
+        <Modal title={edit._approve ? 'ערוך ואשר חשבונית' : 'עריכת פרטי חשבונית'} onClose={() => setEdit(null)}>
+          <div className="grid gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm col-span-2">ספק
+                <input value={edit.vendor} onChange={e => setEdit({ ...edit, vendor: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" placeholder="שם הספק" />
+              </label>
+              <label className="text-sm">סכום (₪)
+                <input type="number" min="0" step="0.01" value={edit.amount} onChange={e => setEdit({ ...edit, amount: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" placeholder="0.00" />
+              </label>
+              <label className="text-sm">מע״מ (₪) — אופציונלי
+                <input type="number" min="0" step="0.01" value={edit.vat} onChange={e => setEdit({ ...edit, vat: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" placeholder="ריק = אין מע״מ" />
+              </label>
+              <label className="text-sm">תאריך
+                <input type="date" value={edit.doc_date} onChange={e => setEdit({ ...edit, doc_date: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1" />
+              </label>
+              <label className="text-sm">קטגוריה
+                <select value={edit.expense_section} onChange={e => setEdit({ ...edit, expense_section: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1">
+                  {EXPENSE_SECTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </label>
+              <label className="text-sm col-span-2">תת נושא {edit._approve && <span className="text-red-500">*</span>}
+                <select value={edit.expense_item} onChange={e => setEdit({ ...edit, expense_item: e.target.value })} className="block w-full border rounded-xl px-3 py-2 mt-1">
+                  <option value="">— בחר —</option>
+                  {topics.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                {edit._approve && !edit.expense_item && <p className="text-xs text-red-500 mt-1">חובה לבחור תת נושא לפני אישור</p>}
+              </label>
+            </div>
+            <div className="flex gap-3 pt-1">
+              {edit._approve
+                ? <button onClick={() => saveEdit(true)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 font-bold">✓ שמור ואשר</button>
+                : <>
+                    <button onClick={() => saveEdit(false)} className="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-xl px-4 py-2 font-semibold">💾 שמור שינויים</button>
+                    <button onClick={() => saveEdit(true)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 font-bold">✓ שמור ואשר</button>
+                  </>
+              }
+              <button onClick={() => setEdit(null)} className="px-4 py-2 rounded-xl border text-slate-600 hover:bg-slate-50">ביטול</button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {uploadScan && (
         <Modal title="סריקת קבלה / חשבונית" onClose={() => setUploadScan(null)}>
@@ -370,6 +501,53 @@ export default function ReceiptsPage() {
 
 function Card({ title, value, warn }) { return <div className={`rounded-2xl border bg-white ${warn ? 'border-orange-300' : 'border-slate-200'} p-4`}><div className="text-xs text-slate-500 mb-1">{title}</div><div className={`text-2xl font-bold ${warn ? 'text-orange-600' : 'text-slate-800'}`}>{value}</div></div>; }
 function Modal({ title, children, onClose }) { return <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4"><div dir="rtl" className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-5"><div className="flex items-center mb-4"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose} className="mr-auto text-slate-500 hover:text-black">✕</button></div>{children}</div></div>; }
+
+function RecurringSection() {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/expenses/recurring').then(r => r.json()).then(d => {
+      if (d.recurring?.length) setData(d);
+    }).catch(() => {});
+  }, []);
+
+  if (!data?.recurring?.length) return null;
+  const missing = data.recurring.filter(r => !r.arrived_this_month);
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 p-4">
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 w-full text-right">
+        <span className="text-base font-bold">🔄 הוצאות קבועות</span>
+        {missing.length > 0 && <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">{missing.length} חסרות החודש</span>}
+        <span className="mr-auto text-slate-400 text-sm">{open ? '▲' : '▼'} {data.recurring.length} ספקים קבועים</span>
+      </button>
+      {open && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead><tr className="bg-slate-50 text-slate-600">
+              <th className="text-right p-2 border-b">ספק</th>
+              <th className="text-right p-2 border-b">חודשים</th>
+              <th className="text-left p-2 border-b">ממוצע חודשי</th>
+              <th className="text-right p-2 border-b">מצב החודש</th>
+            </tr></thead>
+            <tbody>{data.recurring.map(r => (
+              <tr key={r.key} className={r.arrived_this_month ? 'hover:bg-slate-50' : 'bg-red-50 hover:bg-red-100'}>
+                <td className="p-2 border-b font-medium">{r.vendor}</td>
+                <td className="p-2 border-b text-slate-500">{r.months_seen} מתוך 6</td>
+                <td className="p-2 border-b text-left">{r.avg_amount ? '₪' + Number(r.avg_amount).toLocaleString('he-IL') : '—'}</td>
+                <td className="p-2 border-b">{r.arrived_this_month
+                  ? <span className="text-emerald-600 text-xs font-semibold">✓ הגיע</span>
+                  : <span className="text-red-600 text-xs font-semibold">⚠️ טרם הגיע</span>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 
 const DOC_TYPE_LABELS = { tax_invoice: 'חשבונית מס', tax_invoice_receipt: 'חשבונית מס / קבלה', receipt: 'קבלה', proforma: 'חשבונית עסקה', unknown: 'לא ידוע' };
 const money2 = n => n == null ? '—' : Number(n).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
