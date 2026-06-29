@@ -237,7 +237,7 @@ function Cockpit({ ctx, setTab }) {
             </div>
           </div>
           <OsekPaturMonitor
-            yearlyRevenue={income.reduce((a, b) => a + Number(b.amount || 0), 0)}
+            yearlyRevenue={totals.tInc}
             year={new Date().getFullYear()}
           />
 
