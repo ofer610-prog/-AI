@@ -465,14 +465,17 @@ function GmailPanel({ ctx, onRefresh }) {
   const approveItem = async (item) => {
     // Outlook items → expense_documents
     if (item.gmail_message_id?.startsWith('outlook_')) {
+      const docDateStr = item.extracted_date || item.date?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const docDateObj = new Date(docDateStr);
+      const safeDate = isNaN(docDateObj.getTime()) ? new Date() : docDateObj;
       await supabase.from('expense_documents').insert({
         organization_id: organization.id,
         gmail_message_id: item.gmail_message_id,
         vendor: item.extracted_description || item.from_email,
         amount: item.extracted_amount,
-        doc_date: item.extracted_date || item.date?.slice(0, 10),
-        expense_year: new Date(item.extracted_date || item.date).getFullYear(),
-        expense_month_num: new Date(item.extracted_date || item.date).getMonth() + 1,
+        doc_date: docDateStr,
+        expense_year: safeDate.getFullYear(),
+        expense_month_num: safeDate.getMonth() + 1,
         expense_item: item.extracted_description || item.subject,
         expense_section: 'office',
         category: item.classification === 'salary' ? 'salary' : 'office',
