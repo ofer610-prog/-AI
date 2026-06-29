@@ -78,7 +78,8 @@ export default async function DashboardPage() {
   const VAT_RATE = org.vat_rate > 1 ? org.vat_rate / 100 : (org.vat_rate || 0.18);
 
   // Map invoices → income shape expected by DashboardClient
-  const income = invoices.map(inv => ({
+  // NOTE: named incomeRows to avoid SWC minifier name-collision bug
+  const incomeRows = invoices.map(inv => ({
     ...inv,
     id: inv.id,
     date: inv.issue_date,
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
   }));
 
   // Map office_expenses → expense shape expected by DashboardClient
-  const expense = (officeExpenses || []).map(exp => ({
+  const expenseRows = (officeExpenses || []).map(exp => ({
     ...exp,
     id: exp.id,
     date: `${exp.year}-${String(exp.month || 1).padStart(2, '0')}-01`,
@@ -104,8 +105,8 @@ export default async function DashboardPage() {
   // Non-admin employees never receive accounting data — only the invoices
   // of clients on their own matters (needed for "my collection").
   const isAdminRole = ['admin', 'accountant'].includes(resolvedProfile.role);
-  let safeIncome = income;
-  let safeExpense = expense;
+  let safeIncome = incomeRows;
+  let safeExpense = expenseRows;
   let safeInvoices = invoices;
   if (!isAdminRole) {
     safeIncome = [];
