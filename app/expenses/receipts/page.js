@@ -163,7 +163,7 @@ export default function ReceiptsPage() {
   const resultText = result?.error
     ? result.error
     : result?._outlook
-      ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. נוספו חדשים: ${result.pending_review || 0}. סה״כ בתור לסיווג: ${result.total_queue ?? '?'}.`
+      ? `סריקת Outlook (${result.days || 30} יום): נמצאו ${result.found || 0} הודעות. יובאו אוטומטית: ${result.auto_imported || 0}. נשלחו לסיווג: ${result.pending_review || 0}. סה״כ בתור: ${result.total_queue ?? '?'}.`
       : result?._deep
         ? `סריקה עמוקה (${result.days || 120} יום): נמצאו ${result.found || 0} מיילים. נשמרו ${result.imported || 0}. ממתינות לסיווג ${result.pending_review || 0}. כפילויות שדולגו ${result.duplicates || 0}.`
         : result
