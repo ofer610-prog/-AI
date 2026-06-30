@@ -1,64 +1,21 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/daily-sync",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/cron/expense-gmail-scan",
-      "schedule": "30 4 * * *"
-    },
-    {
-      "path": "/api/cron/expense-gmail-scan",
-      "schedule": "30 10 * * *"
-    },
-    {
-      "path": "/api/cron/expense-gmail-scan",
-      "schedule": "30 15 * * *"
-    },
-    {
-      "path": "/api/cron/morning-briefing",
-      "schedule": "0 6 * * 0-4"
-    },
-    {
-      "path": "/api/cron/invoice-reminders",
-      "schedule": "0 8 * * 0-4"
-    },
-    {
-      "path": "/api/cron/evening-summary",
-      "schedule": "0 17 * * 0-4"
-    },
-    {
-      "path": "/api/cron/whatsapp-scan",
-      "schedule": "0 8 */2 * *"
-    },
-    {
-      "path": "/api/cron/sync-gdrive",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/attorney-digest",
-      "schedule": "0 5 * * 0-4"
-    },
-    {
-      "path": "/api/cron/accountant-report",
-      "schedule": "0 6 5 * *"
-    },
-    {
-      "path": "/api/cron/scan-gmail",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/scan-outlook",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/backup-cases",
-      "schedule": "0 22 * * *"
-    },
-    {
-      "path": "/api/cron/sync-calendar",
-      "schedule": "0 6 * * *"
-    }
+    { "path": "/api/cron/daily-sync",        "schedule": "0 6 * * *"    },
+    { "path": "/api/cron/morning-briefing",  "schedule": "0 6 * * 0-4"  },
+    { "path": "/api/cron/invoice-reminders", "schedule": "0 8 * * 0-4"  },
+    { "path": "/api/cron/evening-summary",   "schedule": "0 17 * * 0-4" },
+    { "path": "/api/cron/attorney-digest",   "schedule": "0 5 * * 0-4"  },
+    { "path": "/api/cron/accountant-report", "schedule": "0 6 5 * *"    },
+    { "path": "/api/cron/backup-cases",      "schedule": "0 22 * * *"   },
+    { "path": "/api/cron/sync-calendar",     "schedule": "0 6 * * *"    },
+    { "path": "/api/cron/sync-gdrive",       "schedule": "0 5 * * *"    },
+
+    { "path": "/api/cron/scan-gmail",        "schedule": "0 7 * * *"    },
+    { "path": "/api/cron/scan-gmail",        "schedule": "0 10 * * *"   },
+    { "path": "/api/cron/scan-gmail",        "schedule": "0 15 * * *"   },
+
+    { "path": "/api/cron/scan-outlook",      "schedule": "30 7 * * *"   },
+    { "path": "/api/cron/scan-outlook",      "schedule": "30 10 * * *"  },
+    { "path": "/api/cron/scan-outlook",      "schedule": "30 15 * * *"  }
   ]
 }
