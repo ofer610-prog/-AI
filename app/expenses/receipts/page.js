@@ -75,9 +75,7 @@ export default function ReceiptsPage() {
     setScanState('running');
     setResult(null);
     try {
-      // Quick scan uses the same comprehensive scanner as the deep scan,
-      // limited to the last 30 days (finds invoices by supplier/keyword/
-      // attachment, not only by card number).
+      // סריקת Gmail לפי 4 ספרות כרטיס אשראי בלבד (1626 / 9434), 30 יום אחרונים.
       const res = await fetch('/api/expenses/deep-scan?days=30', { method: 'POST', cache: 'no-store', keepalive: true });
       const data = await res.json().catch(() => ({}));
       setResult(data.error ? data : { _deep: true, ...data });

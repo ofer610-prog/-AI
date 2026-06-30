@@ -82,7 +82,7 @@ export default function OutlookExpenseConnect() {
         <div className={`rounded-xl px-3 py-2 text-xs text-white shadow-lg max-w-xs ${scanResult.error ? 'bg-red-700' : 'bg-emerald-700'}`}>
           {scanResult.error
             ? scanResult.error
-            : `נמצאו ${scanResult.found || 0} | יובאו ${scanResult.imported || 0} | לסיווג ${scanResult.pending_review || 0}`}
+            : `נמצאו ${scanResult.found || 0} | יובאו ${scanResult.auto_imported || 0} | לסיווג ${scanResult.pending_review || 0}`}
           <button onClick={() => setScanResult(null)} className="mr-2 opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
