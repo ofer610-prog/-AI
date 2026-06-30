@@ -51,6 +51,8 @@ export default function ReceiptsPage() {
   const [q, setQ] = useState('');
   const [m, setM] = useState('all');
   const [src, setSrc] = useState('all');
+  const [sec, setSec] = useState('all');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grouped'
   const [preview, setPreview] = useState(null);
   const [edit, setEdit] = useState(null);
   const [missingExpenses, setMissingExpenses] = useState([]);
@@ -108,15 +110,16 @@ export default function ReceiptsPage() {
     return docs.filter(d => {
       if (m !== 'all' && Number(d.expense_month_num) !== Number(m)) return false;
       if (src !== 'all' && sourceOf(d) !== src) return false;
+      if (sec !== 'all' && (d.expense_section || 'office') !== sec) return false;
       if (!query) return true;
-      return [d.vendor, d.file_name, d.description, d.expense_item, d.status].filter(Boolean).join(' ').toLowerCase().includes(query);
+      return [d.vendor, d.file_name, d.description, d.expense_item, d.status, d.expense_section].filter(Boolean).join(' ').toLowerCase().includes(query);
     }).sort((a, b) => {
       const aPend = NEEDS_APPROVAL.has(a.status) ? 0 : 1;
       const bPend = NEEDS_APPROVAL.has(b.status) ? 0 : 1;
       if (aPend !== bPend) return aPend - bPend;
       return String(b.doc_date || '').localeCompare(String(a.doc_date || ''));
     });
-  }, [docs, q, m, src]);
+  }, [docs, q, m, src, sec]);
 
   const pending = rows.filter(d => NEEDS_APPROVAL.has(d.status)).length;
   const total = rows.filter(d => d.status === 'approved').reduce((s, d) => s + Number(d.amount || 0), 0);
@@ -302,16 +305,29 @@ export default function ReceiptsPage() {
 
         <section className="bg-white rounded-2xl border border-slate-200 p-4">
           <div className="flex flex-wrap gap-3 items-center mb-4">
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש ספק / נושא / הערה" className="border rounded-xl px-3 py-2 text-sm w-72" />
-            <select value={m} onChange={e => setM(e.target.value)} className="border rounded-xl px-3 py-2 text-sm"><option value="all">כל החודשים</option>{MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}</select>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש ספק / נושא / הערה" className="border rounded-xl px-3 py-2 text-sm w-64" />
+            <select value={m} onChange={e => setM(e.target.value)} className="border rounded-xl px-3 py-2 text-sm">
+              <option value="all">כל החודשים</option>
+              {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+            </select>
+            <select value={sec} onChange={e => setSec(e.target.value)} className="border rounded-xl px-3 py-2 text-sm">
+              <option value="all">כל הקטגוריות</option>
+              {EXPENSE_SECTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
             <select value={src} onChange={e => setSrc(e.target.value)} className="border rounded-xl px-3 py-2 text-sm">
               <option value="all">כל המקורות</option>
               <option value="outlook">Outlook בלבד</option>
               <option value="gmail">Gmail בלבד</option>
               <option value="manual">ידני בלבד</option>
             </select>
+            <div className="flex rounded-xl border overflow-hidden text-xs font-semibold mr-auto">
+              <button onClick={() => setViewMode('list')} className={`px-3 py-2 ${viewMode === 'list' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>☰ רשימה</button>
+              <button onClick={() => setViewMode('grouped')} className={`px-3 py-2 ${viewMode === 'grouped' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>📁 לפי נושא</button>
+            </div>
           </div>
-          {loading ? <div className="py-12 text-center text-slate-400">טוען…</div> : (
+          {loading ? <div className="py-12 text-center text-slate-400">טוען…</div> : viewMode === 'grouped'
+            ? <GroupedView rows={rows} setPreview={setPreview} openEdit={openEdit} quickApprove={quickApprove} rejectDoc={rejectDoc} openFolder={openFolder} NEEDS_APPROVAL={NEEDS_APPROVAL} />
+            : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead><tr className="bg-slate-100 text-slate-600">
@@ -323,52 +339,7 @@ export default function ReceiptsPage() {
                   <th className="text-left p-2 border-b">סכום</th>
                   <th className="text-right p-2 border-b">פעולות</th>
                 </tr></thead>
-                <tbody>{rows.map(d => {
-                  const s = sourceOf(d);
-                  const sl = SOURCE_LABELS[s];
-                  const needsApproval = NEEDS_APPROVAL.has(d.status);
-                  const rowCls = d.status === 'needs_review'
-                    ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500'
-                    : d.status === 'linked' || d.status === 'pending'
-                      ? 'bg-amber-50 hover:bg-amber-100 border-r-4 border-amber-400'
-                      : d.status === 'duplicate_review'
-                        ? 'bg-purple-50 hover:bg-purple-100 border-r-4 border-purple-500'
-                        : 'hover:bg-slate-50';
-                  const statusBadge = d.status === 'approved'
-                    ? <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✓ מאושר</span>
-                    : d.status === 'needs_review'
-                      ? <span className="text-orange-700 font-bold text-xs">⚠️ ממתין לסיווג</span>
-                      : d.status === 'duplicate_review'
-                        ? <span className="text-purple-700 font-bold text-xs">כפילות</span>
-                        : <span className="text-amber-700 font-bold text-xs">⏳ ממתין לאישורך</span>;
-                  return <tr key={d.id} className={rowCls}>
-                  <td className="p-2 border-b whitespace-nowrap">{statusBadge}</td>
-                  <td className="p-2 border-b whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sl.cls}`}>{sl.label}</span></td>
-                  <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
-                  <td className="p-2 border-b font-medium">
-                    {d.vendor || '—'}
-                    {d.doc_number && <div className="text-xs text-slate-400"># {d.doc_number}</div>}
-                  </td>
-                  <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[440px]">{d.description || ''}</div></td>
-                  <td className="p-2 border-b text-left font-semibold whitespace-nowrap">
-                    {d.currency && d.currency !== 'ILS' && d.original_amount
-                      ? <div className="text-xs text-slate-500">{d.currency === 'USD' ? '$' : d.currency === 'EUR' ? '€' : d.currency} {Number(d.original_amount).toLocaleString()}</div>
-                      : null}
-                    ₪{money(d.amount)}
-                    {d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}
-                  </td>
-                  <td className="p-2 border-b whitespace-nowrap">
-                    <div className="flex flex-wrap gap-1.5">
-                      <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs">צפייה</button>
-                      {gmailUrl(d) && <a href={gmailUrl(d)} target="_blank" rel="noreferrer" className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs">מייל</a>}
-                      {driveFileId(d.file_url) && <button onClick={() => openFolder(d)} className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs">תיקייה</button>}
-                      <button onClick={() => openEdit(d, false)} className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-medium">✏️ ערוך</button>
-                      {needsApproval && <button onClick={() => quickApprove(d)} className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">✓ אשר</button>}
-                      <button onClick={() => rejectDoc(d)} className="px-2 py-1 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 text-xs font-medium">✕ דחה</button>
-                    </div>
-                  </td>
-                </tr>;
-                })}</tbody>
+                <tbody>{rows.map(d => <DocRow key={d.id} d={d} setPreview={setPreview} openEdit={openEdit} quickApprove={quickApprove} rejectDoc={rejectDoc} openFolder={openFolder} NEEDS_APPROVAL={NEEDS_APPROVAL} />)}</tbody>
               </table>
               {!rows.length && <div className="py-10 text-center text-slate-400">אין מסמכים להצגה.</div>}
             </div>)}
@@ -425,6 +396,120 @@ export default function ReceiptsPage() {
 
 function Card({ title, value, warn }) { return <div className={`rounded-2xl border bg-white ${warn ? 'border-orange-300' : 'border-slate-200'} p-4`}><div className="text-xs text-slate-500 mb-1">{title}</div><div className={`text-2xl font-bold ${warn ? 'text-orange-600' : 'text-slate-800'}`}>{value}</div></div>; }
 function Modal({ title, children, onClose }) { return <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-4"><div dir="rtl" className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-5"><div className="flex items-center mb-4"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose} className="mr-auto text-slate-500 hover:text-black">✕</button></div>{children}</div></div>; }
+
+function DocRow({ d, setPreview, openEdit, quickApprove, rejectDoc, openFolder, NEEDS_APPROVAL }) {
+  const s = sourceOf(d);
+  const sl = SOURCE_LABELS[s];
+  const needsApproval = NEEDS_APPROVAL.has(d.status);
+  const rowCls = d.status === 'needs_review'
+    ? 'bg-orange-50 hover:bg-orange-100 border-r-4 border-orange-500'
+    : d.status === 'linked' || d.status === 'pending'
+      ? 'bg-amber-50 hover:bg-amber-100 border-r-4 border-amber-400'
+      : d.status === 'duplicate_review'
+        ? 'bg-purple-50 hover:bg-purple-100 border-r-4 border-purple-500'
+        : 'hover:bg-slate-50';
+  const statusBadge = d.status === 'approved'
+    ? <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✓ מאושר</span>
+    : d.status === 'needs_review'
+      ? <span className="text-orange-700 font-bold text-xs">⚠️ ממתין לסיווג</span>
+      : d.status === 'duplicate_review'
+        ? <span className="text-purple-700 font-bold text-xs">כפילות</span>
+        : <span className="text-amber-700 font-bold text-xs">⏳ ממתין לאישורך</span>;
+  return (
+    <tr className={rowCls}>
+      <td className="p-2 border-b whitespace-nowrap">{statusBadge}</td>
+      <td className="p-2 border-b whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sl.cls}`}>{sl.label}</span></td>
+      <td className="p-2 border-b whitespace-nowrap">{d.doc_date || '—'}</td>
+      <td className="p-2 border-b font-medium">
+        {d.vendor || '—'}
+        {d.doc_number && <div className="text-xs text-slate-400"># {d.doc_number}</div>}
+      </td>
+      <td className="p-2 border-b"><div>{d.expense_item || d.file_name || '—'}</div><div className="text-xs text-slate-400 truncate max-w-[440px]">{d.description || ''}</div></td>
+      <td className="p-2 border-b text-left font-semibold whitespace-nowrap">
+        {d.currency && d.currency !== 'ILS' && d.original_amount
+          ? <div className="text-xs text-slate-500">{d.currency === 'USD' ? '$' : d.currency === 'EUR' ? '€' : d.currency} {Number(d.original_amount).toLocaleString()}</div>
+          : null}
+        ₪{money(d.amount)}
+        {d.vat ? <div className="text-xs font-normal text-slate-500">מע״מ ₪{money(d.vat)}</div> : null}
+      </td>
+      <td className="p-2 border-b whitespace-nowrap">
+        <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => setPreview(d)} className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs">צפייה</button>
+          {d.gmail_message_id && !d.gmail_message_id.startsWith('outlook_') && <a href={`https://mail.google.com/mail/#all/${d.gmail_message_id}`} target="_blank" rel="noreferrer" className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs">מייל</a>}
+          {driveFileId(d.file_url) && <button onClick={() => openFolder(d)} className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs">תיקייה</button>}
+          <button onClick={() => openEdit(d, false)} className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-medium">✏️ ערוך</button>
+          {needsApproval && <button onClick={() => quickApprove(d)} className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">✓ אשר</button>}
+          <button onClick={() => rejectDoc(d)} className="px-2 py-1 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 text-xs font-medium">✕ דחה</button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function GroupedView({ rows, setPreview, openEdit, quickApprove, rejectDoc, openFolder, NEEDS_APPROVAL }) {
+  const [openSections, setOpenSections] = useState({});
+  const sectionMap = useMemo(() => {
+    const m = {};
+    for (const d of rows) {
+      const sec = d.expense_section || 'office';
+      const item = d.expense_item || d.vendor || 'ללא נושא';
+      const key = `${sec}__${item}`;
+      if (!m[key]) m[key] = { sec, item, docs: [], total: 0 };
+      m[key].docs.push(d);
+      m[key].total += Number(d.amount || 0);
+    }
+    return Object.values(m).sort((a, b) => {
+      if (a.sec !== b.sec) return a.sec.localeCompare(b.sec);
+      return a.item.localeCompare(b.item, 'he');
+    });
+  }, [rows]);
+
+  const secLabel = (s) => EXPENSE_SECTIONS.find(x => x.value === s)?.label || s;
+
+  if (!sectionMap.length) return <div className="py-10 text-center text-slate-400">אין מסמכים להצגה.</div>;
+
+  return (
+    <div className="space-y-3">
+      {sectionMap.map(({ sec, item, docs, total }) => {
+        const key = `${sec}__${item}`;
+        const isOpen = openSections[key];
+        const pendingCount = docs.filter(d => NEEDS_APPROVAL.has(d.status)).length;
+        return (
+          <div key={key} className="border border-slate-200 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 text-right"
+            >
+              <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">{secLabel(sec)}</span>
+              <span className="font-semibold text-slate-800">{item}</span>
+              <span className="text-slate-500 text-sm">{docs.length} מסמכים</span>
+              {pendingCount > 0 && <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">{pendingCount} ממתינים</span>}
+              <span className="mr-auto font-bold text-slate-700">₪{money(total)}</span>
+              <span className="text-slate-400 text-xs">{isOpen ? '▲' : '▼'}</span>
+            </button>
+            {isOpen && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead><tr className="bg-slate-100 text-slate-600">
+                    <th className="text-right p-2 border-b">סטטוס</th>
+                    <th className="text-right p-2 border-b">מקור</th>
+                    <th className="text-right p-2 border-b">תאריך</th>
+                    <th className="text-right p-2 border-b">ספק</th>
+                    <th className="text-left p-2 border-b">סכום</th>
+                    <th className="text-right p-2 border-b">פעולות</th>
+                  </tr></thead>
+                  <tbody>
+                    {docs.map(d => <DocRow key={d.id} d={d} setPreview={setPreview} openEdit={openEdit} quickApprove={quickApprove} rejectDoc={rejectDoc} openFolder={openFolder} NEEDS_APPROVAL={NEEDS_APPROVAL} />)}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function RecurringSection() {
   const [data, setData] = useState(null);
