@@ -4,7 +4,6 @@ import AppNav from '@/components/AppNav';
 import GoogleExpenseConnect from '@/components/GoogleExpenseConnect';
 import FormFocusKeeper from '@/components/FormFocusKeeper';
 import OutlookExpenseConnect from '@/components/OutlookExpenseConnect';
-import InvoiceScanSourceNotice from '@/components/InvoiceScanSourceNotice';
 
 export const metadata = {
   title: 'ספרי משרד | מערכת משרד עו"ד',
@@ -29,7 +28,6 @@ export default function RootLayout({ children }) {
         <NotificationBell />
         <GoogleExpenseConnect />
         <OutlookExpenseConnect />
-        <InvoiceScanSourceNotice />
       </body>
     </html>
   );
