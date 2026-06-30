@@ -34,10 +34,11 @@ export async function GET(request) {
     .select('accountant_email').eq('id', profile.organization_id).single();
 
   const { data: docs } = await sb.from('expense_documents')
-    .select('id, file_url, file_name, file_type, amount, vendor, description, doc_date, status, expense_item, expense_section, expense_year, expense_month_num, gmail_message_id')
+    .select('id, file_url, file_name, file_type, amount, vat, vendor, description, doc_date, doc_number, currency, original_amount, status, expense_item, expense_section, expense_year, expense_month_num, gmail_message_id, category, payer')
     .eq('organization_id', profile.organization_id)
     .neq('status', 'removed')
-    .or(`expense_year.eq.${year},status.eq.needs_review`);
+    .or(`expense_year.eq.${year},status.eq.needs_review`)
+    .order('doc_date', { ascending: false });
 
   return Response.json({ entries: data || [], docs: docs || [], year, accountant_email: org?.accountant_email || '' });
 }
