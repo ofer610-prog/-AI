@@ -29,10 +29,8 @@
 }
 
 
-/* Hide legacy/manual invoice scan buttons. Official scanner is Google Apps Script -> app-script-import. */
+/* Hide the old manual Gmail scan button on /expenses. Auto scan now runs in the quick invoice panel. */
 button[title="סרוק מיילים לחשבוניות"],
-button[aria-label="סרוק מיילים לחשבוניות"],
-button[title="סריקה מהירה של חשבוניות חדשות (מתבצעת גם אוטומטית 3× ביום)"],
-button[title="סרוק Outlook / Hotmail לפי מספרי כרטיס אשראי"] {
+button[aria-label="סרוק מיילים לחשבוניות"] {
   display: none !important;
 }
