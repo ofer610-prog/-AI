@@ -111,7 +111,8 @@ function rowToTxn(cells, headers, cols, bank, i) {
     if (amt < 0) debit = Math.abs(amt); else credit = Math.abs(amt);
   }
 
-  // פועלים: לעיתים אין כותרות ברורות והסכומים נמצאים בסוף השורה: חובה, זכות, יתרה.
+  // פועלים: כשאין כותרות מדויקות, הסכומים לרוב מופיעים בסוף: חובה/זכות ואז יתרה.
+  // הכלל החשוב: יתרה לעולם אינה תנועת חובה/זכות. אם יש שני מספרים בסוף, הראשון הוא התנועה והשני הוא יתרה.
   if (!debit && !credit) {
     const numeric = cells
       .map((c, idx) => ({ idx, value: Math.abs(toNum(c)), raw: String(c ?? '').trim() }))
@@ -120,19 +121,24 @@ function rowToTxn(cells, headers, cols, bank, i) {
       .filter(x => !looksLikeExcelSerial(x.raw))
       .filter(x => x.value < 1000000); // מסנן אסמכתאות גדולות כמו 99020330
 
-    if (numeric.length >= 2) {
+    const isCreditText = /זיכוי|הפקדה|זכות|הכנסה|מזכה|מהמזרחי|מלאומי|מפועלים/i.test(desc);
+    if (numeric.length >= 3) {
       const lastThree = numeric.slice(-3);
       const possibleDebit = lastThree[0]?.value || 0;
       const possibleCredit = lastThree[1]?.value || 0;
       const possibleBalance = lastThree[2]?.value || 0;
-      const isCreditText = /זיכוי|הפקדה|זכות|הכנסה|מזכה/i.test(desc);
-      if (possibleCredit && isCreditText) credit = possibleCredit;
-      else if (possibleDebit && !isCreditText) debit = possibleDebit;
-      else if (possibleCredit) credit = possibleCredit;
+      if (isCreditText) credit = possibleCredit || possibleDebit;
+      else debit = possibleDebit || possibleCredit;
+      if (!balance && possibleBalance) balance = possibleBalance;
+    } else if (numeric.length === 2) {
+      const txnAmount = numeric[0].value;
+      const possibleBalance = numeric[1].value;
+      if (isCreditText) credit = txnAmount;
+      else debit = txnAmount;
       if (!balance && possibleBalance) balance = possibleBalance;
     } else if (numeric.length === 1) {
       const amt = numeric[0].value;
-      if (/זיכוי|הפקדה|זכות|הכנסה|מזכה/i.test(desc)) credit = amt;
+      if (isCreditText) credit = amt;
       else debit = amt;
     }
   }
