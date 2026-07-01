@@ -29,8 +29,7 @@ const ACCOUNTING_GROUP = {
   items: [
     { href: '/finance',           label: 'הכנסות',             icon: '📈' },
     { href: '/expenses/receipts', label: 'הוצאות וחשבוניות',   icon: '💸' },
-    { href: '/bank-hapoalim',     label: 'ניתוח עו״ש פועלים',  icon: '🏦' },
-    { href: '/bank-import',       label: 'ניתוח עו״ש כללי',    icon: '📄' },
+    { href: '/bank-import',       label: 'בדיקת חשבונות עו״ש', icon: '🏦' },
     { href: '/credit-charges',    label: 'ניתוח אשראי',        icon: '💳' },
     { href: '/collection',        label: 'גבייה',              icon: '💰' },
     { href: '/expenses/library',  label: 'ספרייה',             icon: '📚' },
