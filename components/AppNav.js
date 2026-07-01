@@ -6,20 +6,12 @@ import { usePathname } from 'next/navigation';
 
 /**
  * Global navigation — קיבוץ פעולות לכפתורים מרכזיים עם תפריטים נפתחים.
- *   • בית
- *   • ניהול תיקים   → תיקים, משימות, יומן, הלוז שלי, שעות
- *   • הנהלת חשבונות → הכנסות, הוצאות, ניתוח עו"ש (מזרחי), ניתוח אשראי,
- *                     גבייה, ספרייה, מס, דוח שנתי   (אדמין/רו"ח בלבד)
- *   • צירוף הוצאה
- *   • המשרד שלי
  */
 
-// כפתורים ישירים (תמיד גלויים)
 const HOME = { href: '/', label: 'בית', icon: '🏠' };
 const QUICK = { href: '/expense-docs', label: 'צירוף הוצאה', icon: '🧾' };
 const OFFICE = { href: '/dashboard', label: 'המשרד שלי', icon: '💼' };
 
-// קבוצת "ניהול תיקים"
 const CASES_GROUP = {
   label: 'ניהול תיקים', icon: '📁', match: ['/cases', '/tasks', '/calendar', '/my-schedule', '/time'],
   items: [
@@ -31,14 +23,14 @@ const CASES_GROUP = {
   ],
 };
 
-// קבוצת "הנהלת חשבונות" (אדמין/רו"ח בלבד)
 const ACCOUNTING_GROUP = {
   label: 'הנהלת חשבונות', icon: '📊',
-  match: ['/finance', '/expenses', '/bank-import', '/credit-charges', '/collection', '/tax', '/annual-report', '/command'],
+  match: ['/finance', '/expenses', '/bank-import', '/bank-hapoalim', '/credit-charges', '/collection', '/tax', '/annual-report', '/command'],
   items: [
     { href: '/finance',           label: 'הכנסות',             icon: '📈' },
-    { href: '/expenses/receipts', label: 'הוצאות',             icon: '💸' },
-    { href: '/bank-import',       label: 'ניתוח עו"ש (מזרחי)', icon: '🏦' },
+    { href: '/expenses/receipts', label: 'הוצאות וחשבוניות',   icon: '💸' },
+    { href: '/bank-hapoalim',     label: 'ניתוח עו״ש פועלים',  icon: '🏦' },
+    { href: '/bank-import',       label: 'ניתוח עו״ש כללי',    icon: '📄' },
     { href: '/credit-charges',    label: 'ניתוח אשראי',        icon: '💳' },
     { href: '/collection',        label: 'גבייה',              icon: '💰' },
     { href: '/expenses/library',  label: 'ספרייה',             icon: '📚' },
@@ -50,7 +42,7 @@ const ACCOUNTING_GROUP = {
 export default function AppNav() {
   const pathname = usePathname();
   const [profile, setProfile] = useState(null);
-  const [openMenu, setOpenMenu] = useState(null); // 'cases' | 'accounting' | null
+  const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
 
   useEffect(() => {
@@ -62,7 +54,6 @@ export default function AppNav() {
     return () => { cancelled = true; };
   }, []);
 
-  // סגירת תפריט בלחיצה מחוץ אליו + במעבר עמוד
   useEffect(() => { setOpenMenu(null); }, [pathname]);
   useEffect(() => {
     const onClick = (e) => { if (navRef.current && !navRef.current.contains(e.target)) setOpenMenu(null); };
@@ -81,11 +72,11 @@ export default function AppNav() {
       isActive(href) ? 'bg-sky-600 text-white font-semibold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
     }`;
 
-  const Dropdown = ({ id, group, accent }) => {
+  const Dropdown = ({ id, group, accent, align = 'right' }) => {
     const active = groupActive(group.match);
     const open = openMenu === id;
     return (
-      <div className="relative">
+      <div className="relative shrink-0">
         <button
           onClick={() => setOpenMenu(open ? null : id)}
           className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors border flex items-center gap-1 ${
@@ -97,18 +88,18 @@ export default function AppNav() {
           <span className="text-[10px] opacity-70">{open ? '▲' : '▼'}</span>
         </button>
         {open && (
-          <div className="absolute right-0 mt-1 min-w-[210px] bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50">
+          <div className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full mt-2 w-64 max-h-[75vh] overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-[9999] text-slate-800`}>
             {group.items.map((it) => (
               <Link
                 key={it.href}
                 href={it.href}
                 onClick={() => setOpenMenu(null)}
-                className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+                className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
                   isActive(it.href) ? 'bg-sky-50 text-sky-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <span className="text-base w-5 text-center">{it.icon}</span>
-                {it.label}
+                <span className="whitespace-nowrap">{it.label}</span>
               </Link>
             ))}
           </div>
@@ -118,8 +109,8 @@ export default function AppNav() {
   };
 
   return (
-    <nav dir="rtl" ref={navRef} className="sticky top-0 z-40 bg-slate-900 text-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 flex items-center gap-1.5 h-12 overflow-x-auto">
+    <nav dir="rtl" ref={navRef} className="sticky top-0 z-[9000] bg-slate-900 text-white shadow-md overflow-visible">
+      <div className="max-w-7xl mx-auto px-4 flex items-center gap-1.5 min-h-12 overflow-visible">
         <span className="text-sm font-bold ml-2 whitespace-nowrap hidden sm:inline" style={{ fontFamily: "'Frank Ruhl Libre', serif" }}>
           ⚖️ ספרי משרד
         </span>
@@ -146,10 +137,11 @@ export default function AppNav() {
         </Link>
 
         {isAdmin && (
-          <div className="mr-auto flex items-center gap-1.5">
+          <div className="mr-auto flex items-center gap-1.5 shrink-0">
             <Dropdown
               id="accounting"
               group={ACCOUNTING_GROUP}
+              align="left"
               accent={{
                 idle: 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-500 hover:text-white',
                 active: 'bg-emerald-500 border-emerald-400 text-white font-bold',
