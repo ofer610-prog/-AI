@@ -1,526 +1,188 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const BANKS = {
+  mizrahi: { label: 'מזרחי טפחות', icon: '🔴' },
+  hapoalim: { label: 'בנק הפועלים', icon: '🏦' },
+};
 
-const BANKS = [
-  { value: 'hapoalim',  label: 'פועלים' },
-  { value: 'leumi',     label: 'לאומי' },
-  { value: 'discount',  label: 'דיסקונט' },
-  { value: 'mizrahi',   label: 'מזרחי' },
-  { value: 'generic',   label: 'כל בנק' },
-];
+const money = n => Number(n || 0).toLocaleString('he-IL', { maximumFractionDigits: 2 });
 
-const CATEGORIES = [
-  { value: 'רכב',      label: 'רכב' },
-  { value: 'תקשורת',   label: 'תקשורת' },
-  { value: 'תוכנה',    label: 'תוכנה' },
-  { value: 'שכירות',   label: 'שכירות' },
-  { value: 'ביטוח',    label: 'ביטוח' },
-  { value: 'ספריות',   label: 'ספריות' },
-  { value: 'אחר',      label: 'אחר' },
-];
-
-// ─── CSV Parsing ──────────────────────────────────────────────────────────────
-
-/**
- * Try to detect the column indices for: date, description, credit, debit, balance.
- * Returns an object: { dateIdx, descIdx, creditIdx, debitIdx, balanceIdx }
- * Indices that cannot be found are set to -1.
- */
-function detectColumns(headers) {
-  const h = headers.map(s => s.trim().toLowerCase());
-
-  const find = (...terms) => {
-    for (const t of terms) {
-      const i = h.findIndex(c => c.includes(t));
-      if (i !== -1) return i;
-    }
-    return -1;
-  };
-
-  return {
-    dateIdx:    find('date', 'תאריך', 'תאריך ערך', 'תאריך עסקה', 'value date'),
-    descIdx:    find('description', 'תיאור', 'פרטים', 'details', 'narrative', 'reference', 'payee'),
-    creditIdx:  find('credit', 'זכות', 'זיכוי', 'הכנסה', 'income', 'deposit'),
-    debitIdx:   find('debit', 'חובה', 'חיוב', 'הוצאה', 'charge', 'withdrawal'),
-    balanceIdx: find('balance', 'יתרה', 'יתרה לאחר פעולה', 'running balance'),
-    amountIdx:  find('amount', 'סכום'), // generic fallback
-  };
+function StatusBadge({ status, type }) {
+  if (status === 'matched') return <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">תואם {type === 'income' ? 'הכנסה' : 'הוצאה'}</span>;
+  if (status === 'possible_gap') return <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">פער לבדיקה</span>;
+  return <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">אין חשבונית תואמת</span>;
 }
 
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
+function UploadPanel({ bank, onResult }) {
+  const inputRef = useRef(null);
+  const [fileName, setFileName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const b = BANKS[bank];
 
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-function parseCSV(text, bank) {
-  // Normalize line endings
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-
-  // Skip empty lines and find header row
-  const nonEmpty = lines.filter(l => l.trim().length > 0);
-  if (nonEmpty.length < 2) return [];
-
-  // Try to find the header row (heuristic: first row with recognizable column names)
-  let headerIdx = 0;
-  for (let i = 0; i < Math.min(10, nonEmpty.length); i++) {
-    const cols = parseCSVLine(nonEmpty[i]).map(s => s.toLowerCase());
-    if (
-      cols.some(c =>
-        c.includes('date') || c.includes('תאריך') ||
-        c.includes('credit') || c.includes('זכות') ||
-        c.includes('debit') || c.includes('חובה') ||
-        c.includes('amount') || c.includes('סכום') ||
-        c.includes('description') || c.includes('תיאור')
-      )
-    ) {
-      headerIdx = i;
-      break;
-    }
-  }
-
-  const rawHeaders = parseCSVLine(nonEmpty[headerIdx]);
-  const cols = detectColumns(rawHeaders);
-
-  const transactions = [];
-
-  for (let i = headerIdx + 1; i < nonEmpty.length; i++) {
-    const cells = parseCSVLine(nonEmpty[i]);
-    if (cells.length < 2) continue;
-
-    const get = (idx) => (idx !== -1 && idx < cells.length ? cells[idx].replace(/[₪,\s]/g, '').trim() : '');
-    const getStr = (idx) => (idx !== -1 && idx < cells.length ? cells[idx].trim() : '');
-
-    const rawDate = getStr(cols.dateIdx);
-    const rawDesc = getStr(cols.descIdx);
-    let rawCredit = get(cols.creditIdx);
-    let rawDebit  = get(cols.debitIdx);
-    const rawBalance = get(cols.balanceIdx);
-
-    // Generic fallback: if no separate credit/debit columns, use amount column
-    // Negative amounts → debit, positive → credit
-    if (rawCredit === '' && rawDebit === '' && cols.amountIdx !== -1) {
-      const amt = parseFloat(get(cols.amountIdx));
-      if (!isNaN(amt)) {
-        if (amt < 0) rawDebit = String(Math.abs(amt));
-        else rawCredit = String(amt);
-      }
-    }
-
-    const credit  = parseFloat(rawCredit)  || 0;
-    const debit   = parseFloat(rawDebit)   || 0;
-    const balance = parseFloat(rawBalance) || null;
-
-    // Skip rows with no meaningful data
-    if (!rawDate && !rawDesc && credit === 0 && debit === 0) continue;
-
-    // Normalise date to DD/MM/YYYY
-    let date = rawDate;
-    // Handle YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
-      const parts = date.substring(0, 10).split('-');
-      date = `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-
-    transactions.push({
-      id: `${i}-${rawDate}-${rawDesc}`,
-      date,
-      description: rawDesc || '—',
-      credit,
-      debit,
-      balance,
-      category: '',
-    });
-  }
-
-  return transactions;
-}
-
-// ─── Helper: download CSV ─────────────────────────────────────────────────────
-
-function exportToCSV(transactions) {
-  const header = 'תאריך,תיאור,חובה,זכות,יתרה,קטגוריה';
-  const rows = transactions.map(t =>
-    [
-      t.date,
-      `"${t.description.replace(/"/g, '""')}"`,
-      t.debit  || '',
-      t.credit || '',
-      t.balance != null ? t.balance : '',
-      t.category || '',
-    ].join(',')
-  );
-  const csv = [header, ...rows].join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'bank-transactions.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function CategoryPicker({ current, onSelect, onClose }) {
-  return (
-    <div className="absolute z-20 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-2 flex flex-wrap gap-1 min-w-[220px]">
-      {CATEGORIES.map(cat => (
-        <button
-          key={cat.value}
-          onClick={() => { onSelect(cat.value); onClose(); }}
-          className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors
-            ${current === cat.value
-              ? 'bg-blue-600 text-white'
-              : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
-            }`}
-        >
-          {cat.label}
-        </button>
-      ))}
-      {current && (
-        <button
-          onClick={() => { onSelect(''); onClose(); }}
-          className="px-3 py-1 rounded-lg text-sm font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-        >
-          נקה
-        </button>
-      )}
-    </div>
-  );
-}
-
-function SummaryBar({ transactions }) {
-  const totalDebit  = transactions.reduce((s, t) => s + t.debit,  0);
-  const totalCredit = transactions.reduce((s, t) => s + t.credit, 0);
-  const categorized = transactions.filter(t => t.category).length;
-
-  const fmt = n => n.toLocaleString('he-IL', { maximumFractionDigits: 2 });
-
-  return (
-    <div className="grid grid-cols-3 gap-4 mb-6">
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <p className="text-xs text-slate-500 mb-1">סה״כ עסקאות</p>
-        <p className="text-2xl font-bold text-slate-800">{transactions.length}</p>
-        <p className="text-xs text-slate-400 mt-1">{categorized} מסווגות</p>
-      </div>
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <p className="text-xs text-slate-500 mb-1">סה״כ חובה</p>
-        <p className="text-2xl font-bold text-red-600">₪{fmt(totalDebit)}</p>
-      </div>
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <p className="text-xs text-slate-500 mb-1">סה״כ זכות</p>
-        <p className="text-2xl font-bold text-green-600">₪{fmt(totalCredit)}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-export default function BankImportPage() {
-  const [selectedBank, setSelectedBank] = useState('generic');
-  const [transactions, setTransactions] = useState([]);
-  const [fileName, setFileName]         = useState('');
-  const [error, setError]               = useState('');
-  const [openPickerIdx, setOpenPickerIdx] = useState(null);
-  const [saving, setSaving]             = useState(false);
-  const [saveResult, setSaveResult]     = useState(null);
-  const fileRef = useRef(null);
-
-  // Close picker when clicking outside
-  const handleContainerClick = useCallback((e) => {
-    if (!e.target.closest('[data-picker]')) {
-      setOpenPickerIdx(null);
-    }
-  }, []);
-
-  const handleFileChange = (e) => {
+  const onFile = async e => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setError('');
-    setSaveResult(null);
     setFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const text = ev.target.result;
-        const parsed = parseCSV(text, selectedBank);
-        if (parsed.length === 0) {
-          setError('לא נמצאו עסקאות בקובץ. בדוק שהקובץ הוא ייצוא CSV תקין מהבנק.');
-        } else {
-          setTransactions(parsed);
-        }
-      } catch (err) {
-        setError('שגיאה בפענוח הקובץ: ' + err.message);
-      }
-    };
-    reader.readAsText(file, 'utf-8');
-  };
-
-  const setCategory = (idx, category) => {
-    setTransactions(prev =>
-      prev.map((t, i) => (i === idx ? { ...t, category } : t))
-    );
-  };
-
-  const handleSave = async () => {
-    const categorized = transactions.filter(t => t.category);
-    if (categorized.length === 0) {
-      setError('יש לסווג לפחות עסקה אחת לפני השמירה.');
-      return;
-    }
-    setSaving(true);
-    setSaveResult(null);
+    setLoading(true);
     setError('');
-
     try {
-      const res = await fetch('/api/bank-import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactions: categorized, bank: selectedBank }),
-      });
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('bank', bank);
+      fd.append('year', String(new Date().getFullYear()));
+      const res = await fetch('/api/bank-analysis/parse', { method: 'POST', body: fd });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'שגיאת שרת');
-      setSaveResult(data);
+      if (!res.ok) throw new Error(data.error || 'שגיאה בניתוח הקובץ');
+      onResult(bank, data);
     } catch (err) {
-      setError('שגיאה בשמירה: ' + err.message);
+      setError(err.message || 'שגיאה בניתוח הקובץ');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
-
-  const fmt = n => n
-    ? Number(n).toLocaleString('he-IL', { maximumFractionDigits: 2 })
-    : '—';
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 p-6" onClick={handleContainerClick}>
-      <div className="max-w-6xl mx-auto">
+    <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 className="text-xl font-black text-slate-900">{b.icon} {b.label}</h2>
+          <p className="text-sm text-slate-500 mt-1 max-w-xl">
+            העלאת קבצי עו״ש: Excel, CSV, TXT או PDF. המערכת מפענחת את התנועות ומשווה מול חשבוניות הוצאות והכנסות שקיימות במערכת.
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={loading}
+        className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold"
+      >
+        {loading ? 'מנתח קובץ…' : fileName || `העלה קובץ ${b.label}`}
+      </button>
+      <input ref={inputRef} type="file" accept=".csv,.txt,.xls,.xlsx,.pdf" onChange={onFile} className="hidden" />
+      {error && <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
+    </section>
+  );
+}
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 mb-1">ייבוא דפי בנק</h1>
-          <p className="text-slate-500 text-sm">העלה קובץ CSV מהבנק, סווג עסקאות ושמור להוצאות</p>
+function Summary({ rows, results }) {
+  const summary = useMemo(() => ({
+    rows: rows.length,
+    debit: rows.reduce((s, r) => s + Number(r.debit || 0), 0),
+    credit: rows.reduce((s, r) => s + Number(r.credit || 0), 0),
+    matched: rows.filter(r => r.match_status === 'matched').length,
+    gaps: rows.filter(r => r.match_status === 'possible_gap').length,
+    missing: rows.filter(r => r.match_status === 'missing_invoice').length,
+  }), [rows]);
+  const incomeTable = results.find(r => r?.income_table)?.income_table;
+  const expenseCount = results.find(r => r)?.expenses_count || 0;
+  const incomeCount = results.find(r => r)?.income_count || 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תנועות</div><div className="text-2xl font-black">{summary.rows}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חובה</div><div className="text-2xl font-black text-red-600">₪{money(summary.debit)}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">זכות</div><div className="text-2xl font-black text-emerald-600">₪{money(summary.credit)}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תואמות</div><div className="text-2xl font-black text-emerald-600">{summary.matched}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">פערים</div><div className="text-2xl font-black text-amber-600">{summary.gaps}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חסרות</div><div className="text-2xl font-black text-red-600">{summary.missing}</div></div>
+      </div>
+      <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-900">
+        נבדקו מול <b>{expenseCount}</b> חשבוניות הוצאות במערכת. {incomeTable ? <>נבדקו גם מול <b>{incomeCount}</b> רשומות הכנסה מטבלת <b>{incomeTable}</b>.</> : <>טבלת הכנסות לא זוהתה עדיין ולכן התאמות לזכות יוצגו כחסרות עד שנחבר את מקור חשבוניות ההכנסה.</>}
+      </div>
+    </div>
+  );
+}
+
+function MatchesTable({ rows }) {
+  return (
+    <section className="bg-white border rounded-2xl overflow-hidden">
+      <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+        <h2 className="font-black text-slate-900">תנועות והתאמות לחשבוניות</h2>
+        <div className="text-xs text-slate-500">חובה ↔ חשבוניות הוצאות · זכות ↔ חשבוניות הכנסות</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-100 text-slate-600">
+            <tr>
+              <th className="text-right p-3">בנק</th>
+              <th className="text-right p-3">תאריך</th>
+              <th className="text-right p-3">תיאור</th>
+              <th className="text-left p-3">חובה</th>
+              <th className="text-left p-3">זכות</th>
+              <th className="text-right p-3">סיווג</th>
+              <th className="text-right p-3">התאמה</th>
+              <th className="text-right p-3">חשבונית תואמת / פער</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const inv = r.match?.invoice;
+              return (
+                <tr key={r.id} className="border-t hover:bg-slate-50">
+                  <td className="p-3 whitespace-nowrap">{BANKS[r.bank]?.label || r.bank}</td>
+                  <td className="p-3 whitespace-nowrap">{r.date || '—'}</td>
+                  <td className="p-3 max-w-xl">{r.desc}</td>
+                  <td className="p-3 text-left text-red-600 font-bold">{r.debit ? '₪' + money(r.debit) : '—'}</td>
+                  <td className="p-3 text-left text-emerald-600 font-bold">{r.credit ? '₪' + money(r.credit) : '—'}</td>
+                  <td className="p-3"><span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">{r.category}</span></td>
+                  <td className="p-3"><StatusBadge status={r.match_status} type={r.match_type} /></td>
+                  <td className="p-3 text-xs text-slate-600 min-w-[260px]">
+                    {inv ? (
+                      <div>
+                        <div className="font-bold text-slate-800">{inv.vendor || inv.client_name || inv.customer_name || inv.file_name || 'חשבונית'}</div>
+                        <div>סכום חשבונית: ₪{money(inv.amount || inv.total || inv.total_amount)}</div>
+                        <div>פער סכום: ₪{money(r.match.amountDiff)} · פער ימים: {r.match.dateDiff}</div>
+                        {inv.file_url && <a href={inv.file_url} target="_blank" rel="noreferrer" className="text-sky-700 underline">פתח חשבונית</a>}
+                      </div>
+                    ) : (
+                      <span>לא נמצאה חשבונית תואמת במערכת</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export default function BankImportPage() {
+  const [results, setResults] = useState({ mizrahi: null, hapoalim: null });
+  const rows = useMemo(() => [
+    ...(results.mizrahi?.rows || []),
+    ...(results.hapoalim?.rows || []),
+  ], [results]);
+
+  const resultList = [results.mizrahi, results.hapoalim].filter(Boolean);
+
+  return (
+    <div dir="rtl" className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900">🏦 בדיקת חשבונות עו״ש</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            עמוד אחד לניתוח דפי עו״ש ממזרחי ופועלים, כולל השוואה לחשבוניות הוצאות והכנסות במערכת.
+          </p>
         </div>
 
-        {/* Upload Card */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-slate-700 mb-4">בחר בנק והעלה קובץ</h2>
-          <div className="flex flex-wrap gap-4 items-end">
-
-            {/* Bank selector */}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-600 font-medium">בנק</label>
-              <select
-                value={selectedBank}
-                onChange={e => setSelectedBank(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                {BANKS.map(b => (
-                  <option key={b.value} value={b.value}>{b.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* File upload */}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-600 font-medium">קובץ CSV</label>
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                {fileName ? fileName : 'בחר קובץ'}
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.txt"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
-
-            {/* Format hint */}
-            <p className="text-xs text-slate-400 self-end pb-2">
-              תומך בפועלים · לאומי · דיסקונט · מזרחי · וכל פורמט כללי
-            </p>
-          </div>
+        <div className="grid md:grid-cols-2 gap-5">
+          <UploadPanel bank="mizrahi" onResult={(bank, data) => setResults(prev => ({ ...prev, [bank]: data }))} />
+          <UploadPanel bank="hapoalim" onResult={(bank, data) => setResults(prev => ({ ...prev, [bank]: data }))} />
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">
-            {error}
-          </div>
-        )}
+        {rows.length > 0 && <Summary rows={rows} results={resultList} />}
+        {rows.length > 0 && <MatchesTable rows={rows} />}
 
-        {/* Save result */}
-        {saveResult && (
-          <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-4 text-sm">
-            נשמרו {saveResult.imported} עסקאות בהצלחה
-            {saveResult.skipped > 0 && ` · ${saveResult.skipped} דולגו`}
-          </div>
-        )}
-
-        {/* Transactions */}
-        {transactions.length > 0 && (
-          <>
-            <SummaryBar transactions={transactions} />
-
-            {/* Action bar */}
-            <div className="flex gap-3 mb-4 flex-wrap">
-              <button
-                onClick={() => exportToCSV(transactions)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                ייצא לגיליון CSV
-              </button>
-
-              <button
-                onClick={handleSave}
-                disabled={saving || transactions.filter(t => t.category).length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                {saving ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                    שומר...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M5 13l4 4L19 7" />
-                    </svg>
-                    שמור לבסיס נתונים
-                  </>
-                )}
-              </button>
-
-              <span className="text-xs text-slate-400 self-center">
-                {transactions.filter(t => t.category).length} עסקאות מסווגות מתוך {transactions.length}
-              </span>
-            </div>
-
-            {/* Table */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">תאריך</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600">תיאור</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">חובה</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">זכות</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">יתרה</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">סיווג</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((t, idx) => (
-                      <tr
-                        key={t.id}
-                        className={`border-b border-slate-100 hover:bg-slate-50 transition-colors
-                          ${t.category ? 'bg-blue-50/40' : ''}`}
-                      >
-                        <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap font-mono text-xs">
-                          {t.date || '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-800 max-w-xs">
-                          <span className="line-clamp-2">{t.description}</span>
-                        </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">
-                          {t.debit > 0
-                            ? <span className="text-red-600 font-medium">₪{fmt(t.debit)}</span>
-                            : <span className="text-slate-300">—</span>
-                          }
-                        </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">
-                          {t.credit > 0
-                            ? <span className="text-green-600 font-medium">₪{fmt(t.credit)}</span>
-                            : <span className="text-slate-300">—</span>
-                          }
-                        </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 text-xs">
-                          {t.balance != null ? `₪${fmt(t.balance)}` : '—'}
-                        </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">
-                          <div className="relative" data-picker>
-                            <button
-                              onClick={() => setOpenPickerIdx(openPickerIdx === idx ? null : idx)}
-                              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors
-                                ${t.category
-                                  ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                                  : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600'
-                                }`}
-                            >
-                              {t.category || 'סווג'}
-                            </button>
-
-                            {openPickerIdx === idx && (
-                              <CategoryPicker
-                                current={t.category}
-                                onSelect={(cat) => setCategory(idx, cat)}
-                                onClose={() => setOpenPickerIdx(null)}
-                              />
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Empty state */}
-        {transactions.length === 0 && !error && (
-          <div className="bg-white rounded-xl border border-dashed border-slate-300 p-16 text-center">
-            <svg className="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p className="text-slate-400 text-sm">העלה קובץ CSV כדי לראות את העסקאות</p>
-            <p className="text-slate-300 text-xs mt-1">ייצא את דף הבנק מהאתר של הבנק בפורמט CSV</p>
-          </div>
+        {rows.length === 0 && (
+          <section className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
+            העלה קובץ עו״ש של מזרחי או פועלים כדי להתחיל ניתוח והשוואה לחשבוניות.
+          </section>
         )}
       </div>
     </div>
