@@ -21,11 +21,14 @@ export async function GET(request) {
   const url = new URL(request.url);
   const returnTo = url.searchParams.get('return_to') || '/expenses/receipts';
   const retry = Number(url.searchParams.get('retry') || 0);
+  // slot 2 = dedicated invoices mailbox (gmail2_*); anything else = primary (gmail_*)
+  const slot = url.searchParams.get('slot') === '2' ? 2 : 1;
 
   const payload = Buffer.from(JSON.stringify({
     org_id: profile.organization_id,
     user_id: user.id,
     return_to: returnTo,
+    slot,
     retry,
     ts: Date.now(),
   })).toString('base64url');

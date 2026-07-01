@@ -38,6 +38,11 @@ export async function GET(request) {
   const stateParam = url.searchParams.get('state');
   const stateData = verifyState(stateParam);
   const returnTo = stateData?.return_to || '/expenses/receipts';
+  // slot 2 = dedicated invoices mailbox → write to gmail2_* columns
+  const slot = stateData?.slot === 2 ? 2 : 1;
+  const col = slot === 2
+    ? { connected: 'gmail2_connected', refresh: 'gmail2_refresh_token', email: 'gmail2_email' }
+    : { connected: 'gmail_connected',  refresh: 'gmail_refresh_token',  email: 'gmail_email'  };
 
   console.log('GOOGLE_OAUTH_DEBUG callback_start', JSON.stringify({ hasCode: !!code, googleError: error || null, hasState: !!stateParam, validState: !!stateData }));
 
@@ -86,16 +91,17 @@ export async function GET(request) {
     const sb = createServiceClient();
     const { data: existing, error: existingError } = await sb
       .from('organizations')
-      .select('gmail_refresh_token')
+      .select(col.refresh)
       .eq('id', orgId)
       .single();
-    console.log('GOOGLE_OAUTH_DEBUG existing', JSON.stringify({ existingError: existingError?.message || null, hadRefresh: !!existing?.gmail_refresh_token }));
+    const existingRefresh = existing?.[col.refresh];
+    console.log('GOOGLE_OAUTH_DEBUG existing', JSON.stringify({ slot, existingError: existingError?.message || null, hadRefresh: !!existingRefresh }));
 
     // Google only returns a refresh_token on first consent. If we get none AND
     // have none stored, the connection is unusable — surface a clear error.
-    if (!tokens.refresh_token && !existing?.gmail_refresh_token) {
+    if (!tokens.refresh_token && !existingRefresh) {
       console.warn('GOOGLE_OAUTH_DEBUG missing_refresh_token');
-      await sb.from('organizations').update({ gmail_connected: false, gmail_email: gmailEmail }).eq('id', orgId);
+      await sb.from('organizations').update({ [col.connected]: false, [col.email]: gmailEmail }).eq('id', orgId);
       return back(request, returnTo, { gmail_error: 'no_refresh_token' });
     }
 
@@ -103,19 +109,19 @@ export async function GET(request) {
     // mark an org connected without a usable refresh token. A token is
     // guaranteed here (returned now, or already stored) — the no_refresh_token
     // path above returns before reaching this point.
-    const willHaveToken = !!(tokens.refresh_token || existing?.gmail_refresh_token);
-    const updates = { gmail_connected: willHaveToken };
-    if (gmailEmail) updates.gmail_email = gmailEmail;
-    if (tokens.refresh_token) updates.gmail_refresh_token = tokens.refresh_token;
+    const willHaveToken = !!(tokens.refresh_token || existingRefresh);
+    const updates = { [col.connected]: willHaveToken };
+    if (gmailEmail) updates[col.email] = gmailEmail;
+    if (tokens.refresh_token) updates[col.refresh] = tokens.refresh_token;
 
     const { data: updated, error: updateError } = await sb
       .from('organizations')
       .update(updates)
       .eq('id', orgId)
-      .select('id, gmail_connected, gmail_email, gmail_refresh_token')
+      .select(`id, ${col.connected}, ${col.email}, ${col.refresh}`)
       .single();
 
-    console.log('GOOGLE_OAUTH_DEBUG update_result', JSON.stringify({ updateError: updateError?.message || null, savedConnected: !!updated?.gmail_connected, savedEmail: updated?.gmail_email || null, savedRefresh: !!updated?.gmail_refresh_token }));
+    console.log('GOOGLE_OAUTH_DEBUG update_result', JSON.stringify({ slot, updateError: updateError?.message || null, savedConnected: !!updated?.[col.connected], savedEmail: updated?.[col.email] || null, savedRefresh: !!updated?.[col.refresh] }));
 
     if (updateError) return back(request, returnTo, { gmail_error: updateError.message });
     return back(request, returnTo, { connected: '1' });
