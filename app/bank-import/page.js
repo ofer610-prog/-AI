@@ -15,6 +15,19 @@ function StatusBadge({ status, type }) {
   return <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">אין חשבונית תואמת</span>;
 }
 
+function AttentionNotes({ notes }) {
+  if (!notes?.length) return <span className="text-slate-400">—</span>;
+  return (
+    <div className="space-y-1 min-w-[220px]">
+      {notes.map((n, i) => (
+        <div key={i} className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-xs font-bold text-amber-800">
+          ⚠️ {n}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function UploadPanel({ bank, onResult }) {
   const inputRef = useRef(null);
   const [fileName, setFileName] = useState('');
@@ -75,6 +88,7 @@ function Summary({ rows, results }) {
     matched: rows.filter(r => r.match_status === 'matched').length,
     gaps: rows.filter(r => r.match_status === 'possible_gap').length,
     missing: rows.filter(r => r.match_status === 'missing_invoice').length,
+    attention: rows.filter(r => r.needs_attention).length,
   }), [rows]);
   const incomeTable = results.find(r => r?.income_table)?.income_table;
   const expenseCount = results.find(r => r)?.expenses_count || 0;
@@ -82,13 +96,14 @@ function Summary({ rows, results }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תנועות</div><div className="text-2xl font-black">{summary.rows}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חובה</div><div className="text-2xl font-black text-red-600">₪{money(summary.debit)}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">זכות</div><div className="text-2xl font-black text-emerald-600">₪{money(summary.credit)}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תואמות</div><div className="text-2xl font-black text-emerald-600">{summary.matched}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">פערים</div><div className="text-2xl font-black text-amber-600">{summary.gaps}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חסרות</div><div className="text-2xl font-black text-red-600">{summary.missing}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">דורשות בדיקה</div><div className="text-2xl font-black text-orange-600">{summary.attention}</div></div>
       </div>
       <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-900">
         נבדקו מול <b>{expenseCount}</b> חשבוניות הוצאות במערכת. {incomeTable ? <>נבדקו גם מול <b>{incomeCount}</b> רשומות הכנסה מטבלת <b>{incomeTable}</b>.</> : <>טבלת הכנסות לא זוהתה עדיין ולכן התאמות לזכות יוצגו כחסרות עד שנחבר את מקור חשבוניות ההכנסה.</>}
@@ -102,7 +117,7 @@ function MatchesTable({ rows }) {
     <section className="bg-white border rounded-2xl overflow-hidden">
       <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
         <h2 className="font-black text-slate-900">תנועות והתאמות לחשבוניות</h2>
-        <div className="text-xs text-slate-500">חובה ↔ חשבוניות הוצאות · זכות ↔ חשבוניות הכנסות</div>
+        <div className="text-xs text-slate-500">חובה ↔ חשבוניות הוצאות · זכות ↔ חשבוניות הכנסות · ספקות מוצגים בעמודת “דורש בדיקה”</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -110,11 +125,12 @@ function MatchesTable({ rows }) {
             <tr>
               <th className="text-right p-3">בנק</th>
               <th className="text-right p-3">תאריך</th>
-              <th className="text-right p-3">תיאור</th>
+              <th className="text-right p-3">תיאור והערות</th>
               <th className="text-left p-3">חובה</th>
               <th className="text-left p-3">זכות</th>
               <th className="text-right p-3">סיווג</th>
               <th className="text-right p-3">התאמה</th>
+              <th className="text-right p-3">דורש בדיקה</th>
               <th className="text-right p-3">חשבונית תואמת / פער</th>
             </tr>
           </thead>
@@ -122,14 +138,18 @@ function MatchesTable({ rows }) {
             {rows.map(r => {
               const inv = r.match?.invoice;
               return (
-                <tr key={r.id} className="border-t hover:bg-slate-50">
+                <tr key={r.id} className={`border-t hover:bg-slate-50 ${r.needs_attention ? 'bg-amber-50/30' : ''}`}>
                   <td className="p-3 whitespace-nowrap">{BANKS[r.bank]?.label || r.bank}</td>
                   <td className="p-3 whitespace-nowrap">{r.date || '—'}</td>
-                  <td className="p-3 max-w-xl">{r.desc}</td>
+                  <td className="p-3 max-w-xl">
+                    <div>{r.desc}</div>
+                    {r.raw_text && <details className="mt-1 text-xs text-slate-400"><summary className="cursor-pointer text-sky-700">שורה מקורית</summary>{r.raw_text}</details>}
+                  </td>
                   <td className="p-3 text-left text-red-600 font-bold">{r.debit ? '₪' + money(r.debit) : '—'}</td>
                   <td className="p-3 text-left text-emerald-600 font-bold">{r.credit ? '₪' + money(r.credit) : '—'}</td>
                   <td className="p-3"><span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">{r.category}</span></td>
                   <td className="p-3"><StatusBadge status={r.match_status} type={r.match_type} /></td>
+                  <td className="p-3"><AttentionNotes notes={r.attention_notes} /></td>
                   <td className="p-3 text-xs text-slate-600 min-w-[260px]">
                     {inv ? (
                       <div>
