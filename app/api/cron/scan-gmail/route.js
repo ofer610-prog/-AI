@@ -5,7 +5,7 @@
  */
 import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
-import { scanOrg } from '@/lib/expenseGmailScan';
+import { scanOrgAll } from '@/lib/expenseGmailScan';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -22,15 +22,15 @@ export async function POST(request) {
 
 async function runScan() {
   const sb = createServiceClient();
+  // Any org with at least one connected Gmail mailbox (primary or second).
   const { data: orgs, error } = await sb.from('organizations')
-    .select('id,gmail_refresh_token,office_card_last4,drive_expenses_folder_id')
-    .eq('gmail_connected', true)
-    .not('gmail_refresh_token', 'is', null);
+    .select('id,gmail_refresh_token,gmail2_refresh_token,office_card_last4,drive_expenses_folder_id')
+    .or('gmail_refresh_token.not.is.null,gmail2_refresh_token.not.is.null');
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
   const results = [];
   for (const org of orgs || []) {
-    results.push({ org_id: org.id, ...(await scanOrg(sb, org, 7).catch(e => ({ error: e.message }))) });
+    results.push({ org_id: org.id, ...(await scanOrgAll(sb, org, 7).catch(e => ({ error: e.message }))) });
   }
   return Response.json({ ok: true, orgs: orgs?.length || 0, results });
 }

@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/adminAuth';
 import { createServiceClient } from '@/lib/supabase/server';
-import { scanOrg } from '@/lib/expenseGmailScan';
+import { scanOrgAll } from '@/lib/expenseGmailScan';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -21,17 +21,17 @@ export async function POST(request) {
 
   const sb = createServiceClient();
   const { data: org, error } = await sb.from('organizations')
-    .select('id,gmail_refresh_token,office_card_last4,drive_expenses_folder_id,gmail_connected')
+    .select('id,gmail_refresh_token,gmail2_refresh_token,office_card_last4,drive_expenses_folder_id,gmail_connected')
     .eq('id', profile.organization_id)
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  if (!org?.gmail_connected || !org.gmail_refresh_token) {
+  if (!org?.gmail_refresh_token && !org?.gmail2_refresh_token) {
     return Response.json({ error: 'Gmail לא מחובר. חבר את Gmail תחילה.' }, { status: 400 });
   }
 
   try {
-    const result = await scanOrg(sb, org, days);
+    const result = await scanOrgAll(sb, org, days);
     return Response.json({ ok: true, days, ...result });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });

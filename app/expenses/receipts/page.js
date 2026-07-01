@@ -212,24 +212,6 @@ export default function ReceiptsPage() {
           >
             {scanState === 'running' ? '⏳ סורק…' : '📧 סרוק Gmail'}
           </button>
-          <button
-            onClick={async () => {
-              setScanState('running'); setResult(null);
-              try {
-                const res = await fetch('/api/cron/scan-outlook?days=30', { method: 'POST', cache: 'no-store' });
-                const data = await res.json();
-                setResult(data.error ? data : { _outlook: true, ...data });
-                setScanState(res.ok ? 'done' : 'error');
-                setLastScan(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
-                await load();
-              } catch { setScanState('error'); }
-            }}
-            disabled={scanState === 'running'}
-            className="bg-blue-700 hover:bg-blue-600 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
-            title="סרוק Outlook / Hotmail לפי מספרי כרטיס אשראי"
-          >
-            {scanState === 'running' ? '⏳ סורק…' : '📨 סרוק Outlook'}
-          </button>
           <a
             href={`/api/expenses/export-csv?year=${year}`}
             download
