@@ -41,6 +41,10 @@ function toNum(v) {
   return Number.isFinite(n) ? (neg ? -n : n) : 0;
 }
 
+function isHapoalimEmptyMarker(raw) {
+  return String(raw ?? '').trim() === '13';
+}
+
 function looksLikeExcelSerial(v) {
   const n = Number(String(v ?? '').trim());
   return Number.isFinite(n) && n > 25000 && n < 70000;
@@ -102,9 +106,17 @@ function rowToTxn(cells, headers, cols, bank, i) {
   const notes = get(cols.notes);
   const desc = [...new Set([baseDesc, notes, ...textCells.map(x => x.value)].filter(Boolean))].join(' | ');
 
-  let debit = Math.abs(toNum(get(cols.debit)));
-  let credit = Math.abs(toNum(get(cols.credit)));
+  const rawDebit = cols.debit >= 0 ? cells[cols.debit] : '';
+  const rawCredit = cols.credit >= 0 ? cells[cols.credit] : '';
+  let debit = Math.abs(toNum(rawDebit));
+  let credit = Math.abs(toNum(rawCredit));
   let balance = toNum(get(cols.balance));
+
+  // בקבצי פועלים שנבדקו בפועל, הערך 13 בעמודת חובה/זכות הוא לא סכום אלא סימון פנימי/סניף.
+  // כאשר בצד השני יש סכום אמיתי, מתעלמים מה־13 לחלוטין.
+  if (isHapoalimEmptyMarker(rawDebit) && credit > 0) debit = 0;
+  if (isHapoalimEmptyMarker(rawCredit) && debit > 0) credit = 0;
+  if (isHapoalimEmptyMarker(rawDebit) && isHapoalimEmptyMarker(rawCredit)) { debit = 0; credit = 0; }
 
   if (!debit && !credit && cols.amount >= 0) {
     const amt = toNum(get(cols.amount));
@@ -112,11 +124,12 @@ function rowToTxn(cells, headers, cols, bank, i) {
   }
 
   // פועלים: כשאין כותרות מדויקות, הסכומים לרוב מופיעים בסוף: חובה/זכות ואז יתרה.
-  // הכלל החשוב: יתרה לעולם אינה תנועת חובה/זכות. אם יש שני מספרים בסוף, הראשון הוא התנועה והשני הוא יתרה.
+  // יתרה לעולם אינה תנועת חובה/זכות. אם יש שני מספרים בסוף, הראשון הוא התנועה והשני הוא יתרה.
   if (!debit && !credit) {
     const numeric = cells
       .map((c, idx) => ({ idx, value: Math.abs(toNum(c)), raw: String(c ?? '').trim() }))
       .filter(x => x.value > 0)
+      .filter(x => !isHapoalimEmptyMarker(x.raw))
       .filter(x => !/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$/.test(normalizeCell(x.raw)))
       .filter(x => !looksLikeExcelSerial(x.raw))
       .filter(x => x.value < 1000000); // מסנן אסמכתאות גדולות כמו 99020330
