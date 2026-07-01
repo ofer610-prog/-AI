@@ -28,6 +28,38 @@ function AttentionNotes({ notes }) {
   );
 }
 
+function ManualDecision({ row, decision, onChange }) {
+  const value = decision?.type || '';
+  return (
+    <div className="space-y-2 min-w-[260px]">
+      <select
+        value={value}
+        onChange={e => onChange(row.id, { ...decision, type: e.target.value })}
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold"
+      >
+        <option value="">בחר טיפול ידני</option>
+        <option value="expense_existing_invoice">הוצאה שיש לה חשבונית במערכת</option>
+        <option value="expense_missing_invoice">הוצאה — חסרה חשבונית</option>
+        <option value="income_client_invoice_needed">הכנסה מלקוח — צריך חשבונית מס</option>
+        <option value="income_existing_invoice">הכנסה — יש חשבונית מס במערכת</option>
+        <option value="not_relevant">לא רלוונטי להנה״ח</option>
+        <option value="needs_review">דורש בדיקה נוספת</option>
+      </select>
+      <input
+        value={decision?.note || ''}
+        onChange={e => onChange(row.id, { ...decision, note: e.target.value })}
+        placeholder="הערה ידנית / שם לקוח / מס׳ חשבונית"
+        className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs"
+      />
+      {value && (
+        <div className="rounded-lg bg-sky-50 border border-sky-200 px-2 py-1 text-[11px] text-sky-800">
+          ההחלטה נשמרת במסך הניתוח לצורך בדיקה. בשלב הבא נחבר שמירה קבועה ל־DB.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UploadPanel({ bank, onResult }) {
   const inputRef = useRef(null);
   const [fileName, setFileName] = useState('');
@@ -99,25 +131,25 @@ function Summary({ rows, results }) {
       <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תנועות</div><div className="text-2xl font-black">{summary.rows}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חובה</div><div className="text-2xl font-black text-red-600">₪{money(summary.debit)}</div></div>
-        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">זכות</div><div className="text-2xl font-black text-emerald-600">₪{money(summary.credit)}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">העברות לזכות</div><div className="text-2xl font-black text-emerald-600">₪{money(summary.credit)}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תואמות</div><div className="text-2xl font-black text-emerald-600">{summary.matched}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">פערים</div><div className="text-2xl font-black text-amber-600">{summary.gaps}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חסרות</div><div className="text-2xl font-black text-red-600">{summary.missing}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">דורשות בדיקה</div><div className="text-2xl font-black text-orange-600">{summary.attention}</div></div>
       </div>
       <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-900">
-        נבדקו מול <b>{expenseCount}</b> חשבוניות הוצאות במערכת. {incomeTable ? <>נבדקו גם מול <b>{incomeCount}</b> רשומות הכנסה מטבלת <b>{incomeTable}</b>.</> : <>טבלת הכנסות לא זוהתה עדיין ולכן התאמות לזכות יוצגו כחסרות עד שנחבר את מקור חשבוניות ההכנסה.</>}
+        נבדקו מול <b>{expenseCount}</b> חשבוניות הוצאות במערכת. {incomeTable ? <>נבדקו גם מול <b>{incomeCount}</b> רשומות הכנסה מטבלת <b>{incomeTable}</b>.</> : <>טבלת הכנסות לא זוהתה עדיין ולכן התאמות להעברות לזכות יוצגו כחסרות עד שנחבר את מקור חשבוניות ההכנסה.</>}
       </div>
     </div>
   );
 }
 
-function MatchesTable({ rows }) {
+function MatchesTable({ rows, decisions, setDecision }) {
   return (
     <section className="bg-white border rounded-2xl overflow-hidden">
       <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
         <h2 className="font-black text-slate-900">תנועות והתאמות לחשבוניות</h2>
-        <div className="text-xs text-slate-500">חובה ↔ חשבוניות הוצאות · זכות ↔ חשבוניות הכנסות · ספקות מוצגים בעמודת “דורש בדיקה”</div>
+        <div className="text-xs text-slate-500">חובה ↔ חשבוניות הוצאות · העברה לזכות ↔ חשבוניות הכנסות · יתרה מוצגת רק כרקע</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -127,10 +159,12 @@ function MatchesTable({ rows }) {
               <th className="text-right p-3">תאריך</th>
               <th className="text-right p-3">תיאור והערות</th>
               <th className="text-left p-3">חובה</th>
-              <th className="text-left p-3">זכות</th>
+              <th className="text-left p-3">העברה לזכות</th>
+              <th className="text-left p-3">יתרה</th>
               <th className="text-right p-3">סיווג</th>
               <th className="text-right p-3">התאמה</th>
               <th className="text-right p-3">דורש בדיקה</th>
+              <th className="text-right p-3">החלטה ידנית</th>
               <th className="text-right p-3">חשבונית תואמת / פער</th>
             </tr>
           </thead>
@@ -147,9 +181,11 @@ function MatchesTable({ rows }) {
                   </td>
                   <td className="p-3 text-left text-red-600 font-bold">{r.debit ? '₪' + money(r.debit) : '—'}</td>
                   <td className="p-3 text-left text-emerald-600 font-bold">{r.credit ? '₪' + money(r.credit) : '—'}</td>
+                  <td className="p-3 text-left text-slate-400">{r.balance ? '₪' + money(r.balance) : '—'}</td>
                   <td className="p-3"><span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">{r.category}</span></td>
                   <td className="p-3"><StatusBadge status={r.match_status} type={r.match_type} /></td>
                   <td className="p-3"><AttentionNotes notes={r.attention_notes} /></td>
+                  <td className="p-3"><ManualDecision row={r} decision={decisions[r.id]} onChange={setDecision} /></td>
                   <td className="p-3 text-xs text-slate-600 min-w-[260px]">
                     {inv ? (
                       <div>
@@ -174,12 +210,14 @@ function MatchesTable({ rows }) {
 
 export default function BankImportPage() {
   const [results, setResults] = useState({ mizrahi: null, hapoalim: null });
+  const [decisions, setDecisions] = useState({});
   const rows = useMemo(() => [
     ...(results.mizrahi?.rows || []),
     ...(results.hapoalim?.rows || []),
   ], [results]);
 
   const resultList = [results.mizrahi, results.hapoalim].filter(Boolean);
+  const setDecision = (id, value) => setDecisions(prev => ({ ...prev, [id]: value }));
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 p-6">
@@ -191,13 +229,17 @@ export default function BankImportPage() {
           </p>
         </div>
 
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+          המערכת אינה מחליטה במקום מנהל החשבונות. בכל ספק יש לסמן ידנית אם זו הוצאה עם חשבונית, הכנסה מלקוח שדורשת חשבונית מס, או פעולה שלא רלוונטית להנהלת חשבונות.
+        </div>
+
         <div className="grid md:grid-cols-2 gap-5">
           <UploadPanel bank="mizrahi" onResult={(bank, data) => setResults(prev => ({ ...prev, [bank]: data }))} />
           <UploadPanel bank="hapoalim" onResult={(bank, data) => setResults(prev => ({ ...prev, [bank]: data }))} />
         </div>
 
         {rows.length > 0 && <Summary rows={rows} results={resultList} />}
-        {rows.length > 0 && <MatchesTable rows={rows} />}
+        {rows.length > 0 && <MatchesTable rows={rows} decisions={decisions} setDecision={setDecision} />}
 
         {rows.length === 0 && (
           <section className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
