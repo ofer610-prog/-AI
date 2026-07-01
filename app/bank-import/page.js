@@ -38,10 +38,10 @@ function ManualDecision({ row, decision, onChange }) {
         className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold"
       >
         <option value="">בחר טיפול ידני</option>
-        <option value="expense_existing_invoice">הוצאה שיש לה חשבונית במערכת</option>
-        <option value="expense_missing_invoice">הוצאה — חסרה חשבונית</option>
-        <option value="income_client_invoice_needed">הכנסה מלקוח — צריך חשבונית מס</option>
-        <option value="income_existing_invoice">הכנסה — יש חשבונית מס במערכת</option>
+        <option value="expense_existing_invoice">חיוב הוצאה — יש חשבונית במערכת</option>
+        <option value="expense_missing_invoice">חיוב הוצאה — חסרה חשבונית</option>
+        <option value="income_client_invoice_needed">זיכוי מלקוח — צריך חשבונית מס</option>
+        <option value="income_existing_invoice">זיכוי מלקוח — יש חשבונית מס במערכת</option>
         <option value="not_relevant">לא רלוונטי להנה״ח</option>
         <option value="needs_review">דורש בדיקה נוספת</option>
       </select>
@@ -95,7 +95,7 @@ function UploadPanel({ bank, onResult }) {
         <div>
           <h2 className="text-xl font-black text-slate-900">{b.icon} {b.label}</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-xl">
-            העלאת קבצי עו״ש: Excel, CSV, TXT או PDF. המערכת מפענחת את התנועות ומשווה מול חשבוניות הוצאות והכנסות שקיימות במערכת.
+            העלאת קבצי עו״ש: Excel, CSV, TXT או PDF. המערכת מפענחת רק חיובים וזיכויים ומשווה אותם לחשבוניות במערכת.
           </p>
         </div>
       </div>
@@ -130,15 +130,15 @@ function Summary({ rows, results }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תנועות</div><div className="text-2xl font-black">{summary.rows}</div></div>
-        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חובה</div><div className="text-2xl font-black text-red-600">₪{money(summary.debit)}</div></div>
-        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">העברות לזכות</div><div className="text-2xl font-black text-emerald-600">₪{money(summary.credit)}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חיובי הוצאות</div><div className="text-2xl font-black text-red-600">₪{money(summary.debit)}</div></div>
+        <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">זיכויי לקוחות</div><div className="text-2xl font-black text-emerald-600">₪{money(summary.credit)}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">תואמות</div><div className="text-2xl font-black text-emerald-600">{summary.matched}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">פערים</div><div className="text-2xl font-black text-amber-600">{summary.gaps}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">חסרות</div><div className="text-2xl font-black text-red-600">{summary.missing}</div></div>
         <div className="bg-white border rounded-2xl p-4"><div className="text-xs text-slate-500">דורשות בדיקה</div><div className="text-2xl font-black text-orange-600">{summary.attention}</div></div>
       </div>
       <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-900">
-        נבדקו מול <b>{expenseCount}</b> חשבוניות הוצאות במערכת. {incomeTable ? <>נבדקו גם מול <b>{incomeCount}</b> רשומות הכנסה מטבלת <b>{incomeTable}</b>.</> : <>טבלת הכנסות לא זוהתה עדיין ולכן התאמות להעברות לזכות יוצגו כחסרות עד שנחבר את מקור חשבוניות ההכנסה.</>}
+        חיובי הוצאות נבדקים מול <b>{expenseCount}</b> חשבוניות הוצאות במערכת. {incomeTable ? <>זיכויי לקוחות נבדקים מול <b>{incomeCount}</b> חשבוניות מס/הכנסות מטבלת <b>{incomeTable}</b>.</> : <>מקור חשבוניות מס/הכנסות עדיין לא מחובר במלואו, ולכן זיכויים ללקוחות יסומנו לבדיקה ידנית עד שנחבר את טבלת ההכנסות.</>}
       </div>
     </div>
   );
@@ -148,8 +148,8 @@ function MatchesTable({ rows, decisions, setDecision }) {
   return (
     <section className="bg-white border rounded-2xl overflow-hidden">
       <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-        <h2 className="font-black text-slate-900">תנועות והתאמות לחשבוניות</h2>
-        <div className="text-xs text-slate-500">חובה ↔ חשבוניות הוצאות · העברה לזכות ↔ חשבוניות הכנסות · יתרה מוצגת רק כרקע</div>
+        <h2 className="font-black text-slate-900">חיובים וזיכויים מול חשבוניות</h2>
+        <div className="text-xs text-slate-500">חיוב ↔ חשבוניות הוצאות · זיכוי ↔ חשבוניות מס ללקוחות · יתרות אינן מוצגות ואינן נבדקות</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -158,9 +158,8 @@ function MatchesTable({ rows, decisions, setDecision }) {
               <th className="text-right p-3">בנק</th>
               <th className="text-right p-3">תאריך</th>
               <th className="text-right p-3">תיאור והערות</th>
-              <th className="text-left p-3">חובה</th>
-              <th className="text-left p-3">העברה לזכות</th>
-              <th className="text-left p-3">יתרה</th>
+              <th className="text-left p-3">חיוב הוצאה</th>
+              <th className="text-left p-3">זיכוי לקוח</th>
               <th className="text-right p-3">סיווג</th>
               <th className="text-right p-3">התאמה</th>
               <th className="text-right p-3">דורש בדיקה</th>
@@ -181,7 +180,6 @@ function MatchesTable({ rows, decisions, setDecision }) {
                   </td>
                   <td className="p-3 text-left text-red-600 font-bold">{r.debit ? '₪' + money(r.debit) : '—'}</td>
                   <td className="p-3 text-left text-emerald-600 font-bold">{r.credit ? '₪' + money(r.credit) : '—'}</td>
-                  <td className="p-3 text-left text-slate-400">{r.balance ? '₪' + money(r.balance) : '—'}</td>
                   <td className="p-3"><span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">{r.category}</span></td>
                   <td className="p-3"><StatusBadge status={r.match_status} type={r.match_type} /></td>
                   <td className="p-3"><AttentionNotes notes={r.attention_notes} /></td>
@@ -225,12 +223,12 @@ export default function BankImportPage() {
         <div>
           <h1 className="text-3xl font-black text-slate-900">🏦 בדיקת חשבונות עו״ש</h1>
           <p className="text-sm text-slate-500 mt-1">
-            עמוד אחד לניתוח דפי עו״ש ממזרחי ופועלים, כולל השוואה לחשבוניות הוצאות והכנסות במערכת.
+            העמוד בודק רק חיובי הוצאות וזיכויי לקוחות. יתרות בחשבון אינן מוצגות ואינן משמשות להתאמות.
           </p>
         </div>
 
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
-          המערכת אינה מחליטה במקום מנהל החשבונות. בכל ספק יש לסמן ידנית אם זו הוצאה עם חשבונית, הכנסה מלקוח שדורשת חשבונית מס, או פעולה שלא רלוונטית להנהלת חשבונות.
+          חיוב בחשבון נבדק מול תיקיית/טבלת חשבוניות ההוצאות. זיכוי בחשבון נבדק מול חשבוניות מס ללקוחות/הכנסות. בכל ספק יש לסמן החלטה ידנית.
         </div>
 
         <div className="grid md:grid-cols-2 gap-5">
@@ -243,7 +241,7 @@ export default function BankImportPage() {
 
         {rows.length === 0 && (
           <section className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
-            העלה קובץ עו״ש של מזרחי או פועלים כדי להתחיל ניתוח והשוואה לחשבוניות.
+            העלה קובץ עו״ש של מזרחי או פועלים כדי להתחיל ניתוח חיובים וזיכויים.
           </section>
         )}
       </div>
