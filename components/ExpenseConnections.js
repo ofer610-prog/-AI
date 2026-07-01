@@ -10,11 +10,11 @@ import { useEffect, useState, useCallback } from 'react';
  * Gmail scanning is delegated to the page (which renders the suggestions
  * panel) via the onScanGmail callback; Outlook scanning is handled here.
  *
- * All OAuth links carry return_to=/expenses so the user lands back here.
+ * All OAuth links carry return_to so the user lands back on the page they
+ * started from (defaults to /expenses; the receipts page passes its own).
  */
-const RETURN_TO = '/expenses';
-
-export default function ExpenseConnections({ onScanGmail, scanningGmail = false }) {
+export default function ExpenseConnections({ onScanGmail, scanningGmail = false, returnTo = '/expenses' }) {
+  const RETURN_TO = encodeURIComponent(returnTo);
   const [gmail, setGmail]     = useState({ loading: true });
   const [outlook, setOutlook] = useState({ loading: true });
   const [outlookScanning, setOutlookScanning] = useState(false);
@@ -89,10 +89,12 @@ export default function ExpenseConnections({ onScanGmail, scanningGmail = false 
           className="rounded-lg bg-slate-600 hover:bg-slate-500 text-white px-3 py-1.5 text-xs whitespace-nowrap">
           {gOk ? 'חיבור מחדש' : '🔗 חבר Gmail'}
         </a>
-        <button onClick={onScanGmail} disabled={scanningGmail || !gOk}
-          className="rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-1.5 text-xs whitespace-nowrap">
-          {scanningGmail ? '⏳ סורק…' : '📥 סרוק Gmail'}
-        </button>
+        {onScanGmail && (
+          <button onClick={onScanGmail} disabled={scanningGmail || !gOk}
+            className="rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-1.5 text-xs whitespace-nowrap">
+            {scanningGmail ? '⏳ סורק…' : '📥 סרוק Gmail'}
+          </button>
+        )}
       </div>
 
       {/* ── Hotmail / Outlook ── */}

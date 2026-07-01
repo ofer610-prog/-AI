@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import ExpenseConnections from '@/components/ExpenseConnections';
 
 const EXPENSE_SECTIONS = [
   { value: 'office',        label: 'משרד כללי' },
@@ -242,6 +243,9 @@ export default function ReceiptsPage() {
       </header>
 
       <main className="max-w-[1500px] mx-auto px-5 py-6 space-y-5">
+        {/* Unified mailbox connections — Gmail + Hotmail/Outlook (scan buttons live in the header here) */}
+        <ExpenseConnections returnTo="/expenses/receipts" />
+
         {gmailNeedsReconnect && (
           <div className="rounded-2xl p-4 border bg-red-50 border-red-300 text-red-900 flex items-center gap-4">
             <span className="text-2xl">⚠️</span>
