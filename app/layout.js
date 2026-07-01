@@ -1,7 +1,6 @@
 import './globals.css';
 import NotificationBell from '@/components/NotificationBell';
 import AppNav from '@/components/AppNav';
-import GoogleExpenseConnect from '@/components/GoogleExpenseConnect';
 import FormFocusKeeper from '@/components/FormFocusKeeper';
 import OutlookExpenseConnect from '@/components/OutlookExpenseConnect';
 
@@ -26,7 +25,6 @@ export default function RootLayout({ children }) {
         <AppNav />
         {children}
         <NotificationBell />
-        <GoogleExpenseConnect />
         <OutlookExpenseConnect />
       </body>
     </html>
