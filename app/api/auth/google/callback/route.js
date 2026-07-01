@@ -19,8 +19,14 @@ function verifyState(stateParam) {
   } catch { return null; }
 }
 
-function back(request, params = {}) {
-  const target = new URL('/expenses/receipts', request.url);
+// Only allow internal relative paths — never redirect off-site.
+function safeReturnTo(returnTo) {
+  if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) return returnTo;
+  return '/expenses/receipts';
+}
+
+function back(request, returnTo, params = {}) {
+  const target = new URL(safeReturnTo(returnTo), request.url);
   Object.entries(params).forEach(([k, v]) => target.searchParams.set(k, String(v)));
   return Response.redirect(target, 302);
 }
@@ -31,11 +37,12 @@ export async function GET(request) {
   const error = url.searchParams.get('error');
   const stateParam = url.searchParams.get('state');
   const stateData = verifyState(stateParam);
+  const returnTo = stateData?.return_to || '/expenses/receipts';
 
   console.log('GOOGLE_OAUTH_DEBUG callback_start', JSON.stringify({ hasCode: !!code, googleError: error || null, hasState: !!stateParam, validState: !!stateData }));
 
-  if (error) return back(request, { gmail_error: error });
-  if (!code) return back(request, { gmail_error: 'no_code' });
+  if (error) return back(request, returnTo, { gmail_error: error });
+  if (!code) return back(request, returnTo, { gmail_error: 'no_code' });
 
   let orgId = stateData?.org_id || null;
 
@@ -44,7 +51,7 @@ export async function GET(request) {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
       console.log('GOOGLE_OAUTH_DEBUG session_fallback', JSON.stringify({ hasUser: !!user }));
-      if (!user) return back(request, { gmail_error: 'session_lost' });
+      if (!user) return back(request, returnTo, { gmail_error: 'session_lost' });
       const { data: profile, error: profileError } = await supabase
         .from('profiles').select('organization_id').eq('id', user.id).single();
       console.log('GOOGLE_OAUTH_DEBUG profile', JSON.stringify({ hasProfile: !!profile, profileError: profileError?.message || null, hasOrg: !!profile?.organization_id }));
@@ -54,7 +61,7 @@ export async function GET(request) {
     }
   }
 
-  if (!orgId) return back(request, { gmail_error: 'no_org' });
+  if (!orgId) return back(request, returnTo, { gmail_error: 'no_org' });
 
   try {
     const tokens = await exchangeCodeForTokens(code);
@@ -89,7 +96,7 @@ export async function GET(request) {
     if (!tokens.refresh_token && !existing?.gmail_refresh_token) {
       console.warn('GOOGLE_OAUTH_DEBUG missing_refresh_token');
       await sb.from('organizations').update({ gmail_connected: false, gmail_email: gmailEmail }).eq('id', orgId);
-      return back(request, { gmail_error: 'no_refresh_token' });
+      return back(request, returnTo, { gmail_error: 'no_refresh_token' });
     }
 
     // Tie the connected flag directly to token availability so we can never
@@ -110,10 +117,10 @@ export async function GET(request) {
 
     console.log('GOOGLE_OAUTH_DEBUG update_result', JSON.stringify({ updateError: updateError?.message || null, savedConnected: !!updated?.gmail_connected, savedEmail: updated?.gmail_email || null, savedRefresh: !!updated?.gmail_refresh_token }));
 
-    if (updateError) return back(request, { gmail_error: updateError.message });
-    return back(request, { connected: '1' });
+    if (updateError) return back(request, returnTo, { gmail_error: updateError.message });
+    return back(request, returnTo, { connected: '1' });
   } catch (e) {
     console.error('GOOGLE_OAUTH_DEBUG callback_error', e.message);
-    return back(request, { gmail_error: e.message });
+    return back(request, returnTo, { gmail_error: e.message });
   }
 }

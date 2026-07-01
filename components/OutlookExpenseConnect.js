@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 
 /**
- * Floating Outlook connection indicator — shown on /expenses and /annual-report.
+ * Floating Outlook connection indicator — shown on /annual-report.
+ * (On /expenses the unified ExpenseConnections panel handles this instead.)
  * Clicking when disconnected initiates the Microsoft OAuth flow.
  */
 export default function OutlookExpenseConnect() {
@@ -13,7 +14,7 @@ export default function OutlookExpenseConnect() {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
 
-  const relevant = pathname.startsWith('/expenses') || pathname.startsWith('/annual-report');
+  const relevant = pathname.startsWith('/annual-report');
 
   useEffect(() => {
     if (!relevant) return;
