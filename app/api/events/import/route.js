@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { dmyToISO } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,22 +38,7 @@ export async function POST(request) {
     return col ? (row[col] ?? row[field] ?? '') : (row[field] ?? '');
   };
 
-  const toISO = (dateStr, timeStr) => {
-    if (!dateStr) return null;
-    // Accept: DD/MM/YYYY, YYYY-MM-DD, DD.MM.YYYY
-    let iso = dateStr.trim();
-    const dmyMatch = iso.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
-    if (dmyMatch) {
-      const [, d, m, y] = dmyMatch;
-      const year = y.length === 2 ? '20' + y : y;
-      iso = `${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-    }
-    if (timeStr) {
-      const t = timeStr.trim().replace('.', ':');
-      return `${iso}T${t.length === 4 ? '0' + t : t}:00`;
-    }
-    return iso + 'T00:00:00';
-  };
+  const toISO = (dateStr, timeStr) => dmyToISO(dateStr, timeStr);
 
   const EVENT_TYPES = {
     'פגישה': 'meeting', 'meeting': 'meeting',

@@ -1,5 +1,6 @@
 import { validateCronSecret } from '@/lib/security';
 import { createServiceClient } from '@/lib/supabase/server';
+import { dmyToISO } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,18 +111,7 @@ function parseCSV(text) {
 // ─── Row parser (shared with webhook) ───────────────────────────────────────
 
 function toISO(dateStr, timeStr) {
-  if (!dateStr) return null;
-  let iso = dateStr.trim();
-  const dmy = iso.match(/^(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})$/);
-  if (dmy) {
-    const [, d, m, y] = dmy;
-    iso = `${y.length===2?'20'+y:y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-  }
-  if (timeStr) {
-    const t = timeStr.trim().replace('.', ':').replace(/[^\d:]/g, '');
-    return `${iso}T${t.padStart(5,'0')}:00`;
-  }
-  return iso + 'T00:00:00';
+  return dmyToISO(dateStr, timeStr);
 }
 
 const TYPE_MAP = {

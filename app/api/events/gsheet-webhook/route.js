@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { dmyToISO } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,20 +64,7 @@ export async function POST(request) {
 function normalizeStr(s) { return (s || '').trim().toLowerCase(); }
 
 function toISO(dateStr, timeStr) {
-  if (!dateStr) return null;
-  let iso = dateStr.trim();
-  const dmy = iso.match(/^(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})$/);
-  if (dmy) {
-    const [, d, m, y] = dmy;
-    const year = y.length === 2 ? '20' + y : y;
-    iso = `${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-  }
-  if (timeStr) {
-    const t = timeStr.trim().replace('.', ':').replace(/[^\d:]/g, '');
-    const padded = t.length <= 5 ? t.padStart(5, '0') : t;
-    return `${iso}T${padded.length === 4 ? '0'+padded : padded}:00`;
-  }
-  return iso + 'T00:00:00';
+  return dmyToISO(dateStr, timeStr);
 }
 
 const EVENT_TYPE_MAP = {

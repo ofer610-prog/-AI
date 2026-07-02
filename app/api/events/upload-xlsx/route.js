@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { dmyToISO } from '@/lib/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,27 +97,7 @@ const TYPE_MAP = {
 };
 
 function toISO(dateVal, timeStr) {
-  if (!dateVal) return null;
-  let iso;
-  if (dateVal instanceof Date) {
-    iso = dateVal.toISOString().slice(0,10);
-  } else {
-    const s = String(dateVal).trim();
-    const dmy = s.match(/^(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})$/);
-    if (dmy) {
-      const [,d,m,y] = dmy;
-      iso = `${y.length===2?'20'+y:y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-    } else if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-      iso = s.slice(0,10);
-    } else {
-      return null;
-    }
-  }
-  if (timeStr) {
-    const t = String(timeStr).trim().replace('.',':').replace(/[^\d:]/g,'');
-    if (t) return `${iso}T${t.padStart(5,'0')}:00`;
-  }
-  return iso + 'T00:00:00';
+  return dmyToISO(dateVal, timeStr);
 }
 
 function parseRow(row, orgId, profileByName, rowNum) {
