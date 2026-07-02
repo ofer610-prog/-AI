@@ -52,6 +52,7 @@ export async function GET() {
     invoices: enriched,
     matters: matters || [],
     lawyers: lawyers || [],
+    org_name: org.name,
     summary: { totalOpen, totalOverdue, count: enriched.length, overdueCount: enriched.filter(i => i.daysLate > 0).length },
   });
 }

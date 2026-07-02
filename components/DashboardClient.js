@@ -321,7 +321,7 @@ function MyDayWidget({ profileId }) {
   }, [profileId]);
 
   useEffect(() => {
-    fetch(`/api/calendar?start=${todayStr}&end=${todayStr}`)
+    fetch(`/api/events?from=${todayStr}&to=${todayStr}T23:59:59&mine=true`)
       .then(r => r.ok ? r.json() : { events: [] })
       .then(d => setEvents(d.events || []))
       .catch(() => {})
@@ -377,7 +377,10 @@ function MyDayWidget({ profileId }) {
                 <div>
                   <p className="font-medium text-slate-800">{e.title}</p>
                   {(e.start_time || e.start_date) && (
-                    <p className="text-xs text-slate-500">{e.start_time || e.start_date}</p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(e.start_time || e.start_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
+                      {e.location ? ` · ${e.location}` : ''}
+                    </p>
                   )}
                 </div>
               </li>

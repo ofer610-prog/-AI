@@ -52,7 +52,8 @@ function buildTemplate(stage, inv, orgName = 'משרד עורכי דין') {
   const date = fmt(inv.issue_date);
   const dueDate = fmt(inv.due_date);
   const deadline = new Date(Date.now() + 14 * 86400000).toLocaleDateString('he-IL');
-  const bank = 'בנק הפועלים | סניף 600 | חשבון 123456 | ע"ש ' + orgName;
+  // אין פרטי בנק שמורים במערכת — משאירים שדה למילוי ידני כדי שלא יישלחו פרטים שגויים
+  const bank = '[פרטי חשבון להעברה בנקאית — נא להשלים לפני שליחה] | ע"ש ' + orgName;
 
   switch (stage) {
     case 1:
@@ -85,6 +86,7 @@ export default function CollectionPage() {
   const [customMsg, setCustomMsg] = useState('');
   const [view, setView]           = useState('invoices');
   const [copied, setCopied]       = useState(false);
+  const [orgName, setOrgName]     = useState('משרד עורכי דין');
 
   async function load() {
     setLoading(true);
@@ -96,6 +98,7 @@ export default function CollectionPage() {
         setMatters(j.matters || []);
         setLawyers(j.lawyers || []);
         setSummary(j.summary || {});
+        if (j.org_name) setOrgName(j.org_name);
       }
     } finally {
       setLoading(false);
@@ -107,14 +110,14 @@ export default function CollectionPage() {
   function openReminder(inv) {
     const stage = detectStage(inv.daysLate || 0);
     setActiveStage(stage);
-    setCustomMsg(buildTemplate(stage, inv));
+    setCustomMsg(buildTemplate(stage, inv, orgName));
     setMsgInvoice(inv);
     setCopied(false);
   }
 
   function selectStage(s) {
     setActiveStage(s);
-    setCustomMsg(buildTemplate(s, msgInvoice));
+    setCustomMsg(buildTemplate(s, msgInvoice, orgName));
     setCopied(false);
   }
 
