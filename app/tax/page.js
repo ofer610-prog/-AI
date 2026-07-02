@@ -14,39 +14,37 @@ function nextVatDeadline(filingFreq, fromDate = new Date()) {
   const d = new Date(fromDate);
   const month = d.getMonth();
   const year = d.getFullYear();
+  const pad = (m) => String(m + 1).padStart(2, '0');
+
   if (filingFreq === 'monthly') {
-    // 19th of next month
-    let nm = month + 1;
-    let ny = year;
-    if (nm > 11) { nm = 0; ny++; }
-    return { date: `${ny}-${String(nm + 1).padStart(2, '0')}-19`, period: MONTH_NAMES[month] };
-  } else {
-    // bi-monthly: periods are Jan-Feb, Mar-Apr, May-Jun, Jul-Aug, Sep-Oct, Nov-Dec
-    // deadline: 19th of the month AFTER the 2-month period ends
-    const periodStart = Math.floor(month / 2) * 2;
-    const periodEnd = periodStart + 1;
-    let deadlineMonth = periodEnd + 1;
-    let deadlineYear = year;
-    if (deadlineMonth > 11) { deadlineMonth = 0; deadlineYear++; }
-    const dateStr = `${deadlineYear}-${String(deadlineMonth + 1).padStart(2, '0')}-19`;
-    const days = daysUntil(dateStr);
-    if (days < 0) {
-      // already passed, get next period
-      const nextPeriodStart = periodStart + 2 > 11 ? 0 : periodStart + 2;
-      const nextPeriodEnd = nextPeriodStart + 1;
-      let nm = nextPeriodEnd + 1;
-      let ny = nextPeriodEnd + 1 > 11 ? year + 1 : year;
-      if (nm > 11) { nm = 0; }
-      return {
-        date: `${ny}-${String(nm + 1).padStart(2, '0')}-19`,
-        period: `${MONTH_NAMES[nextPeriodStart]}-${MONTH_NAMES[Math.min(nextPeriodEnd, 11)]}`,
-      };
+    // הדוח מוגש עד ה-19 בחודש העוקב לתקופה. המועד הקרוב: 19 בחודש הנוכחי
+    // (עבור החודש הקודם) — ואם כבר עבר, 19 בחודש הבא (עבור החודש הנוכחי).
+    let dlMonth = month, dlYear = year, periodMonth = (month + 11) % 12;
+    let dateStr = `${dlYear}-${pad(dlMonth)}-19`;
+    if (daysUntil(dateStr) < 0) {
+      periodMonth = month;
+      dlMonth = month + 1;
+      if (dlMonth > 11) { dlMonth = 0; dlYear++; }
+      dateStr = `${dlYear}-${pad(dlMonth)}-19`;
     }
-    return {
-      date: dateStr,
-      period: `${MONTH_NAMES[periodStart]}-${MONTH_NAMES[Math.min(periodEnd, 11)]}`,
-    };
+    return { date: dateStr, period: MONTH_NAMES[periodMonth] };
   }
+
+  // דו-חודשי: תקופות ינו-פבר, מרץ-אפר... הדוח עד ה-19 בחודש שאחרי התקופה —
+  // כלומר חודשי-דיווח הם האי-זוגיים בספירה אנושית (מרץ, מאי, יולי, ספט, נוב, ינו),
+  // שהם אינדקסים זוגיים (2,4,6,8,10,0). המועד הקרוב: 19 בחודש הדיווח הנוכחי/הבא.
+  let bmMonth = month % 2 === 1 ? month + 1 : month;
+  let bmYear = year;
+  if (bmMonth > 11) { bmMonth = 0; bmYear++; }
+  let bmDate = `${bmYear}-${pad(bmMonth)}-19`;
+  if (daysUntil(bmDate) < 0) {
+    bmMonth += 2;
+    if (bmMonth > 11) { bmMonth -= 12; bmYear++; }
+    bmDate = `${bmYear}-${pad(bmMonth)}-19`;
+  }
+  const ps = (bmMonth + 10) % 12; // תחילת התקופה המדווחת — חודשיים לפני חודש הדיווח
+  const pe = (bmMonth + 11) % 12;
+  return { date: bmDate, period: `${MONTH_NAMES[ps]}-${MONTH_NAMES[pe]}` };
 }
 
 function getDeadlines(filingFreq, estimates) {
@@ -75,20 +73,24 @@ function getDeadlines(filingFreq, estimates) {
     ],
   });
 
-  // Income tax advance — 15th of each month
-  let itMonth = month + 1;
-  let itYear = year;
-  if (itMonth > 11) { itMonth = 0; itYear++; }
-  const itDate = `${itYear}-${String(itMonth + 1).padStart(2, '0')}-15`;
+  // מקדמות — עד ה-15 בחודש עבור החודש הקודם. אם ה-15 של החודש הנוכחי עבר → החודש הבא.
+  let itMonth = month, itYear = year, itPeriod = (month + 11) % 12;
+  let itDate = `${itYear}-${String(itMonth + 1).padStart(2, '0')}-15`;
+  if (daysUntil(itDate) < 0) {
+    itPeriod = month;
+    itMonth = month + 1;
+    if (itMonth > 11) { itMonth = 0; itYear++; }
+    itDate = `${itYear}-${String(itMonth + 1).padStart(2, '0')}-15`;
+  }
   deadlines.push({
     id: 'income_tax',
     type: 'מקדמת מס הכנסה',
     icon: '💰',
     color: 'amber',
     date: itDate,
-    period: MONTH_NAMES[month],
+    period: MONTH_NAMES[itPeriod],
     amount: estimates?.estimatedIncomeTax || 0,
-    description: `מקדמת מס הכנסה חודש ${MONTH_NAMES[month]}`,
+    description: `מקדמת מס הכנסה חודש ${MONTH_NAMES[itPeriod]}`,
     checklist: [
       'עדכון דוח הכנסות חודשי',
       'חישוב מקדמה לפי אחוז שנקבע',
@@ -103,9 +105,9 @@ function getDeadlines(filingFreq, estimates) {
     icon: '🏥',
     color: 'green',
     date: itDate,
-    period: MONTH_NAMES[month],
+    period: MONTH_NAMES[itPeriod],
     amount: estimates?.estimatedBituach || 0,
-    description: `תשלום ביטוח לאומי חודש ${MONTH_NAMES[month]}`,
+    description: `תשלום ביטוח לאומי חודש ${MONTH_NAMES[itPeriod]}`,
     checklist: [
       'הכנת פירוט שכר',
       'חישוב דמי ביטוח עובדים ומעסיק',
@@ -127,7 +129,8 @@ function buildAnnualCalendar(filingFreq, year) {
     if (filingFreq === 'monthly') {
       events.push({ month: m, day: 19, type: 'מע"מ חודשי', color: 'blue', short: 'מע"מ' });
     } else {
-      if (m % 2 === 1) {
+      // חודשי דיווח דו-חודשי: ינואר, מרץ, מאי, יולי, ספטמבר, נובמבר (אינדקס זוגי)
+      if (m % 2 === 0) {
         events.push({ month: m, day: 19, type: 'מע"מ דו-חודשי', color: 'blue', short: 'מע"מ' });
       }
     }

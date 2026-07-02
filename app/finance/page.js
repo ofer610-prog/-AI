@@ -13,30 +13,29 @@ const fmtMoney = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')
 const fmt = (d) => d ? new Date(d).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 function getUpcomingDeadlines() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1; // 1-based
-  // VAT bi-monthly: report due 19th of month after period ends (odd months)
-  // PCN874 filers: 23rd
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1; // 1-based
   const deadlines = [];
-  // Next VAT deadline: 19th of next odd month
-  const vatMonth = m % 2 === 0 ? m + 1 : m + 2;
-  const vatDate = new Date(y, vatMonth - 1, 19);
-  const daysTillVat = Math.round((vatDate - now) / 86400000);
+
+  // מע"מ דו-חודשי: דיווח עד ה-19 בחודשים האי-זוגיים (ינואר, מרץ, מאי...).
+  // המועד הקרוב: 19 בחודש הדיווח הנוכחי אם טרם עבר, אחרת בעוד חודשיים.
+  const vatM = m % 2 === 1 ? m : m + 1;
+  let vatDate = new Date(y, vatM - 1, 19);
+  if (vatDate < today) vatDate = new Date(y, vatM + 1, 19);
+  const daysTillVat = Math.round((vatDate - today) / 86400000);
   if (daysTillVat >= 0 && daysTillVat <= 30) {
     deadlines.push({ label: 'מע"מ דו-חודשי', date: vatDate, days: daysTillVat, urgent: daysTillVat <= 7 });
   }
-  // Bituach Leumi advance: 15th of each month
-  const blDate = new Date(y, m - 1, 15);
-  const daysTillBL = Math.round((blDate - now) / 86400000);
-  if (daysTillBL >= 0 && daysTillBL <= 20) {
-    deadlines.push({ label: 'מקדמת ביטוח לאומי', date: blDate, days: daysTillBL, urgent: daysTillBL <= 5 });
-  }
-  // Income tax advance: 15th of each month
-  const itDate = new Date(y, m - 1, 15);
-  const daysTillIT = Math.round((itDate - now) / 86400000);
-  if (daysTillIT >= 0 && daysTillIT <= 20) {
-    deadlines.push({ label: 'מקדמת מס הכנסה', date: itDate, days: daysTillIT, urgent: daysTillIT <= 5 });
+
+  // מקדמות ביטוח לאומי + מס הכנסה: עד ה-15 בכל חודש. אם עבר → החודש הבא.
+  let advDate = new Date(y, m - 1, 15);
+  if (advDate < today) advDate = new Date(y, m, 15);
+  const daysTillAdv = Math.round((advDate - today) / 86400000);
+  if (daysTillAdv >= 0 && daysTillAdv <= 20) {
+    deadlines.push({ label: 'מקדמת ביטוח לאומי', date: advDate, days: daysTillAdv, urgent: daysTillAdv <= 5 });
+    deadlines.push({ label: 'מקדמת מס הכנסה',   date: advDate, days: daysTillAdv, urgent: daysTillAdv <= 5 });
   }
   return deadlines;
 }
